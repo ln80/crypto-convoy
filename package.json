@@ -1,0 +1,47 @@
+{
+  "name": "crypto-convoy",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end encryption primitives for Convoy (extractable, to be open-sourced).",
+  "type": "module",
+  "main": "./dist/crypto-convoy.cjs",
+  "module": "./dist/crypto-convoy.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/crypto-convoy.js",
+      "require": "./dist/crypto-convoy.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "test": "vitest run --project unit --project properties --project security --project compatibility",
+    "test:unit": "vitest run --project unit",
+    "test:properties": "vitest run --project properties",
+    "test:security": "vitest run --project security",
+    "test:compatibility": "vitest run --project compatibility",
+    "test:fuzz": "vitest run --project fuzz",
+    "test:all": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@fast-check/vitest": "^0.5.0",
+    "@microsoft/api-extractor": "^7.59.4",
+    "@types/node": "^22.10.1",
+    "fast-check": "^4.10.2",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.4",
+    "vite-plugin-dts": "^5.1.2",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

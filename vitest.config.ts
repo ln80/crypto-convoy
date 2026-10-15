@@ -1,0 +1,45 @@
+import { defineConfig } from "vitest/config";
+
+const node = { environment: "node" as const, passWithNoTests: true };
+
+export default defineConfig({
+  test: {
+    ...node,
+    projects: [
+      { test: { name: "unit", include: ["test/unit/**/*.test.ts"], ...node } },
+      {
+        test: {
+          name: "properties",
+          include: ["test/properties/**/*.test.ts"],
+          testTimeout: 30_000,
+          ...node,
+        },
+      },
+      {
+        test: {
+          name: "security",
+          include: ["test/security/**/*.test.ts"],
+          fileParallelism: false,
+          testTimeout: 30_000,
+          ...node,
+        },
+      },
+      {
+        test: {
+          name: "compatibility",
+          include: ["test/compatibility/**/*.test.ts"],
+          ...node,
+        },
+      },
+      {
+        test: {
+          name: "fuzz",
+          include: ["test/fuzz/**/*.test.ts"],
+          fileParallelism: false,
+          testTimeout: 120_000,
+          ...node,
+        },
+      },
+    ],
+  },
+});
