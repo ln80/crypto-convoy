@@ -1,0 +1,9 @@
+---
+description: "Write or extend the tests for a crypto-convoy security property (SP-xx): adversarial scenarios from its threats with the fake store, exact error assertions, the property's Limit, and proof that each test guards its rule."
+globs:
+alwaysApply: false
+---
+
+Follow this workflow step by step, together with the rules in AGENTS.md.
+
+@.agents/workflows/security-property-tests.md

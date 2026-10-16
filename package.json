@@ -21,6 +21,7 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "check:spec": "node scripts/check-spec.mjs",
     "test": "vitest run --project unit --project properties --project security --project compatibility",
     "test:unit": "vitest run --project unit",
     "test:properties": "vitest run --project properties",

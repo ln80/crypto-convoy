@@ -1,0 +1,7 @@
+---
+description: "How to edit crypto-convoy's specification documents."
+globs: docs/**
+alwaysApply: false
+---
+
+@.agents/guides/spec-docs.md

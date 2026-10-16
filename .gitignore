@@ -9,3 +9,6 @@ test/fuzz/corpus/
 .idea/
 .vscode/
 *.tgz
+
+# Private learning notes
+.learning/

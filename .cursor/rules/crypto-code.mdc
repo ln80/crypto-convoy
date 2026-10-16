@@ -1,0 +1,8 @@
+---
+description: "Cryptographic implementation rules and architecture for crypto-convoy library code."
+globs: src/**/*.ts
+alwaysApply: false
+---
+
+@.agents/guides/crypto-rules.md
+@.agents/guides/architecture.md

@@ -1,0 +1,9 @@
+---
+description: "Add a new algorithm suite (new AEAD, post-quantum or hybrid key exchange, new signature scheme) to crypto-convoy with a decision entry, registry, frozen vectors, cohabitation tests and a two-release rollout."
+globs:
+alwaysApply: false
+---
+
+Follow this workflow step by step, together with the rules in AGENTS.md.
+
+@.agents/workflows/add-algorithm-suite.md

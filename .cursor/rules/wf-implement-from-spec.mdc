@@ -1,0 +1,9 @@
+---
+description: "Implement a record, building block or operation from docs/protocol.md in crypto-convoy: vectors first, validation order, suite registry, security tests for every property it serves. Use when writing library code from the spec."
+globs:
+alwaysApply: false
+---
+
+Follow this workflow step by step, together with the rules in AGENTS.md.
+
+@.agents/workflows/implement-from-spec.md
