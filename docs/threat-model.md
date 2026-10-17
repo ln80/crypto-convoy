@@ -96,6 +96,8 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-36 | Session thief destroys the account | A11 | Mitigated: soft delete with a restore window (server contract) |
 | TH-37 | Session thief injects member keys | A11 | Partly mitigated: AS-06, continuity hint (SP-12); residual accepted |
 | TH-38 | Split view: two records for one version | A6 with A2 | Accepted (needs key transparency) |
+| TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
+| TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
 
 ---
 
@@ -306,7 +308,7 @@ Attack: script injected in team A's page tries to reach the user's keys for team
 
 Impact: every team of the user, from one injection point.
 
-Disposition: mitigated by SP-02. A team session receives only that team's keys. The protection is as strong as the integration's isolation between the vault and team sessions ([Key custody](scope.md#key-custody)).
+Disposition: mitigated by SP-02. A team session receives only that team's keys, directly or through a sealed transfer (TH-39). The protection is as strong as the integration's isolation between the vault and team sessions ([Key custody](scope.md#key-custody)).
 
 ### TH-20: Injected script in the account vault
 
@@ -508,3 +510,24 @@ Attack: the owner key signs two different records for the same version, and the 
 Impact: members are silently split; each group may admit members or rotate without the other knowing.
 
 Disposition: accepted. It needs both an owner key and the server: an honest server stores one record per version (write-once). Members on different branches can't open each other's new items, so the split surfaces as failures. A full fix needs a verifiable, append-only directory that every client checks (key transparency), which is out of v1.
+
+### TH-39: A team's keys reach the wrong context
+
+Actor: injected script (A9) in another page or context, or anyone on the channel between contexts (A3).
+
+Attack: when the vault and team sessions run in separate contexts, the attacker reads one team's member keys in transit, replays a transfer captured earlier, or asks the vault for the keys of a team it shouldn't reach.
+
+Impact: that team's keys, in a context the integration didn't intend.
+
+Disposition: mitigated by SP-02. A transfer is sealed to an ephemeral receiver created in the receiving context, names its account and team inside the box, and opens once: reading or replaying it gives nothing (§3.8). Which context may ask for which team is the integration's decision, as is the channel (D-29); a vault that exports to any requester gives away what it exports.
+
+### TH-40: The server confirms a stored file from its reference
+
+Actor: the server or a database thief (A2, A1) holding a candidate file.
+
+Attack: the integration sends its server a reference for each part, for deduplication or as an attachment id. If the reference is a plain hash of the content, anyone with a candidate file computes its hash and checks whether it was stored, and sees which items share a file.
+
+Impact: confirmation of a file's presence, and links between items, without decrypting anything.
+
+Disposition: mitigated by SP-21 for references made with `partRef` (D-28). Values the integration computes from plaintext by other means stay its responsibility ([scope.md](scope.md#what-the-integration-does)).
+

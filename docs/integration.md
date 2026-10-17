@@ -4,7 +4,7 @@
 
 ## Role
 
-Answers: **how does an integration implement the four interfaces and the server rules, in any backend?**
+Answers: **how does an integration implement the four interfaces and the server rules, in any backend, and where does its own content pipeline plug in?**
 
 The library calls the outside world only through `RecordStore`, `OprfService`, `LocalKeyStore` and `Clock` (protocol §12). This page turns the [server contract](scope.md#server-contract) and protocol §11 into a checklist for a backend in any language. The testing kit's `MemoryRecordStore` (D-24) applies every rule below and is the reference when in doubt; `test/unit/memory-store.test.ts` lists the cases a server must pass.
 
@@ -12,7 +12,9 @@ The library calls the outside world only through `RecordStore`, `OprfService`, `
 
 Backend engineers implementing the server side; integrators writing the client adapters.
 
-## RecordStore
+## RecordStore: the key store
+
+`RecordStore` holds key records only (D-25). Content (item parts, submissions) is the integration's: see [Content](#content).
 
 ### Storage keys
 
@@ -28,16 +30,14 @@ Each record is stored under its identity (§11). A natural key, in identity orde
 | `grant` | team, account, member keys version, team key version |
 | `item` | team, item |
 | `inbox` | team, inbox |
-| `submission` | team, inbox, submission |
-| Item part, submission part | the parent's key, then the part index |
 
 Store the record's JSON as the library sent it. Refuse a record whose identity fields differ from the key it is written under.
 
 ### Reads
 
-- `get` returns the stored JSON or `null`; `getPart` the bytes or `null`. An optional `getPartStream` serves large parts in chunks.
+- `get` returns the stored JSON or `null`.
 - `list` supports the queries of protocol §12, results in identity order (versions ascending).
-- Private records (`account-key-wrap`, `member-keys-wrap`, `team-state`) are served only to their account (rule 1). Everything else is readable by the team's members; parts and records reached from a share or inbox link may be served without an account.
+- Private records (`account-key-wrap`, `member-keys-wrap`, `team-state`) are served only to their account (rule 1). Everything else is readable by the team's members. A shared item's `item` record must also reach the people who open its link: through the key store, or through the integration's own content API, as it prefers (§7.3).
 
 ### Writes
 
@@ -48,12 +48,25 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | `create` | No live record under that key (write-once, rule 3) |
 | `create` of `team-key-version` | Version = current + 1, and the same batch creates the signer's grant for it (§11) |
 | `create` of `grant`, `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6) |
-| `create-part` | The parent record exists, or is created in the same batch |
 | `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4) |
 | `delete` | A soft delete: stop serving, keep for the restore window (rule 7, TH-36) |
 | `set-account-key-version` | The current version equals `expected`; then stop serving every wrap of the old version (rule 7) |
 
 The client reports a refused condition by throwing the library's `StoreConflictError`. Anything else it throws becomes `STORE_ERROR`. Defence in depth (rule 8): also check that the signer and owners of a new team key version hold the matching role in your product.
+
+## Content
+
+The library produces content and takes it back; the integration stores and serves it (protocol §7):
+
+- **Creating an item:** start a draft, add each part (buffered or as chunks) and store each ciphertext with your own upload pipeline, then seal the draft with the item's id: that stores the `item` record in the key store. Your server can assign the id after the first part is encrypted (D-26).
+- **Submissions:** the same draft flow on the sender's side; sealing returns the `submission` record, which you store with its parts.
+- **Reading:** open the record, then give each part's ciphertext when it is needed, buffered or streamed.
+- **Recommended rules for your content storage:** write-once parts and submissions; an item isn't shown until its `item` record exists; parts of drafts never sealed are deleted after a while (they open with no key).
+- **File checks and deduplication** (type, size, content sniffing) run on the plaintext before encryption, in your code. To send your server a reference for a part, use `partRef`, never a plain hash of the content (D-28, TH-40).
+
+## Key custody across contexts
+
+If the vault and team sessions run in different contexts (D-29), carry the transfer request and the transfer over your own channel, and decide which context may receive which team, for example from the requesting page's origin and the signed-in session. The library seals and opens; it never chooses who may ask (§3.8).
 
 ## OprfService
 

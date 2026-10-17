@@ -22,6 +22,8 @@ export const LABELS = [
   "inbox-key",
   "submission",
   "submission-part",
+  "part-ref",
+  "team-keys-transfer",
   "local-device-key",
   "local-account-version",
   "local-anchor",

@@ -46,6 +46,7 @@ Developers, testers, reviewers, auditors.
 | SP-18 | Invalid input fails before crypto, and decryption never returns partial data |
 | SP-19 | Recovering an account requires authorized material |
 | SP-20 | Keys can be verified out of band (deferred, D-11) |
+| SP-21 | A part reference reveals nothing without the item key |
 
 ---
 
@@ -66,14 +67,18 @@ Related threats: TH-01, TH-29.
 
 ### SP-02: A team session only holds its own team's keys
 
-Property: the account vault gives a team session only the keys of the team it asked for. A team session never receives the account key or another team's keys, and one team's keys can't decrypt another team's records.
+Property: the account vault gives a team session only the keys of the team it asked for. A team session never receives the account key or another team's keys, and one team's keys can't decrypt another team's records. When the two run in separate contexts, a team's keys travel only sealed to the receiver created in the receiving context, bound to the account and the team: no other receiver opens them, they open only once, and a transfer for another account or team is refused.
+
+Limit: which context may receive which team is the integration's decision (D-29). The vault exports to whoever the integration lets ask.
 
 Assumptions: AS-01. The integration isolates the vault from team sessions ([Key custody](scope.md#key-custody)).
 
 Verification:
 - `test/security/team-isolation.test.ts`: open team A, then try to decrypt team B's records and to obtain the account key through the team session API.
+- `test/security/key-transfer.test.ts`: open a transfer with another receiver, twice with the same receiver, for another team or account, and after tampering; check that the transfer contains no account key.
+- `test/vectors/transfer.v1.json`.
 
-Related threats: TH-19.
+Related threats: TH-19, TH-39.
 
 ### SP-06: A removed member can't open items encrypted after a rotation
 
@@ -107,7 +112,7 @@ Related threats: TH-21, TH-22.
 
 ### SP-03: Encrypted data can't be modified or moved undetected
 
-Property: every ciphertext uses authenticated encryption bound to its context: team, item (or inbox and submission), part, and key version where one applies. Each item and submission lists its parts (D-16), so a part can't be swapped, dropped, added or reordered without opening failing. Changing any byte, or presenting the ciphertext under another context, makes decryption fail.
+Property: every ciphertext uses authenticated encryption bound to its context. Key records bind their team, item (or inbox and submission) and key version. Each part binds its index and is encrypted under its own item's (or submission's) random key; the key record lists every part's index, size and ciphertext hash (D-16, D-26). So a part can't be swapped, dropped, added, reordered or moved to another item without opening failing, and a key record moved to another id fails to open. Changing any byte makes decryption fail.
 
 Assumptions: AS-01. Nonces are never reused under the same key.
 
@@ -247,14 +252,14 @@ Related threats: TH-11, TH-18.
 
 ### SP-15: Owner and membership changes are visible
 
-Property: every accepted change to the owner list and every newly approved member key is reported by the library to the integration, with the signer and what changed, on every member's client. Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Each owner's key must match that account's published member keys, so a report names the account the key belongs to, unless the server also forges that account's member keys record.
+Property: every accepted change to the owner list and every newly approved member key is reported by the library to the integration, with the signer and what changed, on every member's client. Owners also get each member's access status and the warnings that need their action (members awaiting approval, a rotation needed or interrupted, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Each owner's key must match that account's published member keys, so a report names the account the key belongs to, unless the server also forges that account's member keys record.
 
 Limit: this is detection, not prevention. Someone holding a stolen owner key can admit a member, rotate, and remove the other owners before anyone reads the report. The "granted by a removed owner" list shown during an owner removal is a warning, not a control: a later grant by another owner hides the origin (TH-17).
 
 Assumptions: the integration displays these changes.
 
 Verification:
-- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer.
+- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; member statuses and warnings follow each step.
 
 Related threats: TH-17.
 
@@ -307,3 +312,18 @@ Verification:
 - `test/security/partial-decrypt.test.ts`: truncated streams, missing final chunks, and a part above `maxBufferedSize` (refused before download).
 
 Related threats: TH-25.
+
+### SP-21: A part reference reveals nothing without the item key
+
+Property: a reference made with `partRef` is a keyed hash under a key derived from the item's (or submission's) content key (§3.9). Without that key, nobody can compute the reference of a candidate content, and references of the same content in two items differ.
+
+Limit: within one item, equal contents give equal references: that is what deduplication needs, and the server sees it. Anyone holding the item key (members, link holders) can compute references for that item.
+
+Assumptions: AS-01.
+
+Verification:
+- `test/security/part-ref.test.ts`: same content in two items gives different references; a reference doesn't match any unkeyed hash of the content; equal content within an item gives the same reference.
+- `test/vectors/part-ref.v1.json`.
+
+Related threats: TH-40.
+

@@ -39,9 +39,8 @@ How values are written down, so two implementations produce the same bytes.
 
 | Id | Chosen by | Form |
 | --- | --- | --- |
-| `accountId`, `teamId`, `itemId`, `inboxId` | The integration | Opaque UTF-8 string, 1–128 bytes, no NUL. Unique in its scope (`itemId` and `inboxId` within a team). |
+| `accountId`, `teamId`, `itemId`, `inboxId`, `submissionId` | The integration | Opaque UTF-8 string, 1–128 bytes, no NUL. Unique in its scope (`itemId` and `inboxId` within a team, `submissionId` within an inbox). It may be assigned by the integration's server after the first part is encrypted: ids are bound when a draft is sealed (D-26). |
 | `deviceId` | The library, at registration | 16 random bytes, base64url without padding. |
-| `submissionId` | The library, on the sender's side | 16 random bytes, base64url without padding. |
 | Part `index` | The library | Position of a part in its item or submission, from 0. |
 
 The library never interprets an id; it only binds ids into signatures and associated data so a record can't be moved.
@@ -90,6 +89,8 @@ Every `wrap`, `seal`, `sign`, `stream` and key derivation below encodes `string 
 | `inbox-key` | Wrapping an inbox private key |
 | `submission` | Context inside a submission envelope |
 | `submission-part` | Associated data of a submission part's stream |
+| `part-ref` | Deriving the part reference key (§3.9) |
+| `team-keys-transfer` | Context inside a sealed team key transfer (§3.8) |
 | `local-device-key` | Browser adapter: associated data of a stored device key (§3.7) |
 | `local-account-version` | Browser adapter: associated data of the stored account key version (§3.7) |
 | `local-anchor` | Browser adapter: associated data of a stored team anchor (§3.7) |
@@ -157,6 +158,7 @@ The client checks these before any work, so a server can't weaken the PIN hashin
 | Argon2id `opslimit` | 3 (setting) | from the setting's minimum (default 3) to 10 | 2 |
 | Argon2id `memlimit` | 256 MiB (setting) | from the setting's minimum (default 256 MiB) to 1 GiB | 64 MiB |
 | Owners in a team key version | — | 1–64 | — |
+| Member key bundles in a transfer | — | 1–64 | — |
 | Parts in an item or submission | — | 1–128 |
 | Id length | — | 1–128 bytes |
 | `meta` per part | — | 0–4096 bytes |
@@ -251,11 +253,30 @@ Each value is stored as `iv (12 random bytes) ‖ AES-GCM(value, ad)`:
 
 A value that fails to decrypt is an error, never silently discarded: discarding an anchor would send the device back to first-contact trust (SP-07).
 
+### 3.8 Moving a team's keys between contexts
+
+When the account vault and a team session run in separate contexts (D-29), one team's member keys move from the first to the second sealed to a receiver. A transfer is never stored.
+
+1. **Receiver.** The receiving context creates a receiver for an expected `accountId` and `teamId`: an X25519 key pair from `randombytes_buf`, kept in memory. The **transfer request** is `"1"` followed by its public key in base64url without padding, as a link value (§3.5).
+2. **Export.** The vault opens the account's member keys bundles for the team (§5.8) and returns the **transfer**: `"1"` followed by `seal(receiverPublicKey, "team-keys-transfer", accountId, teamId, body)` in base64url without padding, where `body` = `enc(list<u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, bytes teamStateKey>)`, newest `memberKeysVersion` first, 1–64 entries. The vault refuses a request that isn't a valid link value or carries a low-order key (§2), with `MALFORMED_RECORD`.
+3. **Open.** The receiver checks the prefix (else `UNSUPPORTED_VERSION`), opens the box with the expected `accountId` and `teamId` (§3.2; any failure, including a second use, is `DECRYPTION_FAILED`), then wipes its secret key: a receiver opens one transfer. It refuses a list out of order or with a key of the wrong size (`MALFORMED_RECORD`), and checks each bundle against the published `member-keys` record of its version (§4.3), else `TRUST_FAILURE` (`key_mismatch`).
+
+Which context may ask for which team, and the channel the two values travel on, are the integration's (D-29).
+
+### 3.9 Part references
+
+A keyed reference for a part's plaintext, which the integration may send to its server, for example to deduplicate or to name an attachment (D-28).
+
+- `refKey` = keyed BLAKE2b-256(key = `contentKey`, message = `enc(string label("part-ref"))`), where `contentKey` is the item key or the submission's content key.
+- `partRef(content)` = keyed BLAKE2b-256(key = `refKey`, message = `content`), in base64url without padding. The content is hashed as is, incrementally for a stream: the derived key separates this use from every other.
+
+A reference is never stored by the library and never checked by readers: it's a convenience for the integration (SP-21).
+
 ---
 
 ## 4. Records
 
-Each record lists its fields, how it is protected, and what a reader checks. "Context" means the values bound into associated data or a signature. Field names follow one convention: a `wrap` output is called `wrapped…`, a `seal` output `sealed…`.
+Each record lists its fields, how it is protected, and what a reader checks. Key records live in the key store behind `RecordStore`; item parts and submissions are content, which the integration stores (D-25). "Context" means the values bound into associated data or a signature. Field names follow one convention: a `wrap` output is called `wrapped…`, a `seal` output `sealed…`.
 
 ### Catalogue
 
@@ -268,9 +289,9 @@ Each record lists its fields, how it is protected, and what a reader checks. "Co
 | `team-key-version` | An owner | Team members | Owner signature, hash chain, `wrap` link | Write-once; current + 1; atomic with the signer's grant |
 | `grant` | An owner | The member (and owners) | Owner signature, `seal` | Write-once; current version only |
 | `item` | A member | Members, link holders | `wrap` under the team key and the item key | Write-once; current version only |
-| Item part | A member | Members, link holders | `stream` under the item key | Write-once; after or with its `item` |
+| Item part (content) | A member | Members, link holders | `stream` under the item key | Stored by the integration (D-25) |
 | `inbox` | A member | Members | `wrap` under the team key | Write-once; current version only |
-| `submission` and its parts | An outside sender | Members | `seal` to the inbox key, `stream` | Write-once |
+| `submission` and its parts (content) | An outside sender | Members | `seal` to the inbox key, `stream` | Stored by the integration (D-25) |
 
 ### 4.1 `account-key-wrap`
 
@@ -417,7 +438,9 @@ Reader checks: manifest indexes are 0, 1, … in order, with 1–128 parts; each
 
 ### 4.8 Item part
 
-One part of an item, as raw binary: `stream(itemKey, "item-part", teamId, itemId, u32 index, plaintext)`.
+One part of an item, as raw binary: `stream(itemKey, "item-part", u32 index, plaintext)`.
+
+The part binds only its index: it is tied to its item by the item's own key and by the manifest, which lists its size and ciphertext hash; the item's ids are bound in the `item` record (D-26).
 
 Reader checks: the ciphertext's size and hash equal the manifest entry for `index`, then the stream decrypts (§3.4).
 
@@ -445,12 +468,12 @@ A sealed submission to an inbox, and its parts.
 | Field | Type |
 | --- | --- |
 | `teamId`, `inboxId` | string |
-| `submissionId` | string |
+| `submissionId` | string, chosen by the integration (§1) |
 | `sealedEnvelope` | bytes |
 
 Protection:
 - `sealedEnvelope = seal(inboxPublicKey, "submission", teamId, inboxId, submissionId, body)`, where `body` = `enc(bytes contentKey, u64 createdAt, list<u32 index, u64 ciphertextSize, bytes ciphertextHash, bytes meta>)`.
-- Each part is `stream(contentKey, "submission-part", teamId, inboxId, submissionId, u32 index, plaintext)`.
+- Each part is `stream(contentKey, "submission-part", u32 index, plaintext)`. As for items, a part binds only its index; the envelope binds the ids and lists every part (D-26).
 
 Every submission uses a fresh `contentKey`, even a short text (D-14).
 
@@ -528,14 +551,14 @@ Rotation retires the account key only. Member keys are unchanged, so anyone who 
 
 1. The vault fetches the `member-keys-wrap` for `teamId` at the current account key version and unwraps it.
 2. It checks the bundle against the `member-keys` record (§4.3).
-3. It hands the bundle to the team session. The `accountKey` never leaves the vault (SP-02).
+3. It hands the bundle to the team session, directly in the same context, or as a sealed transfer to a receiver in another context (§3.8). The `accountKey` never leaves the vault (SP-02).
 
 ### 5.9 Creating member keys, leaving a team, deleting an account
 
 Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so it runs in the vault:
 
 - **Create member keys** (when creating or joining a team, and when re-keying): generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record; store the `member-keys-wrap`. Then open the team (§5.8).
-- **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is the only owner in the newest version of the team key chain: another owner must be added first (§6.7). The member's keys and grants stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
+- **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is the only owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): another owner must be added first (§6.7). The member's keys and grants stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
 - **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is the only owner of a team, for the same reason as above (TH-18).
 
 ---
@@ -617,52 +640,58 @@ The new grant gives the member the current version, and the chain gives every ea
 
 ## 7. Content operations
 
-What a team session (and, for links and inboxes, an outside client) does with content. The application passes plaintext and `meta` and gets plaintext and `meta` back; it never sees `itemKey`, `contentKey` or a team key (D-15).
+What a team session (and, for links and inboxes, an outside client) does with content. The application passes plaintext and `meta` and gets ciphertext to store; it passes ciphertext and gets plaintext and `meta` back. It never sees `itemKey`, `contentKey` or a team key (D-15). Where parts and submissions are stored is the integration's choice (D-25); the key records `item` and `inbox` go to the key store.
 
 ### 7.1 Creating an item
 
-Input: `itemId` and a list of parts, each with content and an optional `meta`.
+Creation is a draft, sealed last (D-27), so the integration can upload each part as it is encrypted and keep a large file out of memory.
 
-1. Check the access state is `ready` (§9). Otherwise `NOT_GRANTED` or `STALE_VERSION`.
-2. Generate `itemKey`.
-3. For each part i: `stream(itemKey, "item-part", teamId, itemId, u32 i, content)`, then record its size and hash.
-4. Build the manifest and the `item` record under the current version n (§4.7).
-5. Return the record and the part ciphertexts. The integration must store the record **before or together with** the parts, so content never exists without its key.
+1. **Start.** Check the access state is `ready` (§9), else `NOT_GRANTED`. Generate `itemKey`. No id is needed yet.
+2. **Add parts,** in order, i = 0, 1, …: `stream(itemKey, "item-part", u32 i, content)` (§4.8), either buffered (the content in, the ciphertext out) or streamed (chunks in, ciphertext chunks out). The draft records each part's size, ciphertext hash and `meta`. The integration stores each ciphertext where it wants, before the item is sealed.
+3. **References** (optional): `partRef(content)` for any part (§3.9).
+4. **Seal** with the `itemId`. Check the access state is still `ready`. Build the manifest and the `item` record (§4.7) under the current version n at sealing, which may be newer than at the start: the parts don't depend on it. Store the `item` record in the key store. The draft is then closed and its key wiped.
+
+The item exists, for readers, once its `item` record is stored. Parts of a draft never sealed open with no key; deleting them is the integration's job (D-27).
 
 ### 7.2 Opening an item (member)
 
-1. Fetch and check the `item` record (§8).
-2. Open `teamKey_n` (§6.1, §6.2), unwrap `wrappedItemKey`, unwrap `wrappedManifest`.
-3. For each part: check its manifest size against `maxBufferedSize` (§3.4), fetch, check size and hash, decrypt (§4.8). A part the server doesn't return is `DECRYPTION_FAILED`: the item is incomplete.
+1. Fetch and check the `item` record from the key store (§8).
+2. Open `teamKey_n` (§6.1, §6.2), unwrap `wrappedItemKey`, unwrap `wrappedManifest`. The result is an opened item: each part's index, `meta` and size.
+3. **Open a part on demand,** with the ciphertext the integration fetched from its storage:
+   - buffered: refuse with `MALFORMED_RECORD`, before the integration downloads it, a part whose manifest size exceeds `maxBufferedSize` (§3.4); check its size and hash, then decrypt (§4.8);
+   - streamed: decrypt the chunks as they come; the stream ends with `DECRYPTION_FAILED` if it is incomplete or doesn't match the manifest (SP-18).
+
+A ciphertext that doesn't match its manifest entry, or a part the integration can't produce, is `DECRYPTION_FAILED`: the item is incomplete.
 
 ### 7.3 Sharing an item by link
 
 - **Create:** a member opens the item key (§7.2 steps 1–2) and gets `encodeLinkKey(itemKey)`. The integration builds the link with `teamId` and `itemId` in the path and the key in the fragment, and handles it with the share-link checklist ([scope.md](scope.md#what-the-integration-does), D-22). A link sent by the integration's server exposes the key to that server (TH-23).
-- **Open:** the recipient's client decodes the key (§3.5; `takeLinkKey()` in a browser), fetches the `item` record and parts, unwraps `wrappedManifest` with the key, then checks and decrypts each part. The recipient can't check `createdBy` or the team key version; they get integrity of the content and manifest only.
+- **Open:** the recipient's client decodes the key (§3.5; `takeLinkKey()` in a browser) and is given the `item` record by the integration, from whatever route it serves it (the key store, or its own content API). It checks the record (§8 steps 1–3), unwraps `wrappedManifest` with the key, and opens parts on demand as in §7.2 step 3. The recipient can't check `createdBy` or the team key version; they get integrity of the content and manifest only.
 
 ### 7.4 Creating an inbox
 
 1. Check the access state is `ready`.
-2. Generate an X25519 key pair. Create the `inbox` record under the current version (§4.9).
-3. Return the record and `encodeLinkKey(publicKey)`. The integration builds the link with `teamId` and `inboxId` in the path and the public key in the fragment.
+2. Generate an X25519 key pair. Create the `inbox` record under the current version (§4.9) and store it in the key store.
+3. Return `encodeLinkKey(publicKey)`. The integration builds the link with `teamId` and `inboxId` in the path and the public key in the fragment.
 
 **Replacing an inbox.** An inbox keeps its key pair for life, so a member removed later can still open submissions sent to it, if they also obtain the ciphertexts (TH-30, D-20). Replacing an inbox creates a new key pair under the current team key version, with a new link; the old link stops being usable for new submissions once the integration retires it. When to replace is the integration's decision.
 
 ### 7.5 Submitting to an inbox (sender)
 
-1. Decode the public key from the link (§3.5).
-2. Generate `submissionId` and `contentKey`.
-3. Encrypt each part with `stream(contentKey, "submission-part", …)` and record its size and hash.
-4. Seal the envelope (§4.10) to the public key **from the link** (SP-14).
-5. Return the `submission` record and the parts for the integration to send.
+A submission is a draft too (D-27).
+
+1. **Start:** decode the public key from the link (§3.5) and generate `contentKey`. No id is needed yet.
+2. **Add parts,** in order: `stream(contentKey, "submission-part", u32 i, content)`, buffered or streamed; the draft records sizes, hashes and `meta`. The integration uploads each ciphertext.
+3. **References** (optional): `partRef(content)` (§3.9).
+4. **Seal** with the `submissionId` the integration chose (§1): seal the envelope (§4.10) to the public key **from the link** (SP-14), and return the `submission` record. The integration stores it with the parts.
 
 If the integration's page fetches the inbox public key from its server instead of reading it from the link, the server chooses the key (TH-21).
 
 ### 7.6 Opening a submission (member)
 
-1. Fetch the `inbox` record, open `teamKey_n`, unwrap the inbox secret key and check it against `publicKey` (§4.9).
-2. Open the envelope with the expected context (§4.10).
-3. For each part: check size and hash, decrypt.
+1. Fetch the `inbox` record from the key store, open `teamKey_n`, unwrap the inbox secret key and check it against `publicKey` (§4.9).
+2. Check the `submission` record the integration gives (§8) and open the envelope with the expected context (§4.10). The result is an opened submission: `createdAt`, and each part's index, `meta` and size.
+3. Open each part on demand, as in §7.2 step 3.
 
 ---
 
@@ -730,7 +759,7 @@ How the protocol changes without breaking stored data.
 
 ## 11. Server rules per record
 
-The [server contract](scope.md#server-contract) applied to each record.
+The [server contract](scope.md#server-contract) applied to each key record. Content (item parts, submissions) isn't covered (D-25): see the note below the table.
 
 | Record | Identity on the server | Rule |
 | --- | --- | --- |
@@ -738,14 +767,14 @@ The [server contract](scope.md#server-contract) applied to each record.
 | `member-keys` | team, account, memberKeysVersion | Write-once. Readable by the team's members. |
 | `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Deleted with its account key version. |
 | `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. |
-| `team-key-version` | team, version | Write-once; version must be current + 1; stored atomically with its signer's grant, which makes it current. The signer and the listed owners must hold the matching role in the product (defence in depth). |
+| `team-key-version` | team, version | Write-once; version must be current + 1; stored atomically with its signer's grant, which makes it current. The signer and the listed owners must hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30). |
 | `grant` | team, account, memberKeysVersion, teamKeyVersion | Write-once; `teamKeyVersion` must be current (defence in depth: grants of older versions serve no honest purpose, TH-33). |
-| `item` | team, item | Write-once; `teamKeyVersion` must be current. |
-| Item part | team, item, index | Write-once; accepted only after (or with) the `item` record. |
-| `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. |
-| `submission` and its parts | team, inbox, submission | Write-once. |
+| `item` | team, item | Write-once; `teamKeyVersion` must be current. Readable by the team's members, and by whoever the integration lets open the item's links, by the route it chooses. |
+| `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. Readable by the team's members. |
 | Team creation | — | Version 1 and the creator's grant in one atomic batch. |
 | OPRF evaluation | account | Per-account key. One total budget per account across `unlock` and `enroll`; the purposes may only split it. |
+
+**Content, stored by the integration.** Item parts (team, item, index), submission records and their parts (team, inbox, submission, index) are checked by readers against their key record or envelope, wherever they are stored. Recommended, not relied on: keep them write-once, and don't present an item until its `item` record is stored. Parts of a draft never sealed (§7.1) open with no key and can be deleted.
 
 ---
 
@@ -756,7 +785,8 @@ How the operations above surface to developers. Names are indicative; the exact 
 Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyError` carrying its `code` and, for `TRUST_FAILURE`, its `reason` (D-23). "Throws X" below names such a code.
 
 ```ts
-// Account vault: holds the account key; anything that wraps member keys runs here.
+// Account vault: holds the account key; only what needs it runs here (scope, "Key custody").
+vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered }
 vault.setup(pin)                          → { recoveryPhrase }
 vault.unlock()                            // device; throws DEVICE_NOT_REGISTERED
 vault.unlockWithPin(pin)                  // upgrades an outdated PIN wrap (§5.4)
@@ -766,33 +796,47 @@ vault.replaceRecoveryPhrase()             → { recoveryPhrase }
 vault.listDevices()                       → deviceId[]
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
 vault.rotate({ pin, phrase? })            → { recoveryPhrase? }
-vault.createTeam(teamId)                  → TeamSession   // creator is the first owner
-vault.joinTeam(teamId, { anchor? })       → TeamSession   // "pending" until granted; anchor from the invite link
-vault.rekey(teamId)                       → TeamSession   // new member keys; an owner approves them by rotating
-vault.openTeam(teamId)                    → TeamSession
+vault.createTeam(teamId)                  // creator is the first owner
+vault.joinTeam(teamId, { anchor? })       // "pending" until granted; anchor from the invite link
+vault.rekey(teamId)                       // new member keys; an owner approves them by rotating
 vault.leaveTeam(teamId)                   // throws LAST_OWNER for the only owner
+vault.openTeam(teamId)                    → TeamSession   // same context
+vault.exportTeamKeys(teamId, request)     → transfer      // another context (§3.8)
+
+// Receiving context (split layouts): one receiver per transfer.
+createTeamKeyReceiver(accountId, teamId)  → { request, openTeam(ports, transfer) → TeamSession }
 
 // Team session: one team's keys.
 team.state                                // "not-joined" | "pending" | "ready" | "unverified"
-team.grant(accountId)
+team.memberStatuses(accountIds)           → per account: "no-keys" | "awaiting-approval" | "approved"
+                                          //   | "outdated" | "rekey-awaiting-approval" (+ continuity hint)
+team.warnings(activeAccountIds)           → single owner, members awaiting approval,
+                                          //   rotation needed, rotation interrupted
+team.memberRequest(accountId)             → { memberKeysVersion, continuity }
+team.grant(accountId, memberKeysVersion)  // the keys the owner confirmed
 team.members()                            → grants of the current version, with signer
 team.inviteAnchor()                       → string        // for an invite link's fragment
-team.needsRotation(activeAccountIds)      → boolean
 team.rotate({ keep, approveRekeys? })     // keep: accounts that receive the new version
+team.completeRotation({ keep })           // resume an interrupted rotation (§6.6 step 7)
 team.setOwners(owners, { keep })          // always a rotation with the new owner list
-team.createItem(itemId, parts)            → { record, parts }
-team.openItem(itemId)                     → parts (plaintext + meta), buffered
-team.openItemStream(itemId, index)        → authenticated chunks (opt-in)
+team.beginItem()                          → draft         // §7.1
+draft.addPart(content | chunks, { meta? }) → ciphertext | ciphertext chunks
+draft.partRef(content)                    → string        // §3.9
+draft.seal(itemId)                        // stores the item record in the key store
+team.openItem(itemId)                     → opened: parts' meta and sizes
+opened.part(index, ciphertext | chunks)   → plaintext | authenticated chunks
 team.shareLinkKey(itemId)                 → string
-team.createInbox(inboxId)                 → { record, linkKey }
-team.replaceInbox(inboxId, newInboxId)    → { record, linkKey }
-team.openSubmission(inboxId, submissionId) → parts
+team.createInbox(inboxId)                 → { linkKey }
+team.replaceInbox(inboxId, newInboxId)    → { linkKey }
+team.openSubmission(inboxId, submission)  → opened: createdAt, parts' meta and sizes
 
-// Outside the team: no account needed. teamId and itemId/inboxId come from the
+// Outside the team: no account and no store. teamId and itemId/inboxId come from the
 // link's path, linkKey from its fragment (takeLinkKey() in a browser).
-openSharedItem(linkKey, teamId, itemId)   → parts
-submitToInbox(linkKey, teamId, inboxId, parts) → { record, parts }
+openSharedItem(linkKey, teamId, itemId, itemRecord) → opened
+beginSubmission(linkKey, teamId, inboxId) → draft         // seal(submissionId) → submission record
 ```
+
+Every argument and result of the vault's operations is plain data (strings, numbers, byte arrays, plain objects), so an integration can carry them over its own channel between contexts.
 
 The integration implements `RecordStore`, `OprfService`, `LocalKeyStore` and `Clock` ([scope.md](scope.md#interfaces-the-integration-provides)).
 
@@ -800,21 +844,20 @@ The integration implements `RecordStore`, `OprfService`, `LocalKeyStore` and `Cl
 
 What the library expects from each interface. A conforming server enforces the rules of §11 behind `RecordStore`; the library never relies on it for confidentiality or authenticity.
 
-**`RecordStore`.** Records are addressed by their §11 identity (a *record key*: the record type and its identity fields). Item and submission parts are addressed the same way, with their `index`, and carry raw bytes.
+**`RecordStore`** is the key store: key records only (D-25). Records are addressed by their §11 identity (a *record key*: the record type and its identity fields). Content never goes through it.
 
 | Method | Contract |
 | --- | --- |
 | `get(key)` | The record (a JSON value, parsed by the library) or `null`. |
-| `getPart(key)` | The part's bytes or `null`. |
 | `list(query)` | The records matching a query, in identity order: an account's wraps at one account key version, its member keys wraps at one version, a team's team key versions from a given version, a team's member keys records (optionally of one account), grants of a team (optionally of one version, account or member keys version). |
 | `getAccountKeyVersion(accountId)` | The current account key version, or `null` for an account that was never set up. |
-| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record or part), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none), `delete`, and `setAccountKeyVersion` (with the expected current version). |
+| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none), `delete`, and `setAccountKeyVersion` (with the expected current version). |
 
 A write that a server rule refuses (write-once, current version, compare-and-set, ordering) is reported by throwing the library's `StoreConflictError`: the library turns it into `STALE_VERSION`, or reloads and retries for a `team-state` (§6.1 step 7). Any other failure is `STORE_ERROR`. Private records (§11) are served only to their account: the integration authenticates the caller, the library never sees how.
 
 **`OprfService`.** `evaluate(accountId, blindedElement, oprfKeyId, purpose)` returns the evaluated element (§5.1); a refusal by the rate limit is reported by throwing `RateLimitedError`, which the library turns into `PIN_RATE_LIMITED`. `currentKeyId(accountId)` returns the server's current `oprfKeyId`, for enrolment and the upgrade on unlock (§5.4).
 
-**`LocalKeyStore`.** Keeps, on this device: per account, the device key and `deviceId`, and the highest account key version accepted (SP-07); per account and team, the anchor (version, record hash). Values that can't be read back are errors, never an empty result (§3.7).
+**`LocalKeyStore`.** Keeps, on this device: per account, the device key and `deviceId`, and the highest account key version accepted (SP-07), used by the vault; per account and team, the anchor (version, record hash), used by team sessions. In a split layout, each context implements the half it uses. Values that can't be read back are errors, never an empty result (§3.7).
 
 **`Clock`.** `now()` returns Unix seconds (§1).
 
@@ -824,7 +867,7 @@ A write that a server rule refuses (write-once, current version, compare-and-set
 
 ## 13. Test vectors
 
-Frozen JSON files under `test/vectors/`, each with inputs (including fixed random values), intermediate values and outputs. A change to a released vector means stored data would break.
+Frozen JSON files under `test/vectors/`, each with inputs (including fixed random values), intermediate values and outputs. A change to a released vector means stored data would break. Protocol v1 isn't released yet: `item.v1.json` and `submission.v1.json` are regenerated for D-26 before the first release, and frozen from then on.
 
 | File | Covers |
 | --- | --- |
@@ -835,9 +878,11 @@ Frozen JSON files under `test/vectors/`, each with inputs (including fixed rando
 | `pin-key.v1.json` | Argon2id, the RFC 9497 vectors, and the final combination |
 | `recovery-key.v1.json` | BIP-39 seed and recovery key |
 | `team-key.v1.json` | Version records and their chain (owners, hashes, links), grants; forks, rollbacks, gaps, owner-rule cases (a removed owner signing a later version or grant), owner keys not matching `member-keys`, and strict Ed25519 edge cases (non-canonical `S`, small-order keys and `R`) |
-| `item.v1.json` | `item` record, manifest, parts |
+| `item.v1.json` | `item` record, manifest, parts bound by index (D-26); parts swapped, moved to another item, dropped |
 | `link.v1.json` | Link values: item keys, inbox public keys and invite anchors, with their version prefix; refused prefixes, lengths and low-order keys |
-| `submission.v1.json` | Envelope and parts |
+| `submission.v1.json` | Envelope and parts bound by index; envelope moved to another inbox or id |
+| `transfer.v1.json` | Team key transfer requests and transfers (§3.8): open, wrong receiver, other account or team, refused prefixes and low-order requests |
+| `part-ref.v1.json` | Part reference key derivation and references (§3.9), for an item key and a submission content key |
 
 ---
 

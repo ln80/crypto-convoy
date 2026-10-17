@@ -14,7 +14,7 @@ Anyone deciding whether to use the library, integrating it, or reviewing it.
 
 ## What the library is
 
-crypto-convoy is a TypeScript library for end-to-end encrypted (E2EE) team storage. A team shares encrypted items through a server that it doesn't trust with their contents. The library:
+crypto-convoy is a TypeScript library for end-to-end encrypted (E2EE) team storage. A team shares encrypted items through a server that it doesn't trust with their contents. The library manages keys and does the cryptography; the integration stores the content (D-25). The library:
 
 - creates and protects each user's keys;
 - shares a team key among members without the server being able to read it or swap it;
@@ -53,9 +53,10 @@ These terms are used the same way in every document.
 3. **Team trust.** Verifies each team's key chain, including who the owners are at each version, and remembers the last record it verified (its anchor), so it detects a forged or rolled-back chain.
 4. **Team key distribution.** Seals each team key version only to member keys an owner approved, and opens a team key only from a grant an owner signed for this member's own keys.
 5. **Team key lifecycle.** Creates, rotates and grants team key versions, and opens earlier versions through the chain of versions.
-6. **Item encryption.** Encrypts items part by part (including large files, as a stream) with authenticated encryption bound to their context. Each item lists its parts, so the server can't modify, swap, drop or reorder them undetected (D-16). The application gets plaintext in and plaintext out; it never handles content keys (D-15).
+6. **Item encryption.** Encrypts items part by part, as drafts sealed last (D-27), including large files as a stream of chunks. Each item's key record lists its parts, so the server can't modify, swap, drop or reorder them undetected (D-16). Opens an item's parts one at a time, on demand. The application gets ciphertext to store and plaintext back; it never handles content keys (D-15). It can get a keyed reference for each part, safe to send to its server (D-28).
 7. **Inboxes and link shares.** Creates inboxes, seals outside submissions to them, opens them for members, and encodes and decodes the keys carried in links.
-8. **Formats.** Defines versioned record formats and canonical encodings, and refuses unknown versions and algorithms. Ships frozen test vectors so other implementations can check their compatibility.
+8. **Status and warnings.** Reports whether the account is set up and unlocked, each team's access state, and, for owners, each member's access and what needs attention: members awaiting approval, a rotation needed or interrupted, a team with a single owner (§12, SP-15).
+9. **Formats.** Defines versioned record formats and canonical encodings, and refuses unknown versions and algorithms. Ships frozen test vectors so other implementations can check their compatibility.
 
 Not in v1: author signatures on items (D-09) and key fingerprints for out-of-band verification (D-11).
 
@@ -65,9 +66,10 @@ The library doesn't do any of the following. The integration owns them:
 
 - **UI:** PIN and recovery dialogs, warnings, notices. A UI framework binding (React or other) can be a separate package; the core never depends on one.
 - **Network and sign-in:** HTTP, tokens, sessions, retries. The library never sees an auth token.
-- **Who belongs to the team, and who should be an owner:** invitations, roles, removal. The library enforces only the cryptographic rules: who signed what.
+- **Who belongs to the team, and who should be an owner:** invitations, roles, removal, and which accounts hold the cryptographic owner role, which needn't match a product role (D-30). The library enforces only the cryptographic rules: who signed what.
+- **Content storage and its pipeline** (D-25): storing and serving item parts, submission envelopes and submission parts; upload sessions, retries and quotas; not presenting an item until its key record is stored; cleaning up parts of drafts never sealed (D-27). Checks on files before encryption (type, size, content sniffing) and deduplication are the integration's too, with `partRef` as the reference it may send (D-28).
 - **Policy:** PIN length and strength rules, PIN hashing cost (above the library's floor, D-17), rate-limit numbers, when to rotate after a member leaves, inbox lifetimes and when to replace an inbox, the largest part the buffered API accepts (`maxBufferedSize`), device inactivity period, the restore window for removed wraps, and whether to guide users through the full remedy after a misused device (D-21). The library takes these as parameters or exposes the operation; the integration decides when to call it.
-- **Isolating key custody:** where the account key lives (iframe, web worker, separate origin, native process). See [Key custody](#key-custody).
+- **Isolating key custody:** where the account key lives (iframe, web worker, separate origin, native process), the channel between contexts, and which context may receive which team's keys. See [Key custody](#key-custody).
 - **Delivering links:** carrying link-share keys and inbox public keys to the people who use them.
 - **Protecting share links** (D-22). A share link is the key to its item. On the page that opens it:
   - read the key from the fragment and remove it at once (`takeLinkKey()` does both in a browser);
@@ -80,7 +82,7 @@ The library doesn't do any of the following. The integration owns them:
 - **What it sends to its own server:** values the integration computes from plaintext (for example file hashes or file names sent in clear) leak content. The library never produces them; the integration must not either.
 - **Presenting timestamps:** record timestamps are chosen by their writer; the integration must not show them as a trusted time (TH-35).
 - **Code delivery:** making sure users run the expected code (reproducible builds, published hashes).
-- **Server side:** storing records and enforcing the [server contract](#server-contract).
+- **Server side:** storing key records and enforcing the [server contract](#server-contract); serving a shared item's key record to the people the integration lets open its link, by whatever route it chooses.
 - **Product events:** audit logs, notifications, cleanup jobs, billing.
 - **Migrating existing data:** moving data from an older encryption scheme to this protocol is the integration's job (D-01).
 
@@ -90,25 +92,28 @@ The library reaches the outside world only through these interfaces. An integrat
 
 | Interface | Job |
 | --- | --- |
-| `RecordStore` | Fetch and publish records. The integration adds authentication and maps calls to its API. |
+| `RecordStore` | Fetch and publish key records (D-25). The integration adds authentication and maps calls to its API. |
 | `OprfService` | Send a blinded PIN value to the server and return the server's evaluation. |
-| `LocalKeyStore` | Keep the device key and each team's anchor (the last team key version record verified) on this device. |
+| `LocalKeyStore` | Keep, on this device, the device key and highest account key version (used by the vault) and each team's anchor, the last team key version record verified (used by team sessions). In a split layout, each context keeps its own half. |
 | `Clock` | Current time, for record timestamps. |
 
 Randomness is not an interface: the library always uses the platform's cryptographically secure random generator (through libsodium).
 
 An optional browser adapter, `crypto-convoy/browser`, implements `LocalKeyStore` with IndexedDB and a non-extractable WebCrypto key (D-08), and offers `takeLinkKey()`, which reads a key from the URL fragment, validates it and removes it from the address bar and history (D-22). It ships with the library but outside the core, which stays platform-neutral (browser, Node, workers).
 
-A testing kit, `crypto-convoy/testing`, provides an in-memory `RecordStore` that applies every server rule of protocol §11, a fake OPRF server, an in-memory `LocalKeyStore` and a fixed clock (D-24). The exact contracts of the four interfaces are in protocol §12.
+A testing kit, `crypto-convoy/testing`, provides an in-memory `RecordStore` that applies every server rule of protocol §11 (key records only), a fake OPRF server, an in-memory `LocalKeyStore` and a fixed clock (D-24). The exact contracts of the four interfaces are in protocol §12.
 
 ## Key custody
 
 The API splits key custody into two roles (D-03):
 
-- **Account vault.** Holds the account key. Unlocks, registers and revokes devices, changes credentials, rotates. Creates, wraps and deletes member keys (creating or joining a team, re-keying, leaving), since that needs the account key. Gives a team session only that team's keys (`openTeam(teamId)`).
-- **Team session.** Does team work (encrypt, decrypt, grant, rotate) with one team's keys. Never receives the account key or another team's keys.
+- **Account vault.** Holds the account key, and does only what needs it: setup, unlock (device, PIN, recovery phrase), registering and revoking devices, changing credentials, rotating the account key, and creating, wrapping and deleting member keys (creating or joining a team, re-keying, leaving). Hands a team session only that team's member keys.
+- **Team session.** Does team work with one team's member keys: verifying the chain, grants, rotations, owner changes, and all content encryption and decryption. Never receives the account key or another team's keys.
 
-The integration decides how far apart these two run. For example, it can run the vault in an iframe on a separate origin and each team session on its own origin, connected by `postMessage`; that connection is integration code. A simpler application can run both roles in the same context: it keeps the API split but loses the isolation, and script injection in the page then reaches every key the account holds.
+The integration decides how far apart these two run:
+
+- **One context.** The vault opens a team session directly (`openTeam(teamId)`). The API split stays, but script injection in the page reaches every key the account holds.
+- **Separate contexts.** For example, the vault in an iframe on its own origin and team sessions in the product's pages. The team's context creates an ephemeral **receiver**; the vault exports one team's member keys **sealed** to it; only that receiver opens them, once (§3.8, D-29). The integration carries these opaque values over its own channel (for example `postMessage`) and decides which context may receive which team. That channel and that decision are integration code: the library supplies the sealing, never the bridge (D-02).
 
 ## Server contract
 
@@ -116,15 +121,17 @@ The library verifies everything it can on its own: signatures, the team key chai
 
 1. **Authenticate callers** and serve an account's private records (account key wraps, member key wraps, team state) only to that account.
 2. **Keep the OPRF key secret, use a separate OPRF key per account, and rate-limit PIN evaluations** with **one total budget per account**, whatever purpose a call declares: every evaluation is a usable PIN guess. This is the only thing standing between a stolen backup and a short PIN.
-3. **Never overwrite write-once records:** team key versions, grants, member key records, `item` records and their parts, inbox records, submissions.
+3. **Never overwrite write-once records:** team key versions, grants, member key records, `item` and `inbox` records.
 4. **Use compare-and-set** for records that change in place (team state), so concurrent writers can't silently undo each other.
 5. **Apply atomic batches** where the protocol requires them: team creation, a new team key version with its signer's grant (this includes every owner change), the switch to a new account key version.
-6. **Accept new items, inboxes and grants only at the current team key version**, and a new team key version only as current + 1.
+6. **Accept new `item` and `inbox` records and grants only at the current team key version**, and a new team key version only as current + 1.
 7. **Stop serving what revocation removes, but keep it for a while:** a revoked device's account key wrap, wraps of a replaced PIN or recovery phrase, and wraps of a retired account key version.
    - The server stops serving them after a short delay at most; until then, the old credential still works.
    - It keeps them for a **restore window** set by the integration, and restores them only through the integration's own support process. Someone holding the user's session could otherwise replace every wrap with garbage and destroy the account (TH-36).
    - The integration may also have the server stop serving a device wrap that hasn't been used for a set period; the device then registers again with the PIN.
-8. **Check that signed changes come from people allowed to make them** (for example, that the owners listed in a new team key version hold the matching role in the product). This is defence in depth: clients check the signatures regardless.
+8. **Check that signed changes come from people allowed to make them** (for example, that the owners listed in a new team key version hold the capability the integration maps to the cryptographic owner role, D-30). This is defence in depth: clients check the signatures regardless.
+
+The contract covers key records only. Content (item parts, submissions) is the integration's (D-25): keeping it write-once and serving an item's parts only once its key record exists is recommended, not relied on, since every part is checked against its key record.
 
 A server that breaks these rules can deny service or weaken PIN protection. It still can't read items or plant keys without clients detecting it, except where [threat-model.md](threat-model.md) records an accepted risk.
 

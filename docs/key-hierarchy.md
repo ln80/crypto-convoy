@@ -166,10 +166,10 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 
 | Attribute | Value |
 | --- | --- |
-| Purpose | Encrypts every part of one item. |
+| Purpose | Encrypts every part of one item. Derives the item's part reference key (SP-21). |
 | Algorithm | 256-bit key for XChaCha20-Poly1305 secretstream (a streaming mode that handles content of any size in chunks). |
-| Generation | Random, inside the library, when the item is created. |
-| Storage | Wrapped by the team key version current at creation, in the item's `item` record. That record also lists the item's parts (the manifest, D-16), authenticated with the wrap. |
+| Generation | Random, inside the library, when an item draft starts (D-27). |
+| Storage | Wrapped by the team key version current when the draft is sealed, in the item's `item` record, a key record in the key store. That record also lists the item's parts (the manifest, D-16), authenticated with the wrap. The parts themselves are content, stored by the integration (D-25). |
 | Access | Members who can open that team key version, and anyone holding a share link to the item. |
 | Rotation | None. Items never change: new content is a new item with a new key, so content written after a rotation never uses a key a removed member could hold. |
 | Recovery | Through the team key. |
@@ -192,14 +192,44 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 
 | Attribute | Value |
 | --- | --- |
-| Purpose | Encrypts every part of one submission (D-14). |
+| Purpose | Encrypts every part of one submission (D-14). Derives the submission's part reference key (SP-21). |
 | Algorithm | 256-bit key for XChaCha20-Poly1305 secretstream. |
-| Generation | Random, inside the library on the sender's side, for each submission. |
-| Storage | Sealed to the inbox public key, inside the submission envelope, together with the submission's list of parts. |
+| Generation | Random, inside the library on the sender's side, when a submission draft starts. |
+| Storage | Sealed to the inbox public key, inside the submission envelope, together with the submission's list of parts. The envelope and parts are content, stored by the integration (D-25). |
 | Access | Whoever can open the inbox private key. The sender holds it only while submitting. |
 | Rotation | None: one key per submission. |
 | Recovery | Through the inbox private key. |
 | Destruction | With the submission. |
+
+### Part reference key
+
+| Attribute | Value |
+| --- | --- |
+| Purpose | Computes `partRef` references, safe to send to the integration's server (D-28). |
+| Algorithm | Keyed BLAKE2b-256, derived from the item key or submission content key with its own label (§3.9). |
+| Generation | Derived when a reference is asked for; one job per key, so the content key itself never hashes content. |
+| Storage | Never stored. |
+| Access | Holders of the item key or content key. |
+| Rotation | None: lives and dies with its item or submission. |
+| Recovery | Re-derived. |
+| Destruction | With its item or submission. |
+
+## Moving a team's keys between contexts
+
+### Transfer receiver key
+
+| Attribute | Value |
+| --- | --- |
+| Purpose | Receives one team's member keys from the vault, when the vault and the team session run in separate contexts (D-29). |
+| Algorithm | X25519 key pair; the transfer is a sealed box (§3.8). |
+| Generation | Random, inside the library, in the receiving context, for one transfer. |
+| Storage | Memory only, in the receiving context; the public half goes to the vault through the integration's channel. |
+| Access | The receiving context. |
+| Rotation | None: one per transfer. |
+| Recovery | None: create another receiver. |
+| Destruction | Wiped once the transfer is opened. |
+
+The account key never takes part: the vault opens the team's member keys bundle and seals it to the receiver. Only that team's keys travel.
 
 ## Signed records and the owner rule
 
@@ -357,13 +387,15 @@ Every record private to the account is deleted: its unlock wraps, its wrapped me
 
 ### Creating and sharing an item
 
-1. The library generates an `itemKey`, encrypts each part, and wraps the key under the current team key version with the list of parts.
-2. To share by link, the library encodes the `itemKey` for the link fragment. The recipient opens that item's parts and nothing else.
+1. A member starts a draft: the library generates an `itemKey`.
+2. Each part is encrypted under it as it is read, buffered or as a stream of chunks, and the integration stores the ciphertext where it wants (D-25, D-27).
+3. The member seals the draft with the item's id: the library wraps the `itemKey` under the current team key version, with the list of parts, and stores that key record. The record makes the parts openable.
+4. To share by link, the library encodes the `itemKey` for the link fragment. The recipient gets the key record from wherever the integration serves it, and opens that item's parts and nothing else.
 
 ### Receiving a submission
 
 1. A member creates an inbox. The library generates the key pair and wraps the private key under the current team key version. The integration puts the public key in the inbox link.
-2. On the sender's side, the library generates a `contentKey`, encrypts each part, and seals the envelope (the `contentKey` and the list of parts) to the public key from the link.
-3. A member's library opens the inbox private key with the team key, opens the envelope, then decrypts the parts.
+2. On the sender's side, a submission draft generates a `contentKey` and encrypts each part as the integration uploads it. Sealing the draft with the submission's id (chosen by the integration) seals the envelope, the `contentKey` and the list of parts, to the public key from the link. The integration stores the envelope with the parts (D-25).
+3. A member's library opens the inbox private key with the team key, opens the envelope the integration gives it, then decrypts each part on demand.
 
 The inbox keeps its key pair after members leave (TH-30, D-20). To end a removed member's access to future submissions, the integration replaces the inbox: a new key pair under the current team key version, and a new link.

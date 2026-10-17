@@ -47,7 +47,7 @@ Problem: removing the bridge from the library must not lose the property it prov
 
 Decision: the API has an account vault and a team session (see [Key custody](scope.md#key-custody)). The vault hands a team session only that team's keys.
 
-Consequence: integrations choose how isolated the two are; the property is stated and testable either way.
+Consequence: integrations choose how isolated the two are; the property is stated and testable either way. Moving one team's keys to another context uses the sealed transfer of D-29.
 
 ## D-04: Wrap keys that need their own lifetime; derive only short-lived sub-keys
 
@@ -279,3 +279,73 @@ Rejected: keeping the fakes in the test folder only. Each integration would writ
 
 Consequence: one more public entry point, kept out of the core (the core never imports it). Its store is a reference for the server contract, not a production store: nothing is persisted.
 
+
+## D-25: The library manages keys; the integration stores content
+
+Status: Accepted.
+
+Problem: the first implementation stored and fetched item parts and submissions through `RecordStore`, beside the key records. That pulls the integration's content storage (upload sessions, view limits, quotas, cleanup) into the library's server contract, and mixes two backends an integration usually keeps apart.
+
+Decision: the server contract and `RecordStore` cover **key records** only: account key wraps, member keys and their wraps, team states, the team key chain, grants, and each resource's key record (`item`, `inbox`). Item parts, submission envelopes and submission parts are **content**: the library produces and consumes them, and the integration stores and serves them as it wants (protocol §7, §11).
+
+Rejected: one store for everything. Simpler to describe, but it forces the integration's content pipeline into the library's shape.
+
+Consequence: the library's guarantees on content don't depend on where it's stored, since every part is authenticated and listed by its key record (SP-03). The integration should still keep content write-once and not present an item before its key record exists.
+
+## D-26: A part binds its index; the record binds the ids
+
+Status: Accepted.
+
+Problem: integrations often encrypt the first part (a text, a form) before their server assigns the resource its id, then upload files, then finalize. Binding `itemId` (or `submissionId`) into every part's associated data forces either client-chosen ids or a different pipeline.
+
+Decision: a part's associated data is its label and its index only (protocol §4.8, §4.10). The part is bound to its item through the item's own random key and the manifest, which lists each part's index, size and ciphertext hash; the id is bound in the key record (`wrappedItemKey`, the sealed envelope), written last. The integration chooses `submissionId`, as it already chooses `itemId`.
+
+Rejected: ids in every part's associated data. It adds nothing once each item has its own key and a manifest, and it dictates the integration's ordering.
+
+Consequence: moving a part to another item fails (another key), and moving it within an item fails (index and manifest). A record moved to another id fails to open.
+
+## D-27: Items and submissions are drafts until sealed
+
+Status: Accepted.
+
+Problem: a part's ciphertext hash is known only once the part is encrypted, the manifest needs every hash, and a write-once record can't be completed later. Large files must not be held in memory.
+
+Decision: creating an item or a submission is a draft. The draft holds the content key, encrypts parts one at a time (buffered, or as a stream of chunks for the integration to upload), and is **sealed** last with the id: sealing writes the manifest and the key record. Parts are uploaded before the record; the record makes them openable.
+
+Rejected: plaintext hashes in the manifest, which would allow the record first: decrypting before detecting a substituted part, and reading each file twice. Splitting the record into a key record and a later manifest record: a new record type for the same result.
+
+Consequence: an interrupted draft leaves parts no key opens; cleaning them up is the integration's job. Reading is per part, on demand: open the record, then decrypt each part when needed.
+
+## D-28: Part references are keyed per item
+
+Status: Accepted.
+
+Problem: integrations need a stable reference for a part (deduplication, attachment ids). A plain hash of the content, sent to the server, lets anyone who holds a candidate file check whether it was stored (confirmation of file) and links equal files across items.
+
+Decision: the library offers `partRef(content)`: a keyed BLAKE2b-256 of the content, under a key derived from the item's (or submission's) content key (protocol §3.9). The integration may send it to its server.
+
+Rejected: a reference keyed by the team key, which allows deduplication across items but shows the server which items share a file.
+
+Consequence: a reference reveals nothing without the item key and differs across items (SP-21). Equal content within one item gives equal references, which is what deduplication needs.
+
+## D-29: Team keys move between contexts only sealed to a receiver
+
+Status: Accepted.
+
+Problem: the account vault and team work may run in different contexts (for example an iframe on another origin and the product's page). A team session there needs that team's member keys, and only those. A bridge between contexts depends on the product's domain layout, which the library can't know (D-02).
+
+Decision: the library offers a sealed transfer (protocol §3.8). The receiving context creates an ephemeral receiver; the vault exports one team's member keys sealed to it, bound to the account and the team; only that receiver opens them, once. The integration carries the opaque values and decides which context may receive which team. A single-context integration opens the team directly in the vault.
+
+Rejected: shipping a bridge (D-02). Sending the account key or a root that derives every team's keys: a compromise of one page would reach every team.
+
+Consequence: the account key never leaves the vault; one team's keys reach only a context the integration authorized (SP-02).
+
+## D-30: Owners are a cryptographic role, separate from product roles
+
+Status: Accepted.
+
+Problem: products have their own roles (owner, admin) with their own meaning. Tying team key ownership to one product role forces every product to change its roles, or forces the library to know them.
+
+Decision: the owners of each team key version are an explicit list in the chain (D-19). The integration decides which accounts hold the cryptographic owner role, and applies changes with an owner change (§6.7). A server may check, as defence in depth, that listed owners hold the product capability the integration maps to it (server contract, rule 8).
+
+Consequence: a change of product owner needs an owner change in the chain only if the cryptographic owners change.
