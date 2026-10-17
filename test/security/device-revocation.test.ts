@@ -63,7 +63,7 @@ describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full reme
     // The full remedy (D-21).
     await bob.vault.rotate({ pin: bob.pin, phrase: bob.recoveryPhrase });
     await bob.vault.rekey("team-1");
-    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: ["bob"] });
+    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
 
     const v3 = parseGrant((await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", teamKeyVersion: 3 }))[0], { teamId: "team-1" });
     expect(() => openGrant(v3, stolenBundle.pairs.encryption)).toThrow(code("DECRYPTION_FAILED"));

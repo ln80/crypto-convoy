@@ -602,14 +602,14 @@ To open version m below the granted version n: for k = n down to m+1, unwrap `wr
 
 1. Fetch and check the member's `member-keys` record (§4.2).
 2. The integration confirms the request is genuine (AS-06). The library reports the member's identity and keys.
-3. Create and store a grant of the current version to those keys (§4.6).
+3. Create and store a grant of the current version to those keys (§4.6). The owner names the `memberKeysVersion` they reviewed; it must be the account's newest published keys, else `STALE_VERSION`: keys replaced by a re-key, or published after the review, are never granted.
 
 Any member can list the grants of the current version, with who signed each one (`team.members()`), so a newly admitted member is visible to everyone (SP-15). This is detection, not prevention: a member admitted by a stolen owner key can read until someone notices and rotates.
 
 ### 6.6 Rotating the team key (owner)
 
 1. Open the current version n. The caller must be in the `owners` list of version n.
-2. Recipients: for each account the caller **keeps** (an explicit allowlist, normally the integration's active members) that holds a valid grant for version n (§4.6 checks), **one** set of keys: the newest `member-keys` record the account published, if an owner approves it in this rotation, otherwise the keys in its grant. Only grants for the **current** version count, so a grant for an older version is never carried forward, and an account's older keys never receive the new version. An account left out of the list loses access to the new version: forgetting someone costs them access, never leaks it. `team.needsRotation(activeAccountIds)` tells the integration when a granted account is no longer active, so it can rotate at the removal or at an owner's next session (TH-14).
+2. Recipients: for each account the caller **keeps** (an explicit allowlist, normally the integration's active members) that holds a valid grant for version n (§4.6 checks), **one** set of keys: the newest `member-keys` record the account published, if an owner approves it in this rotation, otherwise the keys in its grant. An approval names the `memberKeysVersion` the owner reviewed; if the account's newest published keys are no longer that version, the rotation stops with `STALE_VERSION` before anything is written (§6.8). Only grants for the **current** version count, so a grant for an older version is never carried forward, and an account's older keys never receive the new version. An account left out of the list loses access to the new version: forgetting someone costs them access, never leaks it. `team.needsRotation(activeAccountIds)` tells the integration when a granted account is no longer active, so it can rotate at the removal or at an owner's next session (TH-14).
 3. Owners of version n+1: the same list as version n, unless the owner list changes (§6.7).
 4. Generate `teamKey_{n+1}`. Create the version record n+1 (§4.5): `prevHash` = record hash of version n, `wrappedPreviousKey = wrap(teamKey_{n+1}, "team-key-link", …, teamKey_n)`, signed by the caller.
 5. Store the version record and the caller's own grant for n+1 in one atomic batch. This makes n+1 current. If the server refuses because n is no longer current, stop with `STALE_VERSION`.
@@ -631,7 +631,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 ### 6.8 Re-keying a member
 
 1. The vault creates new member keys for the team with `memberKeysVersion` + 1 (§5.9). The member stays able to read with the old keys until the rotation.
-2. An owner checks the request is genuine and rotates the team key (§6.6), approving the new keys. If the new record carries a valid `continuitySignature` (§4.2), the library reports a routine re-key; without one, it reports that the keys were replaced without proof from the current keys, and the owner should verify out of band (AS-06, TH-37). Either way, the rotation is the approval: the new version is sealed to them, and the old keys receive nothing. That one rotation is the approval; a signature by the old keys is never accepted as approval, since an attacker may hold them (SP-12).
+2. An owner checks the request is genuine and rotates the team key (§6.6), approving the new keys. If the new record carries a valid `continuitySignature` (§4.2), the library reports a routine re-key; without one, it reports that the keys were replaced without proof from the current keys, and the owner should verify out of band (AS-06, TH-37). Either way, the rotation is the approval: the new version is sealed to them, and the old keys receive nothing. The approval is pinned to the reviewed `memberKeysVersion`: keys published after the review, for example by someone holding the member's session (TH-37), are never approved by it, and for an owner never replace their signing key in the owner list. That one rotation is the approval; a signature by the old keys is never accepted as approval, since an attacker may hold them (SP-12).
 3. If the member is an owner, the same rotation replaces their signing key in the owner list (§6.7).
 
 The new grant gives the member the current version, and the chain gives every earlier one, so no grant of an older version to the new keys is needed.
@@ -816,7 +816,8 @@ team.memberRequest(accountId)             → { memberKeysVersion, continuity }
 team.grant(accountId, memberKeysVersion)  // the keys the owner confirmed
 team.members()                            → grants of the current version, with signer
 team.inviteAnchor()                       → string        // for an invite link's fragment
-team.rotate({ keep, approveRekeys? })     // keep: accounts that receive the new version
+team.rotate({ keep, approveRekeys? })     // keep: accounts that receive the new version;
+                                          //   approveRekeys: [{ accountId, memberKeysVersion }] reviewed
 team.completeRotation({ keep })           // resume an interrupted rotation (§6.6 step 7)
 team.setOwners(owners, { keep })          // always a rotation with the new owner list
 team.beginItem()                          → draft         // §7.1

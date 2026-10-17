@@ -63,7 +63,7 @@ describe("SP-15: owners see each member's access and what needs their action", (
 
     await members.bob!.vault.rekey("team-1");
     expect(await aliceTeam.memberStatuses(["bob"])).toEqual([{ accountId: "bob", status: "rekey-awaiting-approval", continuity: "routine" }]);
-    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: ["bob"] });
+    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
     expect(await aliceTeam.memberStatuses(["bob", "carol"])).toEqual([
       { accountId: "bob", status: "approved" },
       { accountId: "carol", status: "outdated", continuity: "new" },

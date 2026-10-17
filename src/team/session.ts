@@ -54,11 +54,17 @@ export interface Warning {
   readonly action: "setOwners" | "grant" | "rotate" | "completeRotation";
 }
 
+/** Keys an owner reviewed: the approval holds for exactly this version (§6.8). */
+export interface KeysHandle {
+  readonly accountId: string;
+  readonly memberKeysVersion: number;
+}
+
 export interface RotationOptions {
   /** Accounts that receive the new version: an allowlist (§6.6). The caller is always kept. */
   readonly keep: readonly string[];
-  /** Accounts whose newest published keys are approved by this rotation (§6.8). */
-  readonly approveRekeys?: readonly string[];
+  /** Re-keys approved by this rotation, each pinned to the keys the owner reviewed (§6.8). */
+  readonly approveRekeys?: readonly KeysHandle[];
 }
 
 /** Library-only access to a session's keys and ports. Never exported from the package entry (D-15). */
@@ -177,13 +183,13 @@ export class TeamSession {
   }
 
   /**
-   * Grants the current version to the keys the owner confirmed (§6.5). The caller must be an
-   * owner. Throws `NOT_GRANTED`, `TRUST_FAILURE` (`not_an_owner`), `STALE_VERSION`.
+   * Grants the current version to the keys the owner confirmed (§6.5): the account's newest
+   * published keys only. The caller must be an owner. Throws `NOT_GRANTED`, `TRUST_FAILURE`
+   * (`not_an_owner`), `STALE_VERSION` (newer keys were published since).
    */
   async grant(accountId: string, memberKeysVersion: number): Promise<void> {
     const signer = this.#ownerSigner();
-    const keys = (await this.#publishedKeys(accountId)).find((k) => k.memberKeysVersion === memberKeysVersion);
-    if (!keys) throw new ConvoyError("NOT_GRANTED");
+    const keys = await this.#reviewedKeys({ accountId, memberKeysVersion });
     const teamKey = await this.#teamKey(this.currentVersion);
     await commitTeam(this.#ports.store, [grantOp(this.#ports, this.teamId, this.currentVersion, teamKey, recipientFromKeys(keys), signer)]);
   }
@@ -463,6 +469,17 @@ export class TeamSession {
     return jsons.map((json) => parseMemberKeys(json, { teamId: this.teamId, accountId })).sort((a, b) => a.memberKeysVersion - b.memberKeysVersion);
   }
 
+  /**
+   * The keys an owner reviewed, if they are still the account's newest: keys published after the
+   * review, or replaced ones, are never approved (§6.5, §6.8). Throws `NOT_GRANTED`, `STALE_VERSION`.
+   */
+  async #reviewedKeys(handle: KeysHandle): Promise<MemberKeys> {
+    const newest = (await this.#publishedKeys(handle.accountId)).at(-1);
+    if (!newest) throw new ConvoyError("NOT_GRANTED");
+    if (newest.memberKeysVersion !== handle.memberKeysVersion) throw new ConvoyError("STALE_VERSION");
+    return newest;
+  }
+
   #kept(options: RotationOptions, accountId: string) {
     return accountId === this.accountId || options.keep.includes(accountId);
   }
@@ -476,9 +493,9 @@ export class TeamSession {
     }
     const recipients: Recipient[] = [];
     for (const [accountId, grant] of newestGrant) {
-      if (options.approveRekeys?.includes(accountId)) {
-        const newest = (await this.#publishedKeys(accountId)).at(-1)!;
-        recipients.push(recipientFromKeys(newest));
+      const approval = options.approveRekeys?.find((a) => a.accountId === accountId);
+      if (approval) {
+        recipients.push(recipientFromKeys(await this.#reviewedKeys(approval)));
       } else {
         recipients.push(recipientFromGrant(grant));
       }

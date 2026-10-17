@@ -3,6 +3,7 @@
  * Threats: TH-02, TH-37.
  */
 import { describe, expect, it } from "vitest";
+import { isConvoyError } from "../../src/errors.js";
 import { bundleOf, forgeGrant, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
@@ -85,5 +86,16 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
     const { members, aliceTeam } = await team("bob");
     await members.alice!.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) }]);
     expect((await aliceTeam.memberRequest("bob")).continuity).toBe("unproven");
+  });
+
+  it("an owner can't grant keys the member has replaced", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const carol = await w.account("carol");
+    await carol.vault.joinTeam("team-1");
+    await carol.vault.rekey("team-1");
+    await expect(aliceTeam.grant("carol", 1)).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    expect(await members.alice!.store.list({ type: "grant", teamId: "team-1", accountId: "carol" })).toEqual([]);
+    await aliceTeam.grant("carol", 2);
+    expect((await carol.vault.openTeam("team-1")).state).toBe("ready");
   });
 });

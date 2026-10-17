@@ -108,11 +108,11 @@ describe("scenario", () => {
     expect(aliceView.state).toBe("pending");
     await expect(aliceView.openItem("after-removal")).rejects.toSatisfy((e) => isConvoyError(e, "NOT_GRANTED"));
 
-    // 6. Alice re-keys; bob sees the continuity hint and approves her new keys by rotating.
+    // 6. Alice re-keys; bob sees the continuity hint and grants her new keys (never the replaced ones).
     await alice.rekey("team-1");
     expect(await bobOwner.memberStatuses(["alice"])).toEqual([{ accountId: "alice", status: "outdated", continuity: "routine" }]);
-    await bobOwner.grant("alice", 1);
-    await bobOwner.rotate({ keep: ["alice"], approveRekeys: ["alice"] });
+    await expect(bobOwner.grant("alice", 1)).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    await bobOwner.grant("alice", 2);
     expect((await alice.openTeam("team-1")).state).toBe("ready");
 
     // 7. Separate contexts: the vault on one origin, team work on the product's page.

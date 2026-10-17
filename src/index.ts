@@ -12,6 +12,7 @@ export type {
   Member,
   MemberRequest,
   MemberStatus,
+  KeysHandle,
   RotationOptions,
   TeamSession,
   Warning,

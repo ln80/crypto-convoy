@@ -3,6 +3,7 @@
  * Threats: TH-13, TH-37.
  */
 import { describe, expect, it } from "vitest";
+import { isConvoyError } from "../../src/errors.js";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
@@ -36,7 +37,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     const bob = members.bob!;
     const old = await bundleOf(bob.vault);
     await bob.vault.rekey("team-1");
-    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: ["bob"] });
+    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
 
     const grants = await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", teamKeyVersion: 2 });
     expect(grants.map((g) => (g as { memberKeysVersion: number }).memberKeysVersion)).toEqual([2]);
@@ -62,10 +63,37 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await aliceTeam.setOwners(["alice", "bob"], { keep: ["bob"] });
     const bob = members.bob!;
     await bob.vault.rekey("team-1");
-    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: ["bob"] });
+    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
     const session = await bob.vault.openTeam("team-1");
     expect(session.ownerChanges.at(-1)).toEqual({ version: 3, signer: "alice", added: [], removed: [], rekeyed: ["bob"] });
     await session.rotate({ keep: ["alice"] });
     expect(session.currentVersion).toBe(4);
+  });
+
+  it("an approval holds only for the keys the owner reviewed", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await bob.vault.rekey("team-1");
+    const reviewed = await aliceTeam.memberRequest("bob");
+    expect(reviewed).toMatchObject({ memberKeysVersion: 2, continuity: "routine" });
+    // A session thief publishes newer keys after the owner's review.
+    await bob.store.commit([
+      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 3 }, record: forgeMemberKeys("bob", 3, strangerKeys()) },
+    ]);
+    await expect(aliceTeam.rotate({ keep: ["bob"], approveRekeys: [reviewed] })).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    expect(aliceTeam.currentVersion).toBe(1);
+  });
+
+  it("an owner's own approval is pinned too, so newer keys can't take over their owner key", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const alice = members.alice!;
+    await alice.vault.rekey("team-1");
+    await alice.store.commit([
+      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "alice", memberKeysVersion: 3 }, record: forgeMemberKeys("alice", 3, strangerKeys()) },
+    ]);
+    await expect(aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "alice", memberKeysVersion: 2 }] })).rejects.toSatisfy((e) =>
+      isConvoyError(e, "STALE_VERSION"),
+    );
+    expect(aliceTeam.currentVersion).toBe(1);
   });
 });
