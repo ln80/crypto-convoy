@@ -4,14 +4,24 @@
   "private": true,
   "description": "End-to-end encryption primitives for Convoy (extractable, to be open-sourced).",
   "type": "module",
-  "main": "./dist/crypto-convoy.cjs",
-  "module": "./dist/crypto-convoy.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/crypto-convoy.js",
-      "require": "./dist/crypto-convoy.cjs"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js",
+      "require": "./dist/browser.cjs"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "require": "./dist/testing.cjs"
     }
   },
   "files": [
@@ -22,7 +32,7 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "check:spec": "node scripts/check-spec.mjs",
-    "test": "vitest run --project unit --project properties --project security --project compatibility",
+    "test": "vitest run --project unit --project properties --project security --project compatibility --project browser",
     "test:unit": "vitest run --project unit",
     "test:properties": "vitest run --project properties",
     "test:security": "vitest run --project security",
@@ -30,7 +40,8 @@
     "test:fuzz": "vitest run --project fuzz",
     "test:all": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "test:browser": "vitest run --project browser"
   },
   "devDependencies": {
     "@fast-check/vitest": "^0.5.0",

@@ -24,6 +24,7 @@ export default defineConfig({
           ...node,
         },
       },
+      { test: { name: "browser", include: ["test/browser/**/*.test.ts"], ...node } },
       {
         test: {
           name: "compatibility",
