@@ -5,6 +5,11 @@ import { callPort } from "../ports.js";
 import type { Grant } from "../records/grant.js";
 import { hasValidContinuity, parseMemberKeys, type MemberKeys } from "../records/member-keys.js";
 import { openPreviousKey, parseTeamKeyVersion, type TeamKeyVersion } from "../records/team-key-version.js";
+import type { OpenedPart, PartInput } from "../content/context.js";
+import { fetchInbox, readSubmission, storeInbox, type OpenedSubmission } from "../content/inbox.js";
+import { fetchItem, readParts, storeItem, streamPart, type PartStream } from "../content/items.js";
+import { encodeLinkKey } from "../encoding/link.js";
+import { openItemKey } from "../records/item.js";
 import { advanceAnchor, collectAnchors, readServerState } from "./anchors.js";
 import { isOwner, verifyChain, type OwnerChange, type VerifiedChain } from "./chain.js";
 import { commitTeam, type MemberBundle, type TeamPorts } from "./context.js";
@@ -175,6 +180,65 @@ export class TeamSession {
     const ops = recipients.map((r) => grantOp(this.#ports, this.teamId, version, teamKey, r, signer));
     if (ops.length > 0) await commitTeam(this.#ports.store, ops);
     return { granted: recipients.map((r) => r.accountId) };
+  }
+
+  /**
+   * Encrypts and stores an item at the current version (§7.1). Parts are plaintext plus an
+   * optional opaque `meta` (D-16). Throws `NOT_GRANTED`, `STALE_VERSION` (id used or version changed).
+   */
+  async createItem(itemId: string, parts: readonly PartInput[]): Promise<void> {
+    const version = this.writeVersion();
+    await storeItem(this.#ports, { teamId: this.teamId, itemId, teamKeyVersion: version, createdBy: this.accountId }, await this.teamKey(version), parts);
+  }
+
+  /**
+   * Opens every part of an item, buffered (§7.2): all or nothing. Refuses parts above
+   * `maxBufferedSize` before downloading (`MALFORMED_RECORD`). Throws `NOT_GRANTED`, `DECRYPTION_FAILED`.
+   */
+  async openItem(itemId: string): Promise<OpenedPart[]> {
+    const record = await fetchItem(this.#ports, this.teamId, itemId);
+    return readParts(this.#ports, record, await this.#itemKey(record));
+  }
+
+  /** Opt-in streaming read of one part (§3.4): discard what you received if it ends with an error. */
+  async openItemStream(itemId: string, index: number): Promise<PartStream> {
+    const record = await fetchItem(this.#ports, this.teamId, itemId);
+    return streamPart(this.#ports, record, await this.#itemKey(record), index);
+  }
+
+  /** The item key for a share link's fragment (§7.3). Whoever holds the link can read the item (TH-23). */
+  async shareLinkKey(itemId: string): Promise<string> {
+    const key = await this.#itemKey(await fetchItem(this.#ports, this.teamId, itemId));
+    try {
+      return encodeLinkKey(key);
+    } finally {
+      this.#ports.suite.wipe(key);
+    }
+  }
+
+  /** Creates an inbox at the current version; the link key goes in the inbox link's fragment (§7.4). */
+  async createInbox(inboxId: string): Promise<{ linkKey: string }> {
+    const version = this.writeVersion();
+    return storeInbox(this.#ports, { teamId: this.teamId, inboxId, teamKeyVersion: version, createdBy: this.accountId }, await this.teamKey(version));
+  }
+
+  /**
+   * A new key pair under the current version, with a new link (§7.4, D-20). Ends a removed
+   * member's access to new submissions once the integration retires `inboxId`'s link.
+   */
+  async replaceInbox(inboxId: string, newInboxId: string): Promise<{ linkKey: string }> {
+    await fetchInbox(this.#ports, this.teamId, inboxId);
+    return this.createInbox(newInboxId);
+  }
+
+  /** Opens a submission, buffered (§7.6). Throws `NOT_GRANTED`, `DECRYPTION_FAILED`, `TRUST_FAILURE` (`key_mismatch`). */
+  async openSubmission(inboxId: string, submissionId: string): Promise<OpenedSubmission> {
+    const inbox = await fetchInbox(this.#ports, this.teamId, inboxId);
+    return readSubmission(this.#ports, inbox, await this.teamKey(inbox.teamKeyVersion), submissionId);
+  }
+
+  async #itemKey(record: Parameters<typeof openItemKey>[0]): Promise<Uint8Array> {
+    return openItemKey(record, await this.teamKey(record.teamKeyVersion));
   }
 
   /**

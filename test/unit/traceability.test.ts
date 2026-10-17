@@ -7,8 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ROOT, read } from "../support/source.js";
 
-// Becomes true once every property's tests are written (plan 001, step 6.4).
-const STRICT = false;
+const STRICT = true;
 
 const entries = read("docs/security-properties.md")
   .split(/^(?=### SP-\d+:)/m)

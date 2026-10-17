@@ -217,7 +217,7 @@ The reader pulls chunks of 4 MiB + 17 bytes and fails with `DECRYPTION_FAILED` i
 - a non-final chunk is short;
 - any tag other than `MESSAGE` or `FINAL` appears.
 
-The **default API is buffered**: it returns the plaintext only after the `FINAL` chunk and every check of §8 have passed. It refuses, before downloading, any part whose `ciphertextSize` in the manifest exceeds `maxBufferedSize`, an integration setting, so a sender or member can't exhaust the reader's memory with an oversized part (TH-25). A **streaming API is opt-in**, for content too large to hold in memory: it delivers only authenticated chunks and ends with an error if the content is incomplete. Consumers of the streaming API must discard what they received when it does, for example by writing to a temporary file and keeping it only on success (SP-18).
+The **default API is buffered**: it returns the plaintext only after the `FINAL` chunk and every check of §8 have passed. It refuses with `MALFORMED_RECORD`, before downloading, any part whose `ciphertextSize` in the manifest exceeds `maxBufferedSize`, an integration setting, so a sender or member can't exhaust the reader's memory with an oversized part (TH-25). A **streaming API is opt-in**, for content too large to hold in memory: it delivers only authenticated chunks and ends with an error if the content is incomplete. Consumers of the streaming API must discard what they received when it does, for example by writing to a temporary file and keeping it only on success (SP-18).
 
 The **ciphertext hash** of a stream is BLAKE2b-256 of its full output, header included.
 
@@ -633,7 +633,7 @@ Input: `itemId` and a list of parts, each with content and an optional `meta`.
 
 1. Fetch and check the `item` record (§8).
 2. Open `teamKey_n` (§6.1, §6.2), unwrap `wrappedItemKey`, unwrap `wrappedManifest`.
-3. For each part: check its manifest size against `maxBufferedSize` (§3.4), fetch, check size and hash, decrypt (§4.8).
+3. For each part: check its manifest size against `maxBufferedSize` (§3.4), fetch, check size and hash, decrypt (§4.8). A part the server doesn't return is `DECRYPTION_FAILED`: the item is incomplete.
 
 ### 7.3 Sharing an item by link
 

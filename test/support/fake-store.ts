@@ -18,7 +18,8 @@ export class TamperingStore implements RecordStore {
   #accountVersion: number | null | undefined;
   readonly commits: WriteOp[][] = [];
 
-  constructor(readonly inner: RecordStore) {}
+  /** The honest store behind the hooks; replaceable to simulate other faults. */
+  constructor(public inner: RecordStore) {}
 
   /** Serves `value` for every record matching `match` (swap, replay, garbage). */
   replace(match: Match, value: unknown): this {

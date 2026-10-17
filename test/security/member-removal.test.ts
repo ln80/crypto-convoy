@@ -1,0 +1,60 @@
+/**
+ * SP-06: A removed member can't open items encrypted after a rotation.
+ * Threats: TH-14.
+ */
+import { describe, expect, it } from "vitest";
+import { openItemKey, parseItem } from "../../src/records/item.js";
+import { openGrant, parseGrant } from "../../src/records/grant.js";
+import { bundleOf } from "../support/forge.js";
+import { team } from "../support/teams.js";
+
+const text = (s: string) => new TextEncoder().encode(s);
+
+describe("SP-06: a removed member can't open what comes after the rotation", () => {
+  it("nothing bob held opens the new version or items created with it", async () => {
+    const { members, aliceTeam } = await team("bob", "carol");
+    const bob = members.bob!;
+    const bobSession = await bob.vault.openTeam("team-1");
+    const held = { v1: await bobSession.teamKey(1), bundle: await bundleOf(bob.vault), accountKey: bob.vault.requireAccount().key };
+
+    await aliceTeam.rotate({ keep: ["carol"] });
+    await aliceTeam.createItem("after", [{ content: text("new secret") }]);
+
+    // Bob's session and every key he held.
+    await expect(bobSession.openItem("after")).rejects.toEqual(expect.objectContaining({ code: "NOT_GRANTED" }));
+    expect((await bob.vault.openTeam("team-1")).state).toBe("pending");
+    const item = parseItem(await bob.store.get({ type: "item", teamId: "team-1", itemId: "after" }), { teamId: "team-1", itemId: "after" });
+    for (const key of [held.v1, held.accountKey, held.bundle.pairs.teamStateKey]) {
+      expect(() => openItemKey(item, key)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
+    }
+    expect(await bob.store.list({ type: "grant", teamId: "team-1", teamKeyVersion: 2, accountId: "bob" })).toEqual([]);
+    const carolGrant = parseGrant((await bob.store.list({ type: "grant", teamId: "team-1", teamKeyVersion: 2, accountId: "carol" }))[0], { teamId: "team-1" });
+    expect(() => openGrant(carolGrant, held.bundle.pairs.encryption)).toThrow();
+
+    // Items from before stay readable: history is not protected (AS-07).
+    expect((await members.carol!.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("forgetting someone in the keep list costs them access, never leaks it", async () => {
+    const { members, aliceTeam } = await team("bob");
+    await aliceTeam.rotate({ keep: [] });
+    expect((await members.bob!.vault.openTeam("team-1")).state).toBe("pending");
+    expect(await aliceTeam.needsRotation(["alice"])).toBe(false);
+  });
+
+  it("needsRotation flags granted accounts that are no longer active", async () => {
+    const { aliceTeam } = await team("bob");
+    expect(await aliceTeam.needsRotation(["alice", "bob"])).toBe(false);
+    expect(await aliceTeam.needsRotation(["alice"])).toBe(true);
+  });
+
+  it("Limit: re-admitting the member with a later grant opens the gap", async () => {
+    const { members, aliceTeam } = await team("bob");
+    await aliceTeam.rotate({ keep: [] });
+    await aliceTeam.createItem("while-away", [{ content: text("gap") }]);
+    await aliceTeam.grant("bob", 1);
+    const bob = await members.bob!.vault.openTeam("team-1");
+    expect(bob.state).toBe("ready");
+    expect(new TextDecoder().decode((await bob.openItem("while-away"))[0]!.content)).toBe("gap");
+  });
+});

@@ -7,7 +7,10 @@ import { describe, expect, it } from "vitest";
 import { streamDecrypt, streamDecryptChunks, streamEncrypt } from "../../src/blocks/stream.js";
 import { string } from "../../src/encoding/canonical.js";
 import { labelled } from "../../src/encoding/labels.js";
+import { createVault } from "../../src/account/vault.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
+import { FAST } from "../support/fixtures.js";
+import { team } from "../support/teams.js";
 
 const CHUNK = cc1.sizes.streamChunk;
 const key = cc1.randomBytes(32);
@@ -106,5 +109,29 @@ describe("SP-18: the streaming read yields only authenticated chunks and ends wi
     const { received, error } = await collect(ciphertext, { size: 100, hash });
     expect(error).toEqual(failed);
     expect(received).toHaveLength(0);
+  });
+});
+
+describe("SP-18: the buffered API refuses oversized parts before downloading", () => {
+  it("never fetches a part whose manifest size exceeds maxBufferedSize", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    await aliceTeam.createItem("big", [{ content: new Uint8Array(2000) }]);
+
+    const fetched: unknown[] = [];
+    const base = w.server.as("bob");
+    const store = { ...base, getPart: async (key: never) => (fetched.push(key), base.getPart(key)) };
+    const small = await createVault(
+      { store, oprf: w.oprf, localKeys: members.bob!.localKeys, clock: w.clock, settings: { ...FAST, maxBufferedSize: 1000 } },
+      "bob",
+    );
+    await small.unlock();
+    const session = await small.openTeam("team-1");
+    await expect(session.openItem("big")).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    expect(fetched).toEqual([]);
+
+    const streamed = await session.openItemStream("big", 0);
+    let total = 0;
+    for await (const chunk of streamed.chunks) total += chunk.length;
+    expect(total).toBe(2000);
   });
 });
