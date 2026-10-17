@@ -486,3 +486,25 @@ _Appended per phase: what changed, deviations, spec changes made through protoco
   - A manifest that decrypts but breaks the §4.7 rules is `MALFORMED_RECORD`, since only a member could have written it.
 - `team-key.v1.json` already holds the chain, owner-rule and grant-opening cases, frozen now; their replay arrives with the team session (Phase 5).
 - Proved the guards: removing `checkOwners` makes the unsorted and duplicate owner cases fail; removing the item context check makes the three context cases fail.
+
+### Phases 3–5 (done)
+- **Testing kit:** `MemoryRecordStore.as(accountId)` / `anonymous()` give per-caller views of one server.
+  - Each create checks that the record is stored under its own identity: catches a library bug and a hostile client alike.
+  - Write rules in one batch are order-independent.
+  - A refused OPRF evaluation doesn't consume budget.
+- **Account:** `unlockWithPin` registers the device only if it has no live wrap at the current version. `rotate` checks a given phrase against the current recovery wrap first; one OPRF evaluation, as in key-hierarchy. A missing PIN or recovery wrap is `STORE_ERROR` (the server withheld it, TH-28).
+- **Team (deviations, both within the spec):**
+  - **Fetching the chain:** the session always fetches and verifies it from version 1. `verifyChain` also accepts a chain starting at an anchored version, which is what §6.1 asks a reader to fetch, and refuses any anchor below the first record.
+  - **Trust failures:** every one while opening a team gives an `unverified` session, in the account's own keys or in the team's records. Errors that aren't trust failures are thrown.
+  - **Granting:** `grant(accountId, memberKeysVersion)` takes the keys the owner confirmed (from `memberRequest`), so the server can't swap them between confirmation and grant. `memberRequest` reports continuity as `new`, `routine` or `unproven` (§6.8).
+  - **Owners in rotations:** owners must be in the rotation's recipients (kept with a current grant), otherwise `TRUST_FAILURE` (`not_an_owner`).
+  - **Re-keys:** an owner re-key shows in `ownerChanges` as `rekeyed`.
+- **Findings during testing:**
+  - The vault handed its full ports, OPRF included, to team sessions. Fixed: sessions get only `suite`, `store`, `localKeys`, `clock` and `settings`. `team-isolation.test.ts` guards this.
+  - The fork vector named an owner without published keys, so `key_mismatch` (§4.5 check 4) fired before the anchor check. The vector was unreleased, so its owner list was fixed.
+  - A random word swap in a BIP-39 test kept a valid checksum about one time in 16. Removed: deterministic cases are in the vectors.
+- **Proved the guards:**
+  - Removing the owner-of-previous-version check fails 3 SP-05 tests.
+  - Removing the grant owner rule fails the TH-33 and fake-member tests.
+  - Removing the anchor rollback check fails the invite-anchor test. The other rollback cases are still refused by the grant check: a grant above the served chain is `rollback`. That is defence in depth.
+- **SP-15 coverage:** member approvals at the current version show through `members()` with `grantedBy` (§6.5). There is no separate report stream.
