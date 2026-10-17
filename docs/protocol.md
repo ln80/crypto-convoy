@@ -748,7 +748,7 @@ Warnings name what needs a human: a single owner (D-06), members awaiting approv
 
 1. **Remove:** accounts holding the current version that aren't in `activeAccountIds` are left out of a rotation. The caller is always kept.
 2. **Approve proven re-keys:** active accounts holding the current version, not owners of it, whose newest keys are proven by their recovery key: the rotation approves those keys.
-3. **Admit invited joiners**, only if `options.autoApproveInvites` allows it (a boolean, or a function the integration gives, called with the account, the `inviteId` and the `inviteeRef`): active accounts with `awaiting-approval` status whose newest keys carry a valid invite proof (§4.2) for an invite of the **current** version that no grant of the current version names. Each gets a grant naming the invite.
+3. **Admit invited joiners** (an invite that fails its checks of §4.11, for example one not signed by an owner of its version, is ignored: it proves nothing), only if `options.autoApproveInvites` allows it (a boolean, or a function the integration gives, called with the account, the `inviteId` and the `inviteeRef`): active accounts with `awaiting-approval` status whose newest keys carry a valid invite proof (§4.2) for an invite of the **current** version that no grant of the current version names. Each gets a grant naming the invite.
 4. If step 1 or 2 found anything, run one rotation (§6.6) keeping every other holder, approving the keys of step 2. Then grant step 3's joiners at the version current after it.
 5. Return the report: the version rotated to, if any; the accounts removed, re-keys approved and joiners admitted; and everything else needing a human, with its handle and reason (`awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey`, `invite-not-accepted`).
 
@@ -928,7 +928,7 @@ vault.createTeam(teamId)                  // creator is the first owner; throws 
 vault.joinTeam(teamId, { invite? })       // "pending" until granted; invite: the invite link value
 vault.rekey(teamId, { phrase? })          // new member keys; with the phrase, proven (§6.8)
 vault.leaveTeam(teamId)                   // throws LAST_OWNER for the only owner
-vault.openTeam(teamId, { invite? })       → TeamSession   // same context; invite link value on a first join
+vault.openTeam(teamId, { invite?, anchor? }) → TeamSession // same context; invite link value (or bare anchor) on a first join
 vault.exportTeamKeys(teamId, request)     → transfer      // another context (§3.8)
 
 // Receiving context (split layouts): one receiver per transfer.

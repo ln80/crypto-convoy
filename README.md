@@ -26,7 +26,9 @@ const keyStore = new MemoryRecordStore();   // in production: your RecordStore o
 const local = new MemoryLocalKeyStore();    // in a browser: createIndexedDbLocalKeyStore()
 const vault = await createVault({ store: keyStore.as("alice"), oprf: new FakeOprfServer(), deviceKeys: local, anchors: local }, "alice");
 
-const { recoveryPhrase } = await vault.setup("1234"); // show the phrase once
+await vault.setup("1234");
+const { recoveryPhrase } = vault.beginRecoverySetup(); // show it, then ask the user to type it back
+await vault.confirmRecoveryPhrase(typedBack);           // teams need recovery set up (D-35)
 await vault.createTeam("team-1");
 const team = await vault.openTeam("team-1");
 ```
@@ -77,12 +79,41 @@ const team = await receiver.openTeam({ store, anchors }, transfer);
 
 The transfer opens only for that receiver, once. Your bridge carries the two strings and decides which page may ask for which team; the library never sees your domain layout (D-29).
 
-### Setup and access checks
+### Status, warnings and administration
 
-- `vault.status()`: `not-set-up`, `locked` or `unlocked`, and whether this device is registered.
+What to render:
+
+- `vault.status()`: `account` (`not-set-up`, `locked`, `unlocked`), `deviceRegistered`, and `recovery` (`not-set-up`, `set-up`).
+- `vault.warnings()`: `recovery-not-set-up`, or `rekey-needed` for teams whose keys predate the current phrase.
 - `team.state`: `not-joined`, `pending`, `ready` or `unverified`.
-- `team.memberStatuses(ids)`, for owners: `no-keys`, `awaiting-approval`, `approved`, `outdated`, `rekey-awaiting-approval` (with a continuity hint).
-- `team.warnings(activeIds)`: what an owner should act on (`single-owner`, `members-awaiting-approval`, `rekeys-awaiting-approval`, `rotation-needed`, `rotation-interrupted`), each with the operation that clears it.
+- `team.owner().overview(activeIds)`, for owners: each account's `status` (`no-keys`, `awaiting-approval`, `approved`, `outdated`, `rekey-awaiting-approval`), its newest `keys` (a handle to approve), their `proof` (`recovery`, `invite`, `continuity`, `none`), and warnings (`single-owner`, `members-awaiting-approval`, `rekeys-awaiting-approval`, `rotation-needed`) with the operation that clears each.
+
+`team.owner()` throws `NOT_AN_OWNER` for anyone else, so member screens can't reach admin operations. Every call takes and returns plain data.
+
+#### Admin recipes
+
+**At every owner session**, run the autopilot with the accounts your product considers members:
+
+```ts
+const report = await team.owner().reconcile(activeIds, { autoApproveInvites: false });
+// report.removed, approvedRekeys, admitted: done. report.needsHuman: show these, with their reason.
+```
+
+It rotates out holders no longer active, approves re-keys proven by the member's recovery phrase, and, only if you opt in, admits joiners proven by an invite. It never widens access otherwise, never changes owners, and leaves `awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey` and `inactive-owner` to a human (SP-22). `{ dryRun: true }` returns the plan for a preview.
+
+| Situation | Calls |
+| --- | --- |
+| **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack)` |
+| **Invite someone** | `owner.createInvite(inviteId, { inviteeRef })` → put `invite` in the link fragment; the joiner calls `vault.joinTeam(teamId, { invite })` and `vault.openTeam(teamId, { invite })` |
+| **Approve someone** | `owner.approve([account.keys])` with the handle from `overview`: a grant for a joiner, a rotation for a re-key. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
+| **Someone leaves** | Drop them from `activeIds`; the next `reconcile` rotates. Or `owner.remove([accountId])` now |
+| **Device lost, never used by anyone** | `vault.revokeDevice(deviceId)` from another device |
+| **Device possibly misused, or PIN leaked** | `vault.secureAccount({ phrase, newPin })` from a clean device: new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Retry any `failed` team with `vault.rekey(teamId, { phrase })` |
+| **Replace the recovery phrase** | `beginRecoverySetup()`, then `confirmRecoveryPhrase(typedBack, { currentPhrase })`: teams re-key with proof. Without `currentPhrase` (phrase lost) each team needs an owner's approval |
+| **Hand over or add an owner** | `owner.setOwners([...])`: a rotation with the new owner list; keeps every holder |
+| **Single owner warning** | Add a co-owner with `setOwners`: a team whose only owner loses every credential is frozen (TH-18) |
+
+Invite links are join proofs: deliver them, but keep them out of your own UI, logs and stored outbox (TH-43). Leave `autoApproveInvites` off unless you trust your server and mail delivery with joins.
 
 ### Errors
 
@@ -94,8 +125,10 @@ Every operation throws one class, `ConvoyError`, with a `code` from protocol §9
 | `PIN_RATE_LIMITED` | Wait, or offer the recovery phrase; never retry automatically |
 | `DEVICE_NOT_REGISTERED` | Unlock with the PIN (this registers the device) |
 | `NOT_GRANTED` | Wait for an owner, or show the content as unavailable |
-| `STALE_VERSION` | Reopen the team and try again |
+| `STALE_VERSION` | Reopen the team and try again; for an approval, review the newer keys first |
 | `LAST_OWNER` | Add another owner first |
+| `NOT_AN_OWNER` | Hide owner screens for this account |
+| `RECOVERY_NOT_SET_UP` | Run the recovery setup (`beginRecoverySetup`, `confirmRecoveryPhrase`) |
 | `TRUST_FAILURE` | Stop and show a security warning. A team session becomes `unverified` for good (`session.failure`) |
 | `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `DECRYPTION_FAILED` | Tampered or unsupported data: report, don't retry |
 | `STORE_ERROR` | Your `RecordStore` or `OprfService` failed (`error.cause`); retry, except PIN evaluations |

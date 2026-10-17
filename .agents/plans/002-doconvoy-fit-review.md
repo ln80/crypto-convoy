@@ -75,3 +75,15 @@ Team = workspace (tenant). Account = user.
 - **Doconvoy-side items unchanged** (for the integration plan): the intake envelope moves to finalize, the reveal route for the item record, `ClientRefHash` becomes `partRef`, file names move to `meta`, features stop handling keys, and the data migration or reset.
 - **D2 (crypto owners):** supported by the library through `setOwners`. The mapping to product roles is doconvoy's.
 
+## Status after plan 004 (team access management)
+
+The library now offers the admin flows doconvoy will expose; doconvoy-side work for the integration plan:
+
+- **Onboarding:** setup is two steps plus recovery confirmation (`setup`, `beginRecoverySetup`, `confirmRecoveryPhrase`); teams refuse accounts without recovery (`RECOVERY_NOT_SET_UP`). The setup UI must make the user type the phrase back.
+- **Invites:** `owner.createInvite(inviteId, { inviteeRef })` returns the link value for the invite email's fragment. The invite email is sent by doconvoy's server, so invite proofs are hints unless doconvoy sets `autoApproveInvites` (it then trusts its server and mail delivery for joins, TH-43). Keep invite links out of in-app views, logs and the stored outbox. A natural `inviteeRef`: a hash of the invitee's address, compared by the policy function.
+- **Owner sessions:** call `owner.reconcile(activeMemberIds)` on every owner session (team page load or a background tick) and render `needsHuman`; the team page renders `owner.overview(activeIds)` (status, proof, warnings) and approves with `owner.approve([handle])`. This replaces "accept join", "backfill", the rotation after removal and the rejected list.
+- **Crypto owners (D2):** `setOwners` keeps every holder by default; removing an owner is never automatic (`inactive-owner` in `needsHuman`).
+- **Account security screens:** "lost device" → `revokeDevice`; "device may be compromised / PIN leaked" → `secureAccount({ phrase, newPin })` (show `failed` teams with a retry); "replace recovery phrase" → begin/confirm with the current phrase when the user has it. `vault.warnings()` drives the account banner.
+- **Go server (key store):** new `invite` record (write-once, current version, readable by members); `team-key-version` no longer needs the signer's grant in the same batch; version records up to 384 KiB (DynamoDB items are 400 KB: one item per version); `account-key-wrap` recovery wraps carry `wrappedRecoveryPublicKey` and may be created after the version's other wraps. A rotation is one write, so the 100-item transaction limit no longer applies to rotations.
+- **Data:** formats changed before release (D-01): reset or migrate.
+

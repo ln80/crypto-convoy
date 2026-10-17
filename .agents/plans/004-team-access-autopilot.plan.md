@@ -301,3 +301,12 @@ Refinements found while writing the spec; the spec is the reference.
 - **Errors:** `NOT_AN_OWNER` and `RECOVERY_NOT_SET_UP` are new codes.
 - **Roster size:** `crypto_box_seal` carries its context inside the box, so an entry is about 360 bytes, not 240. The roster seal uses a compact context (`roster-seal`, version and keys hash) and version records are capped at 384 KiB of JSON (about 1,000 members with 36-byte ids, about 850 with 128-byte ids).
 - **Owner API defaults:** `setOwners` and `remove` keep every current holder unless told otherwise, so callers don't build keep lists.
+
+## Execution notes
+
+- **Phase order:** C landed with E1–E2 (rosters in rotation and reads), and E3–E4 with F, so every commit stayed green.
+- **Signer rule (§4.5 rule 5):** the signer needs a roster entry with any of its keys; an owner approving its own re-key signs with its previous key.
+- **Fail-closed rotation:** a rotation resolves held keys from their `member-keys` record and checks the pinned hash; a server swapping that record stops the rotation with `key_mismatch` (it used to be silently ignored).
+- **`outdated` below the anchor:** the owner overview extends the chain to version 1 when a non-holder isn't found in grants or loaded rosters, so a long-removed member isn't shown as a first joiner.
+- **Invites that fail their checks** (not signed by an owner of their version) are ignored, not a trust failure: they prove nothing (§6.9).
+- **API removed** (pre-release): `team.memberStatuses`, `team.warnings`, `team.memberRequest`, `team.needsRotation`, `team.completeRotation`, `vault.replaceRecoveryPhrase`; `vault.setup` and `vault.rotate` return nothing. Replaced by `team.owner()` (`overview`, `reconcile`, `approve`, `remove`, `setOwners`, `createInvite`, `grantedBy`, `grant`, `rotate`), `vault.beginRecoverySetup`/`confirmRecoveryPhrase`, `vault.secureAccount`, `vault.warnings`.
