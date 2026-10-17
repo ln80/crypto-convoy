@@ -64,3 +64,14 @@ Team = workspace (tenant). Account = user.
 - **D1:** accept G1 (associated data = label + index).
 - **D2:** role mapping. Is only the workspace owner a crypto owner, or also admins who can approve members (`canAcceptJoinTeam`)? Any crypto owner can grant and rotate (D-06).
 - **D3:** G4 on the server: serve the item record through the secret reveal endpoints, or anonymous key-store access.
+
+## Status after plan 003
+
+- **Resolved in the library:**
+  - G1 (index-only parts, D-26) and G2 (`submissionId` from the app).
+  - G4 (the item record is an input of `openSharedItem`; the route is the app's).
+  - G5 (open, then parts on demand) and G6 (`vault.status`, `memberStatuses`, `warnings`).
+  - G7 (sealed transfer, D-29), G8 (`partRef`, D-28) and G9 (key store only, D-25).
+- **Doconvoy-side items unchanged** (for the integration plan): the intake envelope moves to finalize, the reveal route for the item record, `ClientRefHash` becomes `partRef`, file names move to `meta`, features stop handling keys, and the data migration or reset.
+- **D2 (crypto owners):** supported by the library through `setOwners`. The mapping to product roles is doconvoy's.
+

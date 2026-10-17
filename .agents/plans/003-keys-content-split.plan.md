@@ -199,3 +199,42 @@ Each warning carries the action that clears it (`grant`, `rotate`, `completeRota
   - a split layout with a receiver;
   - status and warnings at each step.
 - Prove-the-guard results recorded for the transfer checks (receiver binding, single use, context), the index binding, `partRef` keying and the buffered pre-download refusal.
+
+## Execution notes
+
+### Phase A (done)
+- Spec committed (`98204c6`). The two new labels were added to `labels.ts` in the same commit, so the label test kept matching §1.
+
+### Phase B (done)
+- Parts bind only their index. `sealItem` and `sealSubmission` seal drafts; `createItem` and `createSubmission` remain as all-at-once helpers for tests.
+- `submissionId` is read as an id.
+- `item.v1` and `submission.v1` regenerated, with a foreign-part case and an envelope served under another id. `transfer.v1` and `part-ref.v1` are new.
+- A property test checks that streaming encryption gives the buffered layout for any slicing. Slices are at least 50 KB; 1-byte slices of 8 MiB took minutes.
+
+### Phases C–F (one commit)
+- They change the ports, content, session and vault together; splitting them would have left the build broken in between.
+- **Deviations from the plan, all reflected in §12:**
+  - **Invite anchor:** `vault.openTeam(teamId, { anchor })` takes it, not `joinTeam`, because joining no longer opens a session.
+  - **`openSubmission(inboxId, submissionId, record)`** takes the expected id, as §3.1 requires: ids come from the caller.
+  - **One more warning code,** `rekeys-awaiting-approval`, separate from `members-awaiting-approval`: they are cleared by different actions (rotate vs grant).
+  - **Vault options:** `deviceKeys` plus optional `anchors`. Without `anchors`, `openTeam` throws a misuse error pointing to `exportTeamKeys`.
+- `loadChain` (`src/team/load.ts`) is shared by sessions and the vault's `leaveTeam` check.
+- Opening a team for the first time now reports the team's creation as an owner change (§6.1 at first contact). The test helper opens each joiner's session once.
+
+### Phase G (done)
+- **Memory:** 64 MiB streamed through a draft stays under 24 MiB of growth. The measurement needs forced collection; `execArgv: ["--expose-gc"]` is set for the properties project.
+- **Proved the guards:**
+  - Making `streamEncryptChunks` buffer the whole part fails the memory test.
+  - Dropping the transfer context fails the "other team or account" test.
+  - An unkeyed `partRefKey` fails the cross-item test.
+  - Removing the pre-fetch size check fails the "fetcher never called" test.
+  - Removing the receiver's `used` flag fails no test: the receiver's secret key is wiped after the first open, so a second open fails anyway. That's two layers of defence.
+
+### Phases H–I (done)
+- README usage guide rewritten. `docs/libsodium-map.md` updated for keyed incremental hashing.
+- The scenario test runs the product-shaped pipelines through public entry points only. The package smoke test covers drafts, link clients and transfers.
+- **Final gate:** typecheck, 613 tests, 33 fuzz properties, `check:spec`, build, package smoke test.
+
+### Follow-ups
+- **TeamSession size:** it is about 550 lines. Move statuses and warnings to `src/team/status.ts` if it grows further.
+- **Draft persistence:** a draft lives in memory, so a page reload loses it and the parts already uploaded open with no key (D-27). Resumable uploads would need a protocol decision.
