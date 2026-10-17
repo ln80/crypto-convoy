@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { openAccountKeyWrap, parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
-import { world } from "../support/fixtures.js";
+import { replacePhrase, world } from "../support/fixtures.js";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
@@ -19,7 +19,8 @@ describe("SP-11: the account key can be rotated", () => {
     const phone = await w.device("alice");
     await phone.vault.unlockWithPin("1234");
 
-    expect(await laptop.vault.rotate({ pin: "1234", phrase: laptop.recoveryPhrase })).toEqual({});
+    await laptop.vault.rotate({ pin: "1234", phrase: laptop.recoveryPhrase });
+    expect((await laptop.vault.status()).recovery).toBe("set-up");
     laptop.vault.lock();
     await laptop.vault.unlock();
 
@@ -29,19 +30,22 @@ describe("SP-11: the account key can be rotated", () => {
     await (await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1234");
   });
 
-  it("returns a new phrase when none is given, and the old one stops working", async () => {
+  it("without the phrase, recovery must be set up again, and the old phrase stops working (D-35)", async () => {
     const w = world();
     const laptop = await w.account("alice");
-    const { recoveryPhrase } = await laptop.vault.rotate({ pin: "1234" });
-    expect(recoveryPhrase).toBeDefined();
-    await expect((await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1")).rejects.toEqual(code("WRONG_CREDENTIAL"));
-    await (await w.device("alice")).vault.recover(recoveryPhrase!, "1");
+    await laptop.vault.rotate({ pin: "1234" });
+    expect((await laptop.vault.status()).recovery).toBe("not-set-up");
+    expect(await laptop.vault.warnings()).toEqual([{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }]);
+    await expect(laptop.vault.createTeam("team-1")).rejects.toEqual(code("RECOVERY_NOT_SET_UP"));
+    await expect((await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1")).rejects.toEqual(code("STORE_ERROR"));
+    const { recoveryPhrase } = await replacePhrase(laptop.vault);
+    await (await w.device("alice")).vault.recover(recoveryPhrase, "1");
   });
 
   it("refuses a mistyped phrase before changing anything", async () => {
     const w = world();
     const laptop = await w.account("alice");
-    const { recoveryPhrase: other } = await (await w.account("bob")).vault.replaceRecoveryPhrase();
+    const { recoveryPhrase: other } = await w.account("bob");
     await expect(laptop.vault.rotate({ pin: "1234", phrase: other })).rejects.toEqual(code("WRONG_CREDENTIAL"));
     expect(await laptop.store.getAccountKeyVersion("alice")).toBe(1);
   });

@@ -51,14 +51,19 @@ describe("scenario", () => {
     // 1. Encryption setup: the owner creates the team; a member joins and waits for approval.
     const alice = await vault("alice");
     expect((await alice.status()).account).toBe("not-set-up");
-    const { recoveryPhrase } = await alice.setup("1234");
-    expect(await alice.status()).toEqual({ account: "unlocked", deviceRegistered: true });
+    await alice.setup("1234");
+    expect(await alice.status()).toEqual({ account: "unlocked", deviceRegistered: true, recovery: "not-set-up" });
+    await expect(alice.createTeam("team-1")).rejects.toSatisfy((e) => isConvoyError(e, "RECOVERY_NOT_SET_UP"));
+    const { recoveryPhrase } = alice.beginRecoverySetup(); // shown to the user, then typed back
+    await alice.confirmRecoveryPhrase(recoveryPhrase);
+    expect((await alice.status()).recovery).toBe("set-up");
     await alice.createTeam("team-1");
     const team = await alice.openTeam("team-1");
     expect((await team.warnings(["alice"])).map((w) => w.code)).toEqual(["single-owner"]);
 
     const bob = await vault("bob");
     await bob.setup("5678");
+    await bob.confirmRecoveryPhrase(bob.beginRecoverySetup().recoveryPhrase);
     expect((await team.memberStatuses(["bob"]))[0]!.status).toBe("no-keys");
     await bob.joinTeam("team-1");
     expect((await bob.openTeam("team-1", { anchor: team.inviteAnchor() })).state).toBe("pending");

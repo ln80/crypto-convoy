@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { accountKeyWrapToJson, createAccountKeyWrap } from "../../src/records/account-key-wrap.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
-import { world } from "../support/fixtures.js";
+import { replacePhrase, world } from "../support/fixtures.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -63,7 +63,7 @@ describe("SP-19: only authorized material opens the account key", () => {
     const laptop = await w.account("alice");
     const [id] = await laptop.vault.listDevices();
     await laptop.vault.revokeDevice(id!);
-    await laptop.vault.replaceRecoveryPhrase();
+    await replacePhrase(laptop.vault);
     laptop.vault.lock();
     await expect(laptop.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
     await expect((await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1")).rejects.toEqual(code("WRONG_CREDENTIAL"));

@@ -1,9 +1,11 @@
 /**
  * SP-12: Compromised member keys can be replaced.
+ * SP-23: a re-key with the recovery phrase is proven.
  * Threats: TH-13, TH-37.
  */
 import { describe, expect, it } from "vitest";
 import { isConvoyError } from "../../src/errors.js";
+import { hasValidRecoveryProof } from "../../src/records/member-keys.js";
 import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
@@ -92,5 +94,16 @@ describe("SP-12: compromised member keys can be replaced", () => {
       isConvoyError(e, "STALE_VERSION"),
     );
     expect(aliceTeam.currentVersion).toBe(1);
+  });
+
+  it("a re-key with the recovery phrase carries the proof; another phrase is refused (SP-23)", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    const held = await bundleOf(bob.vault);
+    const { recoveryPhrase: other } = await w.account("mallory");
+    await expect(bob.vault.rekey("team-1", { phrase: other })).rejects.toSatisfy((e) => isConvoyError(e, "WRONG_CREDENTIAL"));
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    const rekeyed = await bundleOf(bob.vault);
+    expect(hasValidRecoveryProof(rekeyed.published, held.published.recoveryPublicKey)).toBe(true);
   });
 });

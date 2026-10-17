@@ -9,6 +9,7 @@ const keys = new MemoryLocalKeyStore();
 const settings = { argon2: { write: { opslimit: 2, memlimit: 64 * 1024 * 1024 } } };
 const vault = await createVault({ store: server.as("a"), oprf: new FakeOprfServer(), deviceKeys: keys, anchors: keys, settings }, "a");
 await vault.setup("1234");
+await vault.confirmRecoveryPhrase(vault.beginRecoverySetup().recoveryPhrase);
 await vault.createTeam("t");
 const team = await vault.openTeam("t");
 const draft = team.beginItem();

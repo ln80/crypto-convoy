@@ -6,7 +6,7 @@
 /** Package version. */
 export const version = "0.0.0";
 
-export { createVault, type Vault, type VaultOptions, type VaultStatus } from "./account/vault.js";
+export { createVault, type RekeyReport, type Vault, type VaultOptions, type VaultStatus, type VaultWarning } from "./account/vault.js";
 export type {
   AccessState,
   Member,

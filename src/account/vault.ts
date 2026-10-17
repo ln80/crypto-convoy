@@ -1,6 +1,6 @@
 // The account vault (§5, D-03): the only holder of the account key.
 import { decodeAnchor } from "../encoding/link.js";
-import { ConvoyError } from "../errors.js";
+import { ConvoyError, trustFailure } from "../errors.js";
 import {
   callPort,
   resolveSettings,
@@ -14,12 +14,22 @@ import {
   type Settings,
   type WriteOp,
 } from "../ports.js";
-import { openAccountKeyWrap, parseAccountKeyWrap } from "../records/account-key-wrap.js";
+import { openAccountKeyWrap, openRecoveryPublicKey, parseAccountKeyWrap } from "../records/account-key-wrap.js";
 import { CURRENT_SUITE, ready } from "../suites/registry.js";
 import type { TeamSession } from "../team/session.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { createWrap, replaceWrap, wrapKey } from "./context.js";
-import { deriveRecoveryKey } from "./recovery-key.js";
+import { deriveRecoveryKeys } from "./recovery-key.js";
+import {
+  accountTeams,
+  currentRecoveryKey,
+  recoverySigner,
+  rekeyTeam,
+  rekeyTeams,
+  samePhrase,
+  teamsWithOldRecoveryKey,
+  type RekeyReport,
+} from "./recovery.js";
 import { rotateAccount } from "./rotation.js";
 import { currentOwners, exportBundles, newMemberKeys, newTeamOps, openBundles, openSession } from "./member-custody.js";
 import {
@@ -48,7 +58,19 @@ export interface VaultOptions {
 export interface VaultStatus {
   readonly account: "not-set-up" | "locked" | "unlocked";
   readonly deviceRegistered: boolean;
+  /** Recovery is set up when a recovery wrap exists at the current account key version (D-35). */
+  readonly recovery: "not-set-up" | "set-up";
 }
+
+/** Something about the account the user should act on, with the operation that clears it (§12). */
+export interface VaultWarning {
+  readonly code: "recovery-not-set-up" | "rekey-needed";
+  /** For `rekey-needed`: teams whose member keys don't carry the current recovery key. */
+  readonly teamIds: readonly string[];
+  readonly action: "beginRecoverySetup" | "rekey";
+}
+
+export type { RekeyReport };
 
 /** Opens an account's vault. Loads libsodium; throws `MALFORMED_RECORD` for settings below the floor. */
 export async function createVault(options: VaultOptions, accountId: string): Promise<Vault> {
@@ -85,6 +107,8 @@ export class Vault {
   readonly #ports: AccountPorts;
   readonly accountId: string;
   #account: OpenAccount | null = null;
+  /** A phrase shown to the user and not yet confirmed (§5.10). Memory only. */
+  #pendingPhrase: string | null = null;
 
   /** @internal Use `createVault`. */
   constructor(ports: AccountPorts, accountId: string) {
@@ -106,27 +130,58 @@ export class Vault {
   lock(): void {
     if (this.#account) this.#ports.suite.wipe(this.#account.key);
     this.#account = null;
+    this.#pendingPhrase = null;
   }
 
   /**
-   * Creates the account (§5.3) and registers this device. Returns the recovery phrase,
-   * to show once. Throws `PIN_RATE_LIMITED`, `STALE_VERSION` (account exists), `STORE_ERROR`.
+   * Creates the account (§5.3) and registers this device. Set up recovery next
+   * (`beginRecoverySetup`): teams need it. Throws `PIN_RATE_LIMITED`, `STALE_VERSION` (account exists), `STORE_ERROR`.
    */
-  async setup(pin: string): Promise<{ recoveryPhrase: string }> {
+  async setup(pin: string): Promise<void> {
     const { suite, deviceKeys } = this.#ports;
     const account: OpenAccount = { accountId: this.accountId, version: 1, key: suite.randomBytes(suite.sizes.key) };
-    const recoveryPhrase = suite.generateRecoveryPhrase();
     const { device, op } = newDevice(this.#ports, account);
     await commit(this.#ports, [
       createWrap(await pinWrap(this.#ports, account, pin)),
-      createWrap(recoveryWrap(this.#ports, account, recoveryPhrase)),
       op,
       { op: "set-account-key-version", accountId: this.accountId, expected: null, accountKeyVersion: 1 },
     ]);
     await callPort(() => deviceKeys.setDevice(this.accountId, device));
     await acceptVersion(this.#ports, account);
     this.#account = account;
-    return { recoveryPhrase };
+  }
+
+  /**
+   * A new recovery phrase to show the user (§5.10). Nothing is stored until the user types it
+   * back with `confirmRecoveryPhrase`; beginning again replaces it.
+   */
+  beginRecoverySetup(): { recoveryPhrase: string } {
+    this.#requireAccount();
+    this.#pendingPhrase = this.#ports.suite.generateRecoveryPhrase();
+    return { recoveryPhrase: this.#pendingPhrase };
+  }
+
+  /**
+   * Stores the recovery wrap for the phrase the user typed back (§5.10). When it replaces a
+   * phrase, every team is re-keyed with the new recovery key (§5.6): proven if `currentPhrase`
+   * is given, a human approval otherwise. Throws `WRONG_CREDENTIAL` (not the phrase shown, or
+   * not the current one), `STALE_VERSION`.
+   */
+  async confirmRecoveryPhrase(phrase: string, options: { currentPhrase?: string } = {}): Promise<RekeyReport> {
+    const account = this.#requireAccount();
+    const pending = this.#pendingPhrase;
+    if (pending === null || !samePhrase(phrase, pending)) throw new ConvoyError("WRONG_CREDENTIAL");
+    const old = await currentRecoveryKey(this.#ports, account);
+    const signer = old && options.currentPhrase !== undefined ? recoverySigner(this.#ports, this.accountId, options.currentPhrase, old) : undefined;
+    try {
+      const wrap = recoveryWrap(this.#ports, account, pending);
+      await commit(this.#ports, old ? replaceWrap(wrap) : [createWrap(wrap)]);
+      this.#pendingPhrase = null;
+      const next = openRecoveryPublicKey(wrap, account.key);
+      return await rekeyTeams(this.#ports, account, await teamsWithOldRecoveryKey(this.#ports, account, next), next, signer);
+    } finally {
+      if (signer) this.#ports.suite.wipe(signer.secretKey);
+    }
   }
 
   /** Unlocks with this device's key (§5.4). Throws `DEVICE_NOT_REGISTERED`, `TRUST_FAILURE` (`rollback`). */
@@ -171,12 +226,14 @@ export class Vault {
     const version = await this.#requireVersion();
     const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "recovery" });
     if (!wrap) throw new ConvoyError("STORE_ERROR");
-    const recoveryKey = deriveRecoveryKey(suite, this.accountId, phrase);
+    const { recoveryKey, signing } = deriveRecoveryKeys(suite, this.accountId, phrase);
     let key: Uint8Array;
     try {
       key = openAccountKeyWrap(wrap, recoveryKey);
+      // The recovery key the wrap names must be this phrase's (§4.1).
+      if (!suite.equal(openRecoveryPublicKey(wrap, key), signing.publicKey)) throw trustFailure("key_mismatch");
     } finally {
-      suite.wipe(recoveryKey);
+      suite.wipe(recoveryKey, signing.secretKey);
     }
     const account = { accountId: this.accountId, version, key };
     const { ops, device } = await this.#registration(account);
@@ -190,14 +247,6 @@ export class Vault {
   async changePin(newPin: string): Promise<void> {
     const account = this.#requireAccount();
     await commit(this.#ports, replaceWrap(await pinWrap(this.#ports, account, newPin)));
-  }
-
-  /** Replaces the recovery phrase (§5.6) and returns the new one, to show once. */
-  async replaceRecoveryPhrase(): Promise<{ recoveryPhrase: string }> {
-    const account = this.#requireAccount();
-    const recoveryPhrase = this.#ports.suite.generateRecoveryPhrase();
-    await commit(this.#ports, replaceWrap(recoveryWrap(this.#ports, account, recoveryPhrase)));
-    return { recoveryPhrase };
   }
 
   /** The `deviceId` of every device wrap at the current version (§5.5). */
@@ -221,26 +270,58 @@ export class Vault {
   }
 
   /**
-   * Rotates the account key (§5.7). Pass the current `phrase` to keep it, or omit it to get a
-   * new one. Other devices must register again. Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   * Rotates the account key (§5.7). Pass the current `phrase` to keep it; without it, recovery
+   * must be set up again (D-35), which re-keys every team. Other devices must register again.
+   * Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
    */
-  async rotate(input: { pin: string; phrase?: string }): Promise<{ recoveryPhrase?: string }> {
+  async rotate(input: { pin: string; phrase?: string }): Promise<void> {
     const current = this.#requireAccount();
-    const { account, recoveryPhrase } = await rotateAccount(this.#ports, current, input);
+    const { account } = await rotateAccount(this.#ports, current, input);
     this.lock();
     this.#account = account;
-    return recoveryPhrase ? { recoveryPhrase } : {};
+  }
+
+  /**
+   * After a device that may have been misused, or a leaked PIN (§5.11, D-36): rotates the account
+   * key with a new PIN, which cuts every other device, then re-keys every team with a recovery
+   * proof that owners' `reconcile` approves. Run it on a device the attacker didn't control.
+   * Retry a failed team with `rekey(teamId, { phrase })`. Throws `WRONG_CREDENTIAL`,
+   * `RECOVERY_NOT_SET_UP`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   */
+  async secureAccount(input: { phrase: string; newPin: string }): Promise<RekeyReport> {
+    const current = this.#requireAccount();
+    const recoveryPublicKey = await currentRecoveryKey(this.#ports, current);
+    if (!recoveryPublicKey) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+    const signer = recoverySigner(this.#ports, this.accountId, input.phrase, recoveryPublicKey);
+    try {
+      const { account } = await rotateAccount(this.#ports, current, { pin: input.newPin, phrase: input.phrase });
+      this.lock();
+      this.#account = account;
+      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), recoveryPublicKey, signer);
+    } finally {
+      this.#ports.suite.wipe(signer.secretKey);
+    }
   }
 
   /** Whether the account is set up, the vault unlocked, and this device registered (§12). Never calls the OPRF. */
   async status(): Promise<VaultStatus> {
     const version = await callPort(() => this.#ports.store.getAccountKeyVersion(this.accountId));
-    if (version === null) return { account: "not-set-up", deviceRegistered: false };
+    if (version === null) return { account: "not-set-up", deviceRegistered: false, recovery: "not-set-up" };
+    const recovery = (await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "recovery" })) ? "set-up" : "not-set-up";
     const device = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
     const wrap = device
       ? await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId })
       : null;
-    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null };
+    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null, recovery };
+  }
+
+  /** What the user should act on (§12): recovery not set up, teams whose keys predate the current phrase. */
+  async warnings(): Promise<VaultWarning[]> {
+    const account = this.#requireAccount();
+    const recovery = await currentRecoveryKey(this.#ports, account);
+    if (!recovery) return [{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }];
+    const stale = await teamsWithOldRecoveryKey(this.#ports, account, recovery);
+    return stale.length > 0 ? [{ code: "rekey-needed", teamIds: stale, action: "rekey" }] : [];
   }
 
   /** Creates a team with this account as its first owner (§6.3). Throws `STALE_VERSION` if it exists. */
@@ -279,15 +360,20 @@ export class Vault {
   }
 
   /**
-   * New member keys for a team (§6.8 step 1), signed for continuity by the current ones.
-   * They receive nothing until an owner approves them by rotating. Throws `NOT_GRANTED`.
+   * New member keys for a team (§6.8 step 1), signed for continuity by the current ones and,
+   * with the recovery `phrase`, proven: owners' `reconcile` then approves them (SP-23). They
+   * receive nothing until an owner approves them by rotating. Throws `NOT_GRANTED`,
+   * `RECOVERY_NOT_SET_UP`, `WRONG_CREDENTIAL` (not the current phrase).
    */
-  async rekey(teamId: string): Promise<void> {
+  async rekey(teamId: string, options: { phrase?: string } = {}): Promise<void> {
     const account = this.#requireAccount();
-    const [newest] = await openBundles(this.#ports, account, teamId);
-    if (!newest) throw new ConvoyError("NOT_GRANTED");
-    const options = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account), previous: newest };
-    await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, newest.memberKeysVersion + 1, options).ops);
+    const recovery = await recoveryPublicKey(this.#ports, account);
+    const signer = options.phrase !== undefined ? recoverySigner(this.#ports, this.accountId, options.phrase, recovery) : undefined;
+    try {
+      await rekeyTeam(this.#ports, account, teamId, recovery, signer);
+    } finally {
+      if (signer) this.#ports.suite.wipe(signer.secretKey);
+    }
   }
 
   /**

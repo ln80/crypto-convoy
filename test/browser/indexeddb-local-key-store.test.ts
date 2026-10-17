@@ -88,6 +88,7 @@ describe("IndexedDB LocalKeyStore", () => {
     const localKeys = await createIndexedDbLocalKeyStore({ indexedDB: fresh() });
     const vault = await createVault({ store: server.as("alice"), oprf, deviceKeys: localKeys, anchors: localKeys, settings: FAST }, "alice");
     await vault.setup("1234");
+    await vault.confirmRecoveryPhrase(vault.beginRecoverySetup().recoveryPhrase);
     await vault.createTeam("team-1");
     const draft = (await vault.openTeam("team-1")).beginItem();
     draft.addPart(new Uint8Array([1]));

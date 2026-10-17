@@ -25,8 +25,8 @@ describe("public API", () => {
       ...Object.getOwnPropertyNames(o),
       ...Object.getOwnPropertyNames(Object.getPrototypeOf(o)),
     ];
-    // Names containing "key" that return only link strings or sealed transfers, or act on member keys.
-    const allowed = ["shareLinkKey", "rekey", "accountId", "exportTeamKeys"];
+    // Names matching that return only link strings, sealed transfers or reports, or act on member keys.
+    const allowed = ["shareLinkKey", "rekey", "accountId", "exportTeamKeys", "secureAccount"];
     const exposed = (o: object) => publicNames(o).filter((n) => forbidden.test(n) && !allowed.includes(n));
     expect(exposed(aliceTeam)).toEqual([]);
     expect(exposed(members.alice!.vault)).toEqual([]);

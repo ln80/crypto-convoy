@@ -36,9 +36,18 @@ export function world(options: { budget?: number } = {}) {
   /** An account set up on its first device; returns the device and the recovery phrase. */
   async function account(accountId: string, pin = "1234") {
     const first = await device(accountId);
-    const { recoveryPhrase } = await first.vault.setup(pin);
+    await first.vault.setup(pin);
+    const { recoveryPhrase } = first.vault.beginRecoverySetup();
+    await first.vault.confirmRecoveryPhrase(recoveryPhrase);
     return { ...first, recoveryPhrase, pin };
   }
 
   return { server, oprf, clock, device, account };
+}
+
+/** Sets up a new phrase in two steps, as the user would (§5.10); `currentPhrase` proves the team re-keys. */
+export async function replacePhrase(vault: Vault, options: { currentPhrase?: string } = {}) {
+  const { recoveryPhrase } = vault.beginRecoverySetup();
+  const report = await vault.confirmRecoveryPhrase(recoveryPhrase, options);
+  return { recoveryPhrase, report };
 }
