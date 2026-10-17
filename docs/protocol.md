@@ -797,14 +797,14 @@ vault.listDevices()                       → deviceId[]
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
 vault.rotate({ pin, phrase? })            → { recoveryPhrase? }
 vault.createTeam(teamId)                  // creator is the first owner
-vault.joinTeam(teamId, { anchor? })       // "pending" until granted; anchor from the invite link
+vault.joinTeam(teamId)                    // "pending" until granted
 vault.rekey(teamId)                       // new member keys; an owner approves them by rotating
 vault.leaveTeam(teamId)                   // throws LAST_OWNER for the only owner
-vault.openTeam(teamId)                    → TeamSession   // same context
+vault.openTeam(teamId, { anchor? })       → TeamSession   // same context; anchor from an invite link
 vault.exportTeamKeys(teamId, request)     → transfer      // another context (§3.8)
 
 // Receiving context (split layouts): one receiver per transfer.
-createTeamKeyReceiver(accountId, teamId)  → { request, openTeam(ports, transfer) → TeamSession }
+createTeamKeyReceiver(accountId, teamId)  → { request, openTeam({ store, anchors }, transfer) → TeamSession }
 
 // Team session: one team's keys.
 team.state                                // "not-joined" | "pending" | "ready" | "unverified"
@@ -820,20 +820,22 @@ team.rotate({ keep, approveRekeys? })     // keep: accounts that receive the new
 team.completeRotation({ keep })           // resume an interrupted rotation (§6.6 step 7)
 team.setOwners(owners, { keep })          // always a rotation with the new owner list
 team.beginItem()                          → draft         // §7.1
-draft.addPart(content | chunks, { meta? }) → ciphertext | ciphertext chunks
-draft.partRef(content)                    → string        // §3.9
+draft.addPart(content, { meta? })         → ciphertext
+draft.addPartStream(chunks, { meta? })    → ciphertext chunks
+draft.partRef(content) / partRefStream(chunks) → string // §3.9
 draft.seal(itemId)                        // stores the item record in the key store
 team.openItem(itemId)                     → opened: parts' meta and sizes
-opened.part(index, ciphertext | chunks)   → plaintext | authenticated chunks
+opened.part(index, source)                → plaintext     // source: bytes, chunks, or a fetcher
+opened.partStream(index, source)          → authenticated chunks
 team.shareLinkKey(itemId)                 → string
 team.createInbox(inboxId)                 → { linkKey }
 team.replaceInbox(inboxId, newInboxId)    → { linkKey }
-team.openSubmission(inboxId, submission)  → opened: createdAt, parts' meta and sizes
+team.openSubmission(inboxId, submissionId, submission) → opened: createdAt, parts' meta and sizes
 
 // Outside the team: no account and no store. teamId and itemId/inboxId come from the
 // link's path, linkKey from its fragment (takeLinkKey() in a browser).
-openSharedItem(linkKey, teamId, itemId, itemRecord) → opened
-beginSubmission(linkKey, teamId, inboxId) → draft         // seal(submissionId) → submission record
+linkClient.openSharedItem(linkKey, teamId, itemId, itemRecord) → opened
+linkClient.beginSubmission(linkKey, teamId, inboxId) → draft  // seal(submissionId) → submission record
 ```
 
 Every argument and result of the vault's operations is plain data (strings, numbers, byte arrays, plain objects), so an integration can carry them over its own channel between contexts.

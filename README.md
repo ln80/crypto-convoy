@@ -6,40 +6,83 @@ This package is private (`"private": true`) and at `0.0.0` until a public releas
 
 ## Using the library
 
+The library manages keys and does the cryptography. Your app stores the content: parts and submissions go wherever your pipeline puts them (D-25).
+
 Three entry points:
 
 | Import | For |
 | --- | --- |
-| `crypto-convoy` | The account vault, team sessions, the link client, errors and the interface types |
+| `crypto-convoy` | The account vault, team sessions, transfers between contexts, the link client, errors and the interface types |
 | `crypto-convoy/browser` | `createIndexedDbLocalKeyStore()` and `takeLinkKey()` |
-| `crypto-convoy/testing` | An honest in-memory server, a fake OPRF server, a memory key store and a clock, for your tests |
+| `crypto-convoy/testing` | An honest in-memory key store, a fake OPRF server, a memory key store and a clock, for your tests |
 
 ### Quick start
 
 ```ts
-import { createLinkClient, createVault } from "crypto-convoy";
+import { createVault } from "crypto-convoy";
 import { FakeOprfServer, MemoryLocalKeyStore, MemoryRecordStore } from "crypto-convoy/testing";
 
-const server = new MemoryRecordStore(); // in production: your RecordStore over your API
-const oprf = new FakeOprfServer();      // in production: your OprfService
+const keyStore = new MemoryRecordStore();   // in production: your RecordStore over your key store API
+const local = new MemoryLocalKeyStore();    // in a browser: createIndexedDbLocalKeyStore()
+const vault = await createVault({ store: keyStore.as("alice"), oprf: new FakeOprfServer(), deviceKeys: local, anchors: local }, "alice");
 
-const alice = await createVault({ store: server.as("alice"), oprf, localKeys: new MemoryLocalKeyStore() }, "alice");
-const { recoveryPhrase } = await alice.setup("1234"); // show the phrase once
-
-const team = await alice.createTeam("team-1");
-await team.createItem("note", [{ content: new TextEncoder().encode("hello") }]);
-const parts = await team.openItem("note"); // [{ content, meta }]
-
-// Someone outside the team, with a share link:
-const outsider = await createLinkClient({ store: server.anonymous() });
-await outsider.openSharedItem(await team.shareLinkKey("note"), "team-1", "note");
+const { recoveryPhrase } = await vault.setup("1234"); // show the phrase once
+await vault.createTeam("team-1");
+const team = await vault.openTeam("team-1");
 ```
 
-`test/compatibility/scenario.test.ts` walks through every operation with the public API only.
+`test/compatibility/scenario.test.ts` walks through every operation with the public API only, shaped like a product's pipelines.
 
-### Key custody
+### Creating content: a draft, sealed last
 
-The **vault** (`createVault`) holds the account key: setup, unlock (device, PIN, recovery phrase), devices, credentials, account key rotation, and anything that wraps member keys (create, join, re-key, leave a team). A **team session** (`vault.openTeam`) holds one team's keys only: grants, rotations, owners, items, inboxes. Run them as far apart as your product allows (scope, "Key custody"). The application never handles a raw key (D-15).
+The order fits a create → upload → finalize pipeline. The id can come from your server after the first part is encrypted.
+
+```ts
+const draft = team.beginItem();
+const value = draft.addPart(text, { meta: format });         // ciphertext: send it with your "create" call
+const id = await yourApi.create(value);                      // your server assigns the id
+for (const file of files) {
+  const ref = draft.partRef(bytes);                          // a keyed reference, safe to send (never a plain hash)
+  await yourApi.upload(id, draft.addPartStream(file.stream(), { meta: name })); // ciphertext chunks
+}
+await draft.seal(id);                                        // writes the item's key record; then finalize
+```
+
+Inbox submissions from outside work the same way: `(await createLinkClient()).beginSubmission(linkKey, teamId, inboxId)`, then `addPart`, then `seal(submissionId)`. It returns the submission record, which you store with its parts.
+
+### Reading: open, then parts on demand
+
+```ts
+const opened = await team.openItem(id);                      // parts' meta and sizes
+const value = await opened.part(0, () => yourApi.download(id, 0));
+for await (const chunk of opened.partStream(1, () => yourApi.downloadStream(id, 1))) { /* … */ }
+```
+
+`part` is buffered: all of it or an error. A part above `settings.maxBufferedSize` (default 64 MiB) is refused before your fetcher is called. `partStream` yields authenticated chunks and ends with an error if the content is incomplete; discard what you received in that case.
+
+A link holder gets the key from the fragment (`takeLinkKey()`) and the item's key record from you, by whatever route you choose: `linkClient.openSharedItem(linkKey, teamId, itemId, itemRecord)`.
+
+### Key custody: one context or two
+
+The **vault** holds the account key and does only what needs it: setup, unlock, devices, credentials, account rotation, and creating, joining, re-keying and leaving teams. A **team session** holds one team's keys and does everything else.
+
+If both run in one context, `vault.openTeam(teamId)`. If the vault runs elsewhere (for example an iframe on its own origin), the page asks for one team's keys and the vault seals them to it:
+
+```ts
+// page
+const receiver = await createTeamKeyReceiver(accountId, teamId);
+// …send receiver.request to the vault over your channel; the vault calls exportTeamKeys(teamId, request)…
+const team = await receiver.openTeam({ store, anchors }, transfer);
+```
+
+The transfer opens only for that receiver, once. Your bridge carries the two strings and decides which page may ask for which team; the library never sees your domain layout (D-29).
+
+### Setup and access checks
+
+- `vault.status()`: `not-set-up`, `locked` or `unlocked`, and whether this device is registered.
+- `team.state`: `not-joined`, `pending`, `ready` or `unverified`.
+- `team.memberStatuses(ids)`, for owners: `no-keys`, `awaiting-approval`, `approved`, `outdated`, `rekey-awaiting-approval` (with a continuity hint).
+- `team.warnings(activeIds)`: what an owner should act on (`single-owner`, `members-awaiting-approval`, `rekeys-awaiting-approval`, `rotation-needed`, `rotation-interrupted`), each with the operation that clears it.
 
 ### Errors
 
@@ -63,13 +106,9 @@ Your `RecordStore` signals a refused write with `StoreConflictError`, and your `
 
 Put `shareLinkKey()` and `createInbox().linkKey` values in the URL **fragment**. On the page that opens them, call `takeLinkKey()` first: it reads the fragment and removes it from the address bar and history. Follow the share-link checklist in [docs/scope.md](docs/scope.md#what-the-integration-does).
 
-### Large content
-
-`openItem` and `openSubmission` are buffered: all parts, or an error and nothing. Parts above `settings.maxBufferedSize` (default 64 MiB) are refused before download. For larger parts, `openItemStream` yields authenticated chunks and ends with an error if the content is incomplete; discard what you received in that case.
-
 ### Integrating a server
 
-[docs/integration.md](docs/integration.md) says how to implement the four interfaces and the server rules in any backend.
+[docs/integration.md](docs/integration.md) covers the key store, the OPRF server and where your content pipeline plugs in.
 
 ## Security documents
 
