@@ -9,9 +9,6 @@ import { ROOT, read } from "../support/source.js";
 
 const STRICT = true;
 
-// Verification files the spec names before their tests exist; removed when plan 003 writes them.
-const PENDING = new Set(["test/security/key-transfer.test.ts", "test/security/part-ref.test.ts"]);
-
 const entries = read("docs/security-properties.md")
   .split(/^(?=### SP-\d+:)/m)
   .filter((chunk) => chunk.startsWith("### SP-"))
@@ -31,7 +28,7 @@ describe("traceability", () => {
   for (const { id, files } of entries) {
     for (const file of files) {
       const exists = existsSync(join(ROOT, file));
-      if (!exists && (!STRICT || PENDING.has(file))) {
+      if (!exists && !STRICT) {
         it.todo(`${id}: ${file}`);
         continue;
       }

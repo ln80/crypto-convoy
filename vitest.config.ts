@@ -13,6 +13,8 @@ export default defineConfig({
           include: ["test/properties/**/*.test.ts"],
           testTimeout: 30_000,
           ...node,
+          // The memory test forces collection to measure what the library keeps, not garbage.
+          execArgv: ["--expose-gc"],
         },
       },
       {
