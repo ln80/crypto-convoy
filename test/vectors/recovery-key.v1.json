@@ -1,22 +1,38 @@
 {
   "file": "recovery-key.v1",
-  "covers": "Protocol §5.2 recovery key: BIP-39 (English, 128-bit entropy, empty passphrase), keyed BLAKE2b",
+  "covers": "Protocol §5.2 recovery key and recovery signing key: BIP-39 (English, 128-bit entropy, empty passphrase), keyed BLAKE2b, Ed25519; §4.2 recovery signature",
   "cases": [
     {
       "entropy": "00000000000000000000000000000000",
       "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
       "accountId": "alice",
       "seed": "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4",
-      "recoveryKey": "95a9b3e4202d452bedeace60861528b6089f7a873b67cda7099e7706742e310e"
+      "recoveryKey": "95a9b3e4202d452bedeace60861528b6089f7a873b67cda7099e7706742e310e",
+      "recoverySigningSeed": "304e2bb8e19bfa5acf8305c7456a2ab35cb90edaf07b95ebac848f206781f3a8",
+      "recoveryPublicKey": "da117c712444a2e89ffdf8e2cfe56cae1d50ed137618af81857ee1347bfe9d3d"
     },
     {
       "entropy": "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f",
       "phrase": "legal winner thank year wave sausage worth useful legal winner thank yellow",
       "accountId": "alice",
       "seed": "878386efb78845b3355bd15ea4d39ef97d179cb712b77d5c12b6be415fffeffe5f377ba02bf3f8544ab800b955e51fbff09828f682052a20faa6addbbddfb096",
-      "recoveryKey": "eb7ed9273b41cfb36416f5f95d46a1874cd329abc3d892a5d2a7b3493372e7bd"
+      "recoveryKey": "eb7ed9273b41cfb36416f5f95d46a1874cd329abc3d892a5d2a7b3493372e7bd",
+      "recoverySigningSeed": "2d538bf247422def65c716b7273799df253839d35d1fb394a0d760667d7d1d0c",
+      "recoveryPublicKey": "1e1d3261ffdbcbed9d975851df967f7a1d34d0f4953507208acede76f1f5eb0e"
     }
   ],
+  "recoveryProof": {
+    "keys": {
+      "teamId": "team-1",
+      "accountId": "alice",
+      "memberKeysVersion": 2,
+      "signingPublicKey": "a8edc18790681c95dcb4828f9b2a1fb3e0a8f6abce4286a656a43d9f75599a41",
+      "encryptionPublicKey": "1295508b2b62e6dc36cc0e2eafce45d0c2c9cafb8ecae56dcb44874d02fd2e41",
+      "recoveryPublicKey": "da117c712444a2e89ffdf8e2cfe56cae1d50ed137618af81857ee1347bfe9d3d"
+    },
+    "message": "0000002563727970746f2d636f6e766f792f76312f6d656d6265722d6b6579732d7265636f76657279000000067465616d2d3100000005616c6963650000000200000020a8edc18790681c95dcb4828f9b2a1fb3e0a8f6abce4286a656a43d9f75599a41000000201295508b2b62e6dc36cc0e2eafce45d0c2c9cafb8ecae56dcb44874d02fd2e4100000020da117c712444a2e89ffdf8e2cfe56cae1d50ed137618af81857ee1347bfe9d3d",
+    "signature": "26a8f7e2db354b5f7c63cafe61d4b14678a770925e0822a1198b04d60543113bf0f32786c23ec3fe262ec698c6edfb96dbd14f255f4df4e921078045f2e08904"
+  },
   "refused": [
     {
       "name": "bad checksum",

@@ -47,7 +47,7 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | Operation | Condition (refuse with a conflict otherwise) |
 | --- | --- |
 | `create` | No live record under that key (write-once, rule 3) |
-| `create` of `team-key-version` | Version = current + 1 (§11). Accept records of about 250 KB: the roster of a 1,000-member team (D-34) |
+| `create` of `team-key-version` | Version = current + 1 (§11). Accept records up to 384 KiB: the roster of a team of up to 1,000 members (D-34); DynamoDB's 400 KB item limit fits |
 | `create` of `grant`, `item`, `inbox`, `invite` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6) |
 | `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4) |
 | `delete` | A soft delete: stop serving, keep for the restore window (rule 7, TH-36) |

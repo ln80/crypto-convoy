@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { Reader, enc } from "../../src/encoding/canonical.js";
-import { decodeAnchor, decodeLinkKey, encodeAnchor, encodeLinkKey } from "../../src/encoding/link.js";
+import { decodeAnchor, decodeInvite, decodeLinkKey, encodeAnchor, encodeInvite, encodeLinkKey } from "../../src/encoding/link.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { loadVectors, tohex, toField, unhex, type VectorField } from "../support/vectors.js";
 
@@ -13,7 +13,7 @@ interface Canonical {
   refused: { name: string; read: string; encoded: string }[];
 }
 interface Links {
-  valid: { name: string; kind: string; value: string; bytes?: string; version?: number; hash?: string }[];
+  valid: { name: string; kind: string; value: string; bytes?: string; version?: number; hash?: string; inviteId?: string; secret?: string }[];
   refused: { name: string; kind: string; value: string; error: string }[];
 }
 
@@ -44,6 +44,7 @@ describe("canonical.v1", () => {
 /** The checks a reader applies to each kind of link value (§3.5, §2). */
 function decode(kind: string, value: string) {
   if (kind === "anchor") return decodeAnchor(value);
+  if (kind === "invite") return decodeInvite(value);
   const key = decodeLinkKey(value);
   if (kind === "inbox-key" && cc1.isLowOrder(key)) throw new Error("low order not refused");
   return key;
@@ -51,7 +52,14 @@ function decode(kind: string, value: string) {
 
 describe("link.v1", () => {
   it.each(links.valid)("decodes and re-encodes $name", (vector) => {
-    if (vector.kind === "anchor") {
+    if (vector.kind === "invite") {
+      const invite = decodeInvite(vector.value);
+      expect(invite.anchor.version).toBe(vector.version);
+      expect(tohex(invite.anchor.hash)).toBe(vector.hash);
+      expect(invite.inviteId).toBe(vector.inviteId);
+      expect(tohex(invite.secret)).toBe(vector.secret);
+      expect(encodeInvite(invite)).toBe(vector.value);
+    } else if (vector.kind === "anchor") {
       const anchor = decodeAnchor(vector.value);
       expect(anchor.version).toBe(vector.version);
       expect(tohex(anchor.hash)).toBe(vector.hash);

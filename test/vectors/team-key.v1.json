@@ -1,24 +1,33 @@
 {
   "file": "team-key.v1",
-  "covers": "Protocol §4.2 member keys, §4.5 team key versions and chain, §4.6 grants, §2 strict Ed25519",
+  "covers": "Protocol §4.2 member keys and keys hash, §4.5 team key versions, rosters and chain, §4.6 grants, §2 strict Ed25519",
   "teamId": "team-1",
   "accounts": {
     "alice": {
       "signingSeed": "26636490205898d9d0962f7b556f9ae6de9297151a2608cf4038ebf47718f64f",
-      "encryptionSecretKey": "fc9446f90d29fd85eca4798e4350d007fbf634cb7512b89de37a2ec82cc24601"
+      "encryptionSecretKey": "fc9446f90d29fd85eca4798e4350d007fbf634cb7512b89de37a2ec82cc24601",
+      "recoverySeed": "16d9cda41d67ab0aade063740f271298f0140676aab8cd0c25a13be371b7d384"
     },
     "bob": {
       "signingSeed": "da7a69489ca5c981ad2ebace5280b96ad262aec54245569315c38bdfbd39592e",
-      "encryptionSecretKey": "dc556244c42c8b6a9c71074c497348aa724d04f58e41da25aef0e0b74adc3e1e"
+      "encryptionSecretKey": "dc556244c42c8b6a9c71074c497348aa724d04f58e41da25aef0e0b74adc3e1e",
+      "recoverySeed": "386d15b50eb8850199c590dd04104929c543eeb5c8ce6c1748fb5b1dc0e96804"
     },
     "carol": {
       "signingSeed": "b67f72b6a90fbc69efa43c45f662e5a4652659caad8e3843781e0c64b3c918d8",
-      "encryptionSecretKey": "e589bc81c7b47f8cff350864e3463a784ad648d03e8b38553d73dd206d984736"
+      "encryptionSecretKey": "e589bc81c7b47f8cff350864e3463a784ad648d03e8b38553d73dd206d984736",
+      "recoverySeed": "b7b67f37b52e9cf5e5b45b7049e36f6952031f7b8d57f180f5a0fbaead4ef64a"
     },
     "mallory": {
       "signingSeed": "ad7a3e1060462b92466ffc4a81e524bd7feea759724ea2f20c96dda4189a03a1",
-      "encryptionSecretKey": "4af18bb04f8f3e0ce2cce07fddbc47abfdaac80bcc63339c195e8ba3106e499c"
+      "encryptionSecretKey": "4af18bb04f8f3e0ce2cce07fddbc47abfdaac80bcc63339c195e8ba3106e499c",
+      "recoverySeed": "c20ffffcf751d396ffa7dfb1a9f17a2cc16051f99311079a974cc7ffbe16a8ff"
     }
+  },
+  "keysHashes": {
+    "alice": "6892c9534f79de1009956209f792ef1d598d2bfbab142b114dfc5963e49d789f",
+    "bob": "e8f57e3bc5025ac2cc131c819482646d29f312d925e2c7bfa9e71712f7566163",
+    "carol": "b97f7212b6ead54d2043048be7a61a2e9ffd08431783c60b0233cec0589f9532"
   },
   "teamKeys": {
     "1": "117cc780216cca32189d215555b98fed275de0f4bf00126a707017c3337142e9",
@@ -36,8 +45,9 @@
       "memberKeysVersion": 1,
       "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q",
       "encryptionPublicKey": "-Nb5rrGMGvKaPL6Fa2A5uYuLT1gbARI6OfnwZukSyCA",
+      "recoveryPublicKey": "WlzLc_yqcIDgWo-xzhPvSRHW8zMNHfVkHYIKLM9g9HA",
       "createdAt": 1700000000,
-      "signature": "yh8gxKKJm_U5jCCaoDH1f1tRing8ucbgJguQn8xhVpXr08_2J5wkEtQ47LXz_UZRz4Vxj7mm8rwdd_Gepw_OBg"
+      "signature": "vlu4GOayO2GKBc9r-j_QuwlXIXLmfW1rLWyJ02E9GfmvwCZEZ6VUwoz6wEAfl3Pnl00CwI6jeRs_lstibGaXCQ"
     },
     {
       "v": 1,
@@ -48,8 +58,9 @@
       "memberKeysVersion": 1,
       "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4",
       "encryptionPublicKey": "p3HBmxm9xW7rxqVHTyGEaEmswWiKt_i99s5fX9nTkQU",
+      "recoveryPublicKey": "sWDwH_-BuC8GUm92Fml-vJ6Nn372cnXiI_mSlj2omO8",
       "createdAt": 1700000000,
-      "signature": "xsWVojZg7YpczIe85KmOYeM0OfP7h_-eVAJMHVQAEb5qyOtVTJmjX6vR0ydGxcSontx0wGSjtisbvY9j83m1BA"
+      "signature": "5nF-aE7LPwAyBj4Ht19dJjMeBdFUMUcBg21W2XzDu3QmLC5C3lm8w0P_t1PS2BrYTxNTfgmCl52dT1Nr4G2ADQ"
     },
     {
       "v": 1,
@@ -60,8 +71,9 @@
       "memberKeysVersion": 1,
       "signingPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
       "encryptionPublicKey": "v1j3zkuGhrU5Nm-gLtkjNYvGEPpJUkc-HpKe3DgBE00",
+      "recoveryPublicKey": "SI2kF_twzN5Ivrbv3EN0EjxwB6uPMBDDseqAbbpIQ4A",
       "createdAt": 1700000000,
-      "signature": "reMEFEQok7XhVzHIKKtQV5YyKRN1xprPlAHKb04WVX_NzdERZ52n4BLPHlYLut0voIzTE4efmR2NP9aFqTuKBw"
+      "signature": "sNBEjPHyqp6BDYKQ6aKGyKdy_lSpHPv-zagAICBoe8gbzx4jPbOFy9kB1hIvS5l6dacLRj67Nwjqn9ZkAXO8Ag"
     }
   ],
   "versions": {
@@ -79,16 +91,24 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA"
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
       },
-      "payload": "0000002163727970746f2d636f6e766f792f76312f7465616d2d6b65792d76657273696f6e000000067465616d2d31000000010000002000000000000000000000000000000000000000000000000000000000000000000000000100000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf40000000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf4000000006553f101",
-      "recordHash": "f2200a7ddf2c585c4478eecccb7be438ee761d40d04309a6a957f2e63851b0b0"
+      "payload": "0000002163727970746f2d636f6e766f792f76312f7465616d2d6b65792d76657273696f6e000000067465616d2d31000000010000002000000000000000000000000000000000000000000000000000000000000000000000000100000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf40000000100000005616c69636500000001000000206892c9534f79de1009956209f792ef1d598d2bfbab142b114dfc5963e49d789f0000009c13d68b5f8b6cdd628173b827fbf0eaff5e8bdea7f2227b60d5ad91fc748b2a4a3eb5421a2f5b1fb19a7eec9bafd0865e72228a2961fde2019cd566a611623d1b20d7567705e7ad7da74fb94962c06048214d1b94d295d27ff9aaaf88517f522a13c81fc23609b90aefb74b8b5ce7806e0fca0a4ca6475b5f7197db2912a2bde7bb92ad7d337a349edabe6b1227e85d1596413fd0018787619b27ccab0000000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf4000000006553f101",
+      "recordHash": "ad20e10235cee8af93a39ba35d91a2734039dbbcb6f2c006a7198581a3a69457"
     },
     "2": {
       "record": {
@@ -97,7 +117,7 @@
         "type": "team-key-version",
         "teamId": "team-1",
         "version": 2,
-        "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+        "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
         "owners": [
           {
             "accountId": "alice",
@@ -106,6 +126,20 @@
           {
             "accountId": "bob",
             "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          },
+          {
+            "accountId": "bob",
+            "memberKeysVersion": 1,
+            "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+            "sealedTeamKey": "GFjbZcpoPrXQGz89jX5cX3M7Nlk6IyBkLX2_tXCeTl7qBrPtnyt4hKuCI-mENmO3l4ALOyRvu0IjRdLG9-MWITzaK-gJQ_92j_4HGN4jx_2ry67IkqAxB2IDcfm9z9824_r9HeR7i-DjOxOtmaioYXduLOQkVe1lUbc12nyDrimpBq3b6KiedrMGugencCjB17D004tAbZBywYdT"
           }
         ],
         "wrappedPreviousKey": {
@@ -117,10 +151,10 @@
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000002,
-        "signature": "C86aKRASkjNd5GQTudGmFwat-fPoz-nAdbbmFWwnjV_RCcpHvCYbfh3w2UbxIvC9actEI47Hl_J8icmNfFAFBQ"
+        "signature": "AFGED80oztaxCOMnRsxW1JCL694e-GnytAxuOa6dzXj4Hb9WENV_8EvpwGsDF7oGvNVEW2NNFeb7Rr3Q1Q3pDQ"
       },
-      "payload": "0000002163727970746f2d636f6e766f792f76312f7465616d2d6b65792d76657273696f6e000000067465616d2d310000000200000020f2200a7ddf2c585c4478eecccb7be438ee761d40d04309a6a957f2e63851b0b00000000200000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf400000003626f6200000020464247a8a71d04b30170c00a78217d1e256db539621bfacf509971d8661ed1be01000000205468063f9863d3b75350d7cd5d9e58badac547b3661099440af732d4f255b58400000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf4000000006553f102",
-      "recordHash": "339d85d6f57780d62528030ac894a1217f9a1360edb76ed561ad39d3563acd71"
+      "payload": "0000002163727970746f2d636f6e766f792f76312f7465616d2d6b65792d76657273696f6e000000067465616d2d310000000200000020ad20e10235cee8af93a39ba35d91a2734039dbbcb6f2c006a7198581a3a694570000000200000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf400000003626f6200000020464247a8a71d04b30170c00a78217d1e256db539621bfacf509971d8661ed1be0000000200000005616c69636500000001000000206892c9534f79de1009956209f792ef1d598d2bfbab142b114dfc5963e49d789f0000009c853b157aecd7be998ddc99a30c992a5632e2de5757b1b7b9ba938f740918551e85ab0df219724413c87c68725126f3e96bffbddc501618a3f6db7ffc8cd95e5287fa2b8da8b8048c6ca7b4a763a242652cb43019e3e0a777ffbdf37122e58b9352e0f6f4e8d7b322c112fbd109cab250ee6af2fe2d301223a9d7b6ead29f680929eb40bac3a081afed379eb226f62865ddbf73c482e58243fe58888d00000003626f620000000100000020e8f57e3bc5025ac2cc131c819482646d29f312d925e2c7bfa9e71712f75661630000009c1858db65ca683eb5d01b3f3d8d7e5c5f733b36593a2320642d7dbfb5709e4e5eea06b3ed9f2b7884ab8223e9843663b797800b3b246fbb422345d2c6f7e316213cda2be80943ff768ffe0718de23c7fdabcbaec892a03107620371f9bdcfdf36e3fafd1de47b8be0e33b13ad99a8a861776e2ce42455ed6551b735da7c83ae29a906addbe8a89e76b306ba07a77028c1d7b0f4d38b406d9072c1875301000000205468063f9863d3b75350d7cd5d9e58badac547b3661099440af732d4f255b58400000005616c6963650000002050b6f6f90ceae374064130fcba9d6f0c78520edfefcf60a7ed81000f495abbf4000000006553f102",
+      "recordHash": "89954037ce3650629b08e5bce50b3d372e792d49171c3d078078f8e3e1f80f22"
     },
     "3": {
       "record": {
@@ -129,11 +163,25 @@
         "type": "team-key-version",
         "teamId": "team-1",
         "version": 3,
-        "prevHash": "M52F1vV3gNYlKAMKyJShIX-aE2Dtt27VYa0501Y6zXE",
+        "prevHash": "iZVAN842UGKbCOW85Qs9Ny55LUkXHD0HgHj44-H4DyI",
         "owners": [
           {
             "accountId": "bob",
             "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "bob",
+            "memberKeysVersion": 1,
+            "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+            "sealedTeamKey": "BTOW06WMinu7jlA035WracMM-ze-CeUeaKm0cFUaEjkLZWuc1OJ6n-neosEdHCyjZxv9Vrbn8z5xsftolxdA5LjYS6NnJpoX8fr_y2r4a9NkQwLl8ws-s6kQrfygIkSmgOiWDR_qoOUUDAZSSlYAKQ7NaqcB9diQj5qkRQyB_WYDgTwn9noSUzUkfWEQikiAcZxZIZpBA3Cgwuys"
+          },
+          {
+            "accountId": "carol",
+            "memberKeysVersion": 1,
+            "keysHash": "uX9yErbq1U0gQwSL56YaLp_9CEMXg8YLAjPOwFiflTI",
+            "sealedTeamKey": "GjuRF7S83Umfkt_ORD9M4rmCdcNttjIEw5Mdz3eHbSLMeg8IW4BY5Okhd-NFX2OOC-jCNLuj0dw3TvYme1xxdJbojttFmk_f8isNyIjMjwKc6YtT0sBGhhp_7t7M0NXGqKV0TK6fdbx_OkIB1CSsouHtsaemDv6MT2xFreO0u0uXWRA1qLc7dV_ju8Ips3LPRWw7LLqDpjS3F25o"
           }
         ],
         "wrappedPreviousKey": {
@@ -145,10 +193,10 @@
           "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
         },
         "createdAt": 1700000003,
-        "signature": "8FJaVpV6WvVk3T0yBAMKQIaBVQyH0PHrPVu4jRFfhp8TrVucyXQST-PXSoYMtt7KIR-YyWPdaUjsG-NlBUJjAw"
+        "signature": "1L4U8O4Bo3KPMevzdxLeeywG-EZepUvDkT96ozSFKWZrU5HJi_JwC_GyxPkwKvIyxTFegjBmdkYslf1jw-KMBg"
       },
-      "payload": "0000002163727970746f2d636f6e766f792f76312f7465616d2d6b65792d76657273696f6e000000067465616d2d310000000300000020339d85d6f57780d62528030ac894a1217f9a1360edb76ed561ad39d3563acd710000000100000003626f6200000020464247a8a71d04b30170c00a78217d1e256db539621bfacf509971d8661ed1be010000002084cdfbd5342157bb6c708e0b2e7bd72fef0a47765457b7f677bf98f7f4dee9fe00000003626f6200000020464247a8a71d04b30170c00a78217d1e256db539621bfacf509971d8661ed1be000000006553f103",
-      "recordHash": "8c13de8df976cf09b182cbd1f702812ce457e98b869537132acdd88c3bd19a34"
+      "payload": "0000002163727970746f2d636f6e766f792f76312f7465616d2d6b65792d76657273696f6e000000067465616d2d31000000030000002089954037ce3650629b08e5bce50b3d372e792d49171c3d078078f8e3e1f80f220000000100000003626f6200000020464247a8a71d04b30170c00a78217d1e256db539621bfacf509971d8661ed1be0000000200000003626f620000000100000020e8f57e3bc5025ac2cc131c819482646d29f312d925e2c7bfa9e71712f75661630000009c053396d3a58c8a7bbb8e5034df95ab69c30cfb37be09e51e68a9b470551a12390b656b9cd4e27a9fe9dea2c11d1c2ca3671bfd56b6e7f33e71b1fb68971740e4b8d84ba367269a17f1faffcb6af86bd3644302e5f30b3eb3a910adfca02244a680e8960d1feaa0e5140c06524a5600290ecd6aa701f5d8908f9aa4450c81fd6603813c27f67a125335247d61108a4880719c59219a410370a0c2ecac000000056361726f6c0000000100000020b97f7212b6ead54d2043048be7a61a2e9ffd08431783c60b0233cec0589f95320000009c1a3b9117b4bcdd499f92dfce443f4ce2b98275c36db63204c3931dcf77876d22cc7a0f085b8058e4e92177e3455f638e0be8c234bba3d1dc374ef6267b5c717496e88edb459a4fdff22b0dc888cc8f029ce98b53d2c046861a7feedeccd0d5c6a8a5744cae9f75bc7f3a4201d424aca2e1edb1a7a60efe8c4f6c45ade3b4bb4b97591035a8b73b755fe3bbc229b372cf456c3b2cba83a634b7176e68010000002084cdfbd5342157bb6c708e0b2e7bd72fef0a47765457b7f677bf98f7f4dee9fe00000003626f6200000020464247a8a71d04b30170c00a78217d1e256db539621bfacf509971d8661ed1be000000006553f103",
+      "recordHash": "e1bd46181b47ad9209d170527617d0bde0bd341a0fce4828e714bb6678a6a5bc"
     }
   },
   "variants": {
@@ -158,7 +206,7 @@
       "type": "team-key-version",
       "teamId": "team-1",
       "version": 2,
-      "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+      "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
       "owners": [
         {
           "accountId": "alice",
@@ -167,6 +215,20 @@
         {
           "accountId": "carol",
           "signingPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "OuVCwqoea16aAzMZcnXn4M8p7k3XFa6Skrl4BxNzD3WIKqy9MHNTh0DKX4EzokoM_YaMhK7mFtkxomzATJISaqoU7kzeSm8l8j1L_d6EuBEHaSprSR3f5futDVrTYm0ESZgC3JHfi5gBDIUbA3uxQ8cDcPRzfTiRofIL4JB7GmMWzFCtO46Tb4Pqk7KbKek849SwmRzxqeR2RX6D"
+        },
+        {
+          "accountId": "carol",
+          "memberKeysVersion": 1,
+          "keysHash": "uX9yErbq1U0gQwSL56YaLp_9CEMXg8YLAjPOwFiflTI",
+          "sealedTeamKey": "hyTABnfkZFvZZaHRM7wNvQK6YosDO9eCgaTxGdwQfQmx4PEjj9GGInJHhpyNIgX8U1y3U3jaQOn4V7I2bxdYrdSri_M6oRFyXbAIuB9Yp9UFUvYSXkTJWig33eD3Euy-VJdas0ZbPa01kqGpToNkrQIMFoMB2FrURnpJu76IYuxfjZ3hqfiiznlLOht7zQ2wOJk81VakSLXVOae5"
         }
       ],
       "wrappedPreviousKey": {
@@ -178,7 +240,7 @@
         "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
       },
       "createdAt": 1700000002,
-      "signature": "vW-4Sen2OkaPcWi0LbfzsMHoo6OwbGnguMiNDBlfR4uabzbXu-lY_-7Ch057A4Q2WcEkg7qlnU8clmv9_9MzAg"
+      "signature": "wtMs355gDZuySqnoFUC1L26mgwHjqeIFIscadYa0KO1Xiyq8teJQVsCtND4UDf0YStCB6geKTlpu6aFGjt7RDQ"
     },
     "badPrevV2": {
       "v": 1,
@@ -197,6 +259,20 @@
           "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
         }
       ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "UbEQ2oifrcCK3sbMLfHTnNkY2r6yJj8q6cbgRD1-NTr7Ky442-ffFVTgKKrgL0p0qA64-89B2_gahwNTf3q2rH-_lPy6Tl7hUmJWgs7hXeyTDRnjMOOYIYYS32vf2zsVVB-Ty1fC3F6nhGhqPHPmkPCDglmGjWEF8ZrRL3rcbKk0W7mLy9kl7kvYLboeKOQf8m0V1zuVBGbf6sjC"
+        },
+        {
+          "accountId": "bob",
+          "memberKeysVersion": 1,
+          "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+          "sealedTeamKey": "IrywK6QfZtC1KE1sFIeZIkGRev1VqKuPOjwNAjDTjjomUgEzIyHZ2pX_w0PyrppGqmFSPvwL_5yunP2bGenRgP8FcQBMEwXZLk2I7Rlv4kovvzgXWf_te88mPgbcP6xnjubiL1aqU-EHNzGbvYlYlqE-i_YO3j5_oVf24Cvj6cOVY1wUyJo9P4RNjWM4_cPVGNwz9Ftq_rvp0nNx"
+        }
+      ],
       "wrappedPreviousKey": {
         "nonce": "hETFxIUSLAvS6bxKM5KfqhAwAvoH4tWJ",
         "ciphertext": "izC_2YD2Je_AIF1bRtQ87D7ecIJz5iWxDVt68Ox-vPWFcsIjexTmg1VxS6_A_65U"
@@ -206,7 +282,7 @@
         "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
       },
       "createdAt": 1700000002,
-      "signature": "l6Wegp3uD0FbdH9i_cKJ5Ut-869k3pKS-ffwQokOYwrEtJlXpdCUVQ0Tfpod3CP95aru39hiw286-Oxd6lSFCA"
+      "signature": "HqK3FS4VbDTveLkm_uKZ162xPETLUTeMy9yf5yTMGo5Myzur_aLvZgBl3e8Rh6QOnhR_ny3GzxpeZIkkEA0PBA"
     },
     "carolSignsV2": {
       "v": 1,
@@ -214,7 +290,7 @@
       "type": "team-key-version",
       "teamId": "team-1",
       "version": 2,
-      "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+      "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
       "owners": [
         {
           "accountId": "alice",
@@ -223,6 +299,20 @@
         {
           "accountId": "carol",
           "signingPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "68EEnetPFmXUIPwD4eo0MCEng6zdk7690jrTqENyCU3i1OVqBdrAAiphrSVH0Q10qnaWKZNLKC1-wcXVOZ9c5dy9fTzSPSjHZczRQw4peO1hIUzbHu8ckJARdIHMU1g3yl5TLaZoc5JJJsfgtQ9J5ddSefNPlEKIxKnoGSZnFNp2uVy-WHO7qfTRhUGYZw31CjKTEJEseE2OMSaS"
+        },
+        {
+          "accountId": "carol",
+          "memberKeysVersion": 1,
+          "keysHash": "uX9yErbq1U0gQwSL56YaLp_9CEMXg8YLAjPOwFiflTI",
+          "sealedTeamKey": "clLekqQ-p-1w-4EcMi3EoBJtc9mp6X7em3wv94Ntfzqw53qbIgvfCH6_MS48zlebkpseuw5jKOrO1d2YoK3wZUSMYYjx1sPkIOMy44x_5NCpDbk9Nq13ftLq2i21v89zYYdYDgtzSADWUfpuAmxx8i3xQ_C_ecf7wYA5-gaBbydvJL-G1a7wOKX__O2i1wromVJ9rYOc4dwr1Zg5"
         }
       ],
       "wrappedPreviousKey": {
@@ -234,7 +324,7 @@
         "signingPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc"
       },
       "createdAt": 1700000002,
-      "signature": "IgJhyVyW9oPfw7VTPhl95wgP-QeHppr4E3BjrkDX6Im5XNGVd2vQjUP-VIjsx79sBOGalHIwXnvlodD2t61tDA"
+      "signature": "zKZ4oWM4iGXkoIIk-Hw3dgTfmm7dRGcXa0qmazcQIXXkviAJPilFLa2Uz5BRiiveJqm7h4J8zZ0Uvy9Db18XBA"
     },
     "aliceSignsV4": {
       "v": 1,
@@ -242,11 +332,19 @@
       "type": "team-key-version",
       "teamId": "team-1",
       "version": 4,
-      "prevHash": "jBPejfl2zwmxgsvR9wKBLORX6YuGlTcTKs3YjDvRmjQ",
+      "prevHash": "4b1GGBtHrZIJ0XBSdhfQveC9NBoPzkgo5xS7Znimpbw",
       "owners": [
         {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "rI7_NfMaY3gwIgwJpSYAATbgVkf_xfDQvtGM0FqqHzx98QJhlZBO_7CkIKZOTq7V-zJcR-1BkxaPg8aXr5BHFlc-IcXd23dxMngO-D8MGMUkYAO-YVpFqNKbnmT9KM4SXSTpySmP5v6a3wjA7NNPFPHdpkcn4_wjLzfEETQMZ7kSzKZS3y0bv1orRg8RlmAUw8hduzOrrWyjRCCa"
         }
       ],
       "wrappedPreviousKey": {
@@ -258,7 +356,7 @@
         "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
       },
       "createdAt": 1700000004,
-      "signature": "eoVSMV8eaG-l1p9jsLWWUXzc3qPQiFMkrWeMz2_LFHF26WQNq49EsD7P2oUaQPz6X31-Z3fDqiikTm6NHMxhDA"
+      "signature": "fsGk0mSIKyWK7I2WnE2Xcy1Hah6EadXNwsHyVMHg2Zc4WeNJnhyuvea0lH794y2vsxTMB-x3je_vjnbwb9ZqCA"
     },
     "malloryV1": {
       "v": 1,
@@ -273,13 +371,27 @@
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         }
       ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "Zal42PHW_WmJyb-apaN7Ep9oz3S6og3DGK-OFBDS736DuB1boWfjkMKMfn1ShzmCWWb2jkRy_B4CNiYOtEn_geqdmJPAjCWFiTxHiup84nRsccm-A3suKjTOnGytD2yYJty-BKEJyVOD5q2Saw67Rgjm__t3SFoEqOBbPejirfmx0b3kVgdGpjh0rGye8LQjhu69yuMWdHitKGde"
+        },
+        {
+          "accountId": "mallory",
+          "memberKeysVersion": 1,
+          "keysHash": "2cCDn2OjdMnwQll2jx0xB3F8RnjBxwPLn_WxiojOxRs",
+          "sealedTeamKey": "COT2nH--aiuEWaWRqq4gaKGGy5fTzC8Qa__TvlSg2mR_ROR81dggGaUKzaMQ4QPoD-Yhbr_EoTDkkp5MrHOfQmmMnliZYhgM7VCcuIcl0yVvwcvXag-jf_8wH59N9uUn3fAx46jcP_UyhlStCV2DdMGnfH133Cr3bUgsswMLh2B5yo-92Xjg8ug6puPIPyf6KlUYIZGtgppK4u8g"
+        }
+      ],
       "wrappedPreviousKey": null,
       "signer": {
         "accountId": "mallory",
         "signingPublicKey": "D0QqrFWh3fm6gK-mB65nP0HgCh3cpOJEg4gLi0U5Gt4"
       },
       "createdAt": 1700000001,
-      "signature": "ROANX8DaJZJNoWye8deEwrtTY3PrfItVs0puFtt_Wl5juPGpglQOwq_3qqwfjBaWlMGj-w9pBZ_4MNt-07ipBA"
+      "signature": "ycQl-4xuqDA5LkY4_rSOkh-6YOUm8MhUkS4REF61oCPy_crpRAG9IxK6MXbT_saVRNbXa0qeJDGHpK8reVL8Dw"
     },
     "bobWrongKeyV2": {
       "v": 1,
@@ -287,7 +399,7 @@
       "type": "team-key-version",
       "teamId": "team-1",
       "version": 2,
-      "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+      "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
       "owners": [
         {
           "accountId": "alice",
@@ -296,6 +408,20 @@
         {
           "accountId": "bob",
           "signingPublicKey": "1eBLtUEVsdB0t_seofVkvcK-PMNkjHp2q39ZN45TB20"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "1mv96_JzHE_-Nd4fGCpKX65Q_xtTP-pJWUnxWBr7cywIxUOEGnQiqrIAcAC7zG3Z5RqATkt0qgafy0TWWiXrnHM9dFG33gU3PsjUCDTUViQKAVG_URBp59UWvpHjGSU08SFfG9fun07sVxRhZMNW5AlC8_mpKRDpimIxzjj_CKDiOaLPfCBIsE81rxuN-FUyTjdpY0DfvO2V0c0j"
+        },
+        {
+          "accountId": "bob",
+          "memberKeysVersion": 1,
+          "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+          "sealedTeamKey": "0DnLRi2DU2HWCyjT7p3HfjK4aY-XqN6ZfmFgmfBUb3Iks7DusaXm8FPl3PAYrZrh0hG65QA-FjTrGkjaBE0C8w1Q9ccIjDAKaSStbt0lhdUcgxvHpnlFR2eozsbELnD7eq9FUhVfJhpLTlY-5DHRhlP0pcrE-KQGzKt9KyjUTBrmxwsf2EVadnG-S9Gbo6he1L3qFMujoPh0gHC2"
         }
       ],
       "wrappedPreviousKey": {
@@ -307,15 +433,15 @@
         "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
       },
       "createdAt": 1700000002,
-      "signature": "ySun39FYitmQqIQJArjwTYov-l6MXGiBznRTIepPA_Jz4UE9YBxP6q6vsLGML8EmQP4Z9CNpHy7SupGrjd3ICA"
+      "signature": "m86R69ON0tVc79ZNFB7WAticeECk_X45qjU9Yht7VkkvXnvyIH1KXBMf2CmIU69fvMvHqqf4-_AloZBkS87-DQ"
     },
-    "aliceOtherKeyV2": {
+    "bobNotRosteredV2": {
       "v": 1,
       "suite": "cc1",
       "type": "team-key-version",
       "teamId": "team-1",
       "version": 2,
-      "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+      "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
       "owners": [
         {
           "accountId": "alice",
@@ -324,6 +450,130 @@
         {
           "accountId": "bob",
           "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "VWDEbe6LKfIE1pcSeqTWKY77JF03PaphS3to4tR41WB3-_SSeBGxaXhMxwBe6zbHfcaeOKUD4eGiQIaRgICS6CGKuvTJ-0RMxbpyOveRON2W8UqmTmEVyVhZ1KfJ1VNKYJYgsEQCktzEppf-SV24wVE7aCMTl1NRkQwBDq3qTznTlX1Fw8rZ0iyAkzT1PTP2wfRaN8Xs1y7AQziS"
+        }
+      ],
+      "wrappedPreviousKey": {
+        "nonce": "hETFxIUSLAvS6bxKM5KfqhAwAvoH4tWJ",
+        "ciphertext": "izC_2YD2Je_AIF1bRtQ87D7ecIJz5iWxDVt68Ox-vPWFcsIjexTmg1VxS6_A_65U"
+      },
+      "signer": {
+        "accountId": "alice",
+        "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+      },
+      "createdAt": 1700000002,
+      "signature": "Wg1if3uYhnU1OEjt_w6rJ0IbQS6vytC1bad1HZy6e-Ma09-wjKAzy0tJeJMos2kycvFt2KX_9ut_eM675hfyAQ"
+    },
+    "bobOtherRosterKeysV2": {
+      "v": 1,
+      "suite": "cc1",
+      "type": "team-key-version",
+      "teamId": "team-1",
+      "version": 2,
+      "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
+      "owners": [
+        {
+          "accountId": "alice",
+          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        },
+        {
+          "accountId": "bob",
+          "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "cs-d1xxnKEnLs0lUhWEaKGjRc8kdGHQJfuuq5WV4pxVMGqx1s8fPKTxk2Cz8WfYnP0ebs9O0d1pxILhktw4tmgebpLbb9Y7LyIv3HI4HpNOMOjiz24TmZgW498XYrR-kItU6IDb4VMvDl7ZYUmF2qLJxjf1RV4qBSj5Sz4vCsET4_q554FoI6IG71HMadiBpcF3In1eAO5VDJYYu"
+        },
+        {
+          "accountId": "bob",
+          "memberKeysVersion": 1,
+          "keysHash": "QLnUDscwMCYzT-A1vALfIiM8xRUyli7JG4qFWHYitUw",
+          "sealedTeamKey": "rZC_C7kvHD65DxsE5mB9jMcwascXZJX-GY9qsZXXUXWBVatTZq3SbnGPsZ5BnkngpFAh1hcIsssi_mJppaZ6YgTtymNA6DYEQnMbTz065OVyFK5r5qYNpQfQwJ4JIDC3kE6lO_6RzGUz0ndPjRGrcGwJuUpMQY1HsnzhirGhDgRBmzWLjXrFVRGCmNcNCk1t7bSF3J_HM_Uvx_cJ"
+        }
+      ],
+      "wrappedPreviousKey": {
+        "nonce": "hETFxIUSLAvS6bxKM5KfqhAwAvoH4tWJ",
+        "ciphertext": "izC_2YD2Je_AIF1bRtQ87D7ecIJz5iWxDVt68Ox-vPWFcsIjexTmg1VxS6_A_65U"
+      },
+      "signer": {
+        "accountId": "alice",
+        "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+      },
+      "createdAt": 1700000002,
+      "signature": "48YU9kIn5JMP5jthv-O7sDP2ZPwzKWYw_sV7c_5MR6wD8tOwHqEiOiKNnfc6gRFJ0aWkgPNZ7rvZVW_b-jhqBA"
+    },
+    "signerNotRosteredV2": {
+      "v": 1,
+      "suite": "cc1",
+      "type": "team-key-version",
+      "teamId": "team-1",
+      "version": 2,
+      "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
+      "owners": [
+        {
+          "accountId": "bob",
+          "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "bob",
+          "memberKeysVersion": 1,
+          "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+          "sealedTeamKey": "--qm728En-nN8c5mXQSRuE3Jv4s0hucNdgVkBytjG2PKiGS_Voj0QT0Ep5Njz13I5psbyyDHWg5Utiviw5-CTHC0XebB9fCn7tj0aYOVqEbabuAiIUCToCg6KPObhe3KoE3pxMVd1Y1pNWEA4Xy9pwbrahTJD2ew8GW9-3wrflYGwmYR8RAckoVwf4tXwgvtuJB8qTMBqXDnBFS1"
+        }
+      ],
+      "wrappedPreviousKey": {
+        "nonce": "hETFxIUSLAvS6bxKM5KfqhAwAvoH4tWJ",
+        "ciphertext": "izC_2YD2Je_AIF1bRtQ87D7ecIJz5iWxDVt68Ox-vPWFcsIjexTmg1VxS6_A_65U"
+      },
+      "signer": {
+        "accountId": "alice",
+        "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+      },
+      "createdAt": 1700000002,
+      "signature": "aaBt1fgL3-uDORqwXBBqFYHQTPqRoVKZzve2valnjD2Vr_0CIBtIkpntH8hYPxL5jYRvKtFfqvc3qQrptCv4Cg"
+    },
+    "aliceOtherKeyV2": {
+      "v": 1,
+      "suite": "cc1",
+      "type": "team-key-version",
+      "teamId": "team-1",
+      "version": 2,
+      "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
+      "owners": [
+        {
+          "accountId": "alice",
+          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        },
+        {
+          "accountId": "bob",
+          "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+        }
+      ],
+      "roster": [
+        {
+          "accountId": "alice",
+          "memberKeysVersion": 1,
+          "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+          "sealedTeamKey": "nEAFW2kcUrAeAGkhRFzraEFNwPwVNX7V7XR-UupSBjLktHyb38IK0x8WVIwe7DD6Rd7M6szkuhGNlVGe8gGrBdwkJKxhrFMYabW_grVJv0u9g-Xrd17SE7j4LAiHdveWcTJKyQFvBvVsnGQf6YXbDTKYiZ4TWAVhqRXk_4gLc8Xij8L0OjZzcC8VZgiEMnwLTyd7c70fGwMBa8eK"
+        },
+        {
+          "accountId": "bob",
+          "memberKeysVersion": 1,
+          "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+          "sealedTeamKey": "SRYjHiPntUFNbbpoj2bi9fqtFKruajAYdsG9a-d-JkiAyNDgDsIll9cTUESJQAeX10aPMC0U4DppkNfgPdenKPDXx6YfS3chAciteZIPUVpatGKxHzIrQ8zaHUVcA4uvxPfxRyH-hrVuY80dSf97ynlwdBHICh5D_IfMpBWB7aFKQzYZsEcg60tgZm_yx6PXK3mU_oF-a-DYolst"
         }
       ],
       "wrappedPreviousKey": {
@@ -335,7 +585,7 @@
         "signingPublicKey": "D0QqrFWh3fm6gK-mB65nP0HgCh3cpOJEg4gLi0U5Gt4"
       },
       "createdAt": 1700000002,
-      "signature": "sdyslRhdZZTufRTB9HZvwObLsFk78l4yUgPJ5bX-YMewRD2zEVLdnsf8UtoZkaiwCWPBxfsuSK0jvQ19EtoyDw"
+      "signature": "CO_EiyO2ZbGmQ-PPeMPo-uwnm2bsWqUpUQ7QaMQBlZMWDhnEj9elNxfCUSU7ehZOIUYkYumvjhdL3y-R3zm2Dg"
     }
   },
   "chainCases": [
@@ -351,7 +601,7 @@
       "name": "honest chain from an anchor at v2",
       "chain": [2, 3],
       "anchors": [
-        [2, "339d85d6f57780d62528030ac894a1217f9a1360edb76ed561ad39d3563acd71"]
+        [2, "89954037ce3650629b08e5bce50b3d372e792d49171c3d078078f8e3e1f80f22"]
       ],
       "expect": {
         "current": 3
@@ -370,7 +620,7 @@
       "name": "rollback: chain stops before the anchor",
       "chain": [1, 2],
       "anchors": [
-        [3, "8c13de8df976cf09b182cbd1f702812ce457e98b869537132acdd88c3bd19a34"]
+        [3, "e1bd46181b47ad9209d170527617d0bde0bd341a0fce4828e714bb6678a6a5bc"]
       ],
       "expect": {
         "error": "TRUST_FAILURE",
@@ -381,7 +631,7 @@
       "name": "fork: another v2 than the anchored one",
       "chain": [1, "forkV2"],
       "anchors": [
-        [2, "339d85d6f57780d62528030ac894a1217f9a1360edb76ed561ad39d3563acd71"]
+        [2, "89954037ce3650629b08e5bce50b3d372e792d49171c3d078078f8e3e1f80f22"]
       ],
       "expect": {
         "error": "TRUST_FAILURE",
@@ -441,36 +691,38 @@
         "error": "TRUST_FAILURE",
         "reason": "key_mismatch"
       }
+    },
+    {
+      "name": "owner missing from the roster",
+      "chain": [1, "bobNotRosteredV2"],
+      "anchors": [],
+      "expect": {
+        "error": "TRUST_FAILURE",
+        "reason": "key_mismatch"
+      }
+    },
+    {
+      "name": "owner rostered with other keys",
+      "chain": [1, "bobOtherRosterKeysV2"],
+      "anchors": [],
+      "expect": {
+        "error": "TRUST_FAILURE",
+        "reason": "key_mismatch"
+      }
+    },
+    {
+      "name": "signer missing from the roster",
+      "chain": [1, "signerNotRosteredV2"],
+      "anchors": [],
+      "expect": {
+        "error": "TRUST_FAILURE",
+        "reason": "key_mismatch"
+      }
     }
   ],
   "grantCases": [
     {
-      "name": "grant of v1 to alice by alice",
-      "grant": {
-        "v": 1,
-        "suite": "cc1",
-        "type": "grant",
-        "teamId": "team-1",
-        "accountId": "alice",
-        "memberKeysVersion": 1,
-        "memberSigningPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q",
-        "memberEncryptionPublicKey": "-Nb5rrGMGvKaPL6Fa2A5uYuLT1gbARI6OfnwZukSyCA",
-        "teamKeyVersion": 1,
-        "sealedTeamKey": "BC6iDhoOuP3hcMrQgUGVD5dqR7HUuhdshYSSZT3VUksGH9ESYzYbGrc7p8Uuet5_ktmc2tWn6a1aV_KRY68td7kYVlJp0Fbt5BnzcXHqJdz8PqnKpw0IR3G-hymbrf0r3Bs8AG9wKG10engaSOGWzgI2KYkCD0arkuTsEiokrTldNs5GVraP-FKlZhvyJQ",
-        "signer": {
-          "accountId": "alice",
-          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
-        },
-        "createdAt": 1700000101,
-        "signature": "XzNnQz4SYLdavHdUc4BpChuQR6MOLkRzRgVteRaA9JM4O3QgqWv50ujiqGaKJWzV4WPGAEruA4T60Y7fQ20nDg"
-      },
-      "member": "alice",
-      "expect": {
-        "teamKey": "117cc780216cca32189d215555b98fed275de0f4bf00126a707017c3337142e9"
-      }
-    },
-    {
-      "name": "grant of v2 to bob by alice",
+      "name": "grant of v1 to bob by alice",
       "grant": {
         "v": 1,
         "suite": "cc1",
@@ -478,18 +730,42 @@
         "teamId": "team-1",
         "accountId": "bob",
         "memberKeysVersion": 1,
-        "memberSigningPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4",
-        "memberEncryptionPublicKey": "p3HBmxm9xW7rxqVHTyGEaEmswWiKt_i99s5fX9nTkQU",
+        "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+        "teamKeyVersion": 1,
+        "sealedTeamKey": "S-zXZ68tIuZKmt4mN-Fo8UOL06RAA7xnNx83K4gEpn7IUljijSeVKh5QID0Bd99S98xqaoTHfY3FW4LGxxy887moHZ7hrA-8gTA2Jd8JSEXxYwbQP7oQRcLB4qw_35mbcHX-JgTdwLRht5gJR82N7SbWSQfRniAf3ZDP-SBgow8gs8zjzCPbib35qI8",
+        "signer": {
+          "accountId": "alice",
+          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        },
+        "createdAt": 1700000101,
+        "signature": "BM5jx6SaOV61vJMT644dua285oTqT9CP9ehS8cLwHyNwW55-iijUZnOz_ZZQMq9HtSyyGp7X4-G-29zhkRymCA"
+      },
+      "member": "bob",
+      "expect": {
+        "teamKey": "117cc780216cca32189d215555b98fed275de0f4bf00126a707017c3337142e9"
+      }
+    },
+    {
+      "name": "grant of v2 to carol by alice, naming an invite",
+      "grant": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "grant",
+        "teamId": "team-1",
+        "accountId": "carol",
+        "memberKeysVersion": 1,
+        "keysHash": "uX9yErbq1U0gQwSL56YaLp_9CEMXg8YLAjPOwFiflTI",
         "teamKeyVersion": 2,
-        "sealedTeamKey": "SCDFSnGkjbD4LrGROH1WWEs5XevkRrib4Jm0ktokJTs9Cun5HXpUNIJUVdxSW4cx8zK8ggLmdrbF3QvRf8PELs_n5g2kFk96mH5jA3abDlod-EaZPrHAy3PUWLoLVQqW2nyCrmVoSzJd-bP0QGNXgET2W1-JiDKTHDgjdidvhi6lML8zdZiXFETf6tg",
+        "sealedTeamKey": "ayuD0CEhb7k6qbiPy4ovfjzLPUMiQrzv3V9A4-lZ_xa-HtjgXiV3RHLxG7Q8vT3AsexMUtw6YP9rK7Qlz2CCwPSFSTE9M1DQXSQeHSxUG9LP83gIXolywnyqkZ3ZUJYMRIFM2MP4F31zVYm5WJApMEt7HuU5AVHFicyffRPSuvZHkBjLKl5Bc2LkKzCVSw",
+        "inviteId": "invite-1",
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000102,
-        "signature": "z0hlh5v5tS69yWz6EbeTHC7GYJg4SURn1STcU1HvLuBeQ8p6urivQIdcT3hWNWA0d5TLy9N-fbNT2zMba6ObBA"
+        "signature": "Jd8HUwk_M5LtHYk2kwUl5HBB_0db8XCFXKraAToq6NfxEYyrzaeApaET8bym6Il1TW1UanmMACayM26NbbaJCQ"
       },
-      "member": "bob",
+      "member": "carol",
       "expect": {
         "teamKey": "80a30718a805ca71b6ded872f7f43dd0a596e3c84f03f5ca47d1fbd826e3257d"
       }
@@ -503,16 +779,15 @@
         "teamId": "team-1",
         "accountId": "carol",
         "memberKeysVersion": 1,
-        "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
-        "memberEncryptionPublicKey": "v1j3zkuGhrU5Nm-gLtkjNYvGEPpJUkc-HpKe3DgBE00",
+        "keysHash": "uX9yErbq1U0gQwSL56YaLp_9CEMXg8YLAjPOwFiflTI",
         "teamKeyVersion": 3,
-        "sealedTeamKey": "-zCnKPtRY55zNSGL5MYq9AppDrLhT5OAhaFtE5OnNRflSmMrEyQ7FOeE-0_GqouaIQDW3zjA8OAlUmnvVPZPUCl90b5m5OJ8Y9-pAI3s3HHRExRmokfdI52zyGf6YqXcS9ZC64ihkAtPaGp17n5UfqrAmdgCirvvBirelKfiY_Rgy1uGuAKyPpjZAF2Pmw",
+        "sealedTeamKey": "lp0TG7s3bChsXkRSbULXDj0qy0eZBg5K6KIO3ml7v0H9wNh85U8LAKuDghtxOr33FD9izTXAGFbvHMQItzxggDuX6WeFmS0D3BRq6gzPhn009zVXiTReqIesF6syxUhvUb-kE0OJirW1U0hRHkZEXQEYX6odbbrRaOe_RztpR2YAByeBHfC-3rzsXsh7vA",
         "signer": {
           "accountId": "bob",
           "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
         },
         "createdAt": 1700000103,
-        "signature": "DcNW9EN-VAN7DLgHM0JeQ14rvbSKZSKYDaKi5xdhlMRXQJ9kIlTC5jLnL0cu9RORW879ge3s1GboeooqmwOZBw"
+        "signature": "EpvfaoEP0g_csyCukTKkZj75GAahx-IesUpVkjGCC5S57Lv50XFnOLYyaLMRqzJ28d3GYPY7QVpFQIxol_KkDQ"
       },
       "member": "carol",
       "expect": {
@@ -528,16 +803,15 @@
         "teamId": "team-1",
         "accountId": "carol",
         "memberKeysVersion": 1,
-        "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
-        "memberEncryptionPublicKey": "v1j3zkuGhrU5Nm-gLtkjNYvGEPpJUkc-HpKe3DgBE00",
+        "keysHash": "uX9yErbq1U0gQwSL56YaLp_9CEMXg8YLAjPOwFiflTI",
         "teamKeyVersion": 3,
-        "sealedTeamKey": "5uCM-VZXNywtjuxCmFQnaXM5nqKbx4cMrK0j7mioUC03C9GsIj_436vvPtx7_vF1YF63qbaI3pSFciy_j3gfQckJYLgTlgomRTaruEnq56TKGqOPpkU5aKhSVZ1FHycNsm6hm0XCJOOKQhTAIaihGF_CNQSQOCtLIg2EnOkViNEsm4OU-KFPceqxL-50RA",
+        "sealedTeamKey": "-RuGaO3uYxqgLPlQMN_pcXpbdgN3BrKmIQX99Csv7kZE9yxwbsfhAqtr2QkUV_t81ixN3JauTLzqt7mpxGp2ijwXxB7jNxq54iyX7SZdwSnR3NMdiKNRlSO7-Cry_FUT48Ye_53-2jBASIEHY1e9tjV0Y_gUOPUpOIoAQ-H4EXc_O65AJ__Cbnvn_GOfeg",
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000103,
-        "signature": "oe_qqkseeu8QSt3jDu-Ms5_Sjz_q7ATePWg_BDfPnPyyx2KIK_FvQ5OLKDY7TTYRlBj93hyaHwJ9iHylFedoBQ"
+        "signature": "XNFnLzMX68-LYafkBoo55NoGWQE3HhzSeU3mMg7eRTUBm1fCEvP5FMqhyph7finBl8BoT-m4PAPcIGtVqNnbBQ"
       },
       "member": "carol",
       "expect": {
@@ -554,16 +828,15 @@
         "teamId": "team-1",
         "accountId": "carol",
         "memberKeysVersion": 1,
-        "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
-        "memberEncryptionPublicKey": "v1j3zkuGhrU5Nm-gLtkjNYvGEPpJUkc-HpKe3DgBE00",
+        "keysHash": "uX9yErbq1U0gQwSL56YaLp_9CEMXg8YLAjPOwFiflTI",
         "teamKeyVersion": 2,
-        "sealedTeamKey": "St6Q3eQr53fo0uU8a2ySkCntioZDxYqVYO_0MpkPNk58e5WA55lYZVqhF8jPS0tAg4oJ3mjJuirkxlum1CeScP8tppCbX9mMRsGpfm1eZ48f-1PoG87MxJ_dpSdvhaHVfacyYhbiZQrUmZWTHoajFNZdmnfTm_aG8dYAg2lxM8WzI7vonk0Afs0qKLK_ZA",
+        "sealedTeamKey": "VkoXvgtsM6bt_HAq_QgMpBsDN9OtbUkjCryMv4PUwG9SNZj1adgq1cJRx9n5FFCiZgnnEAMkFaUWaGn-YOk6EBZPlkt90WWU1oSQvJvzV4sqSMSHz61RYaYKkoyUVw9akARM7neJXbRGpLeoc2HEJIKKj1dUof8c0MoETIeUtY7QGJVA5_KNwXD8_ocpqw",
         "signer": {
           "accountId": "carol",
           "signingPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc"
         },
         "createdAt": 1700000102,
-        "signature": "RhXgqM57B0vBincfQbYfn3CidT4g9QHd6DnqnuY81JaX7xz_UIqdRTziZEJUf72A1YJlxsOz8YZnFOdy9Y_dCA"
+        "signature": "az_4dRKwz4roQYBaOlD47VDhqpxtp6yY8P5opnhROKx17p5y3F5bdG37kILhNUn3Lb5m0GVRIUR0BgmvDbiwAQ"
       },
       "member": "carol",
       "expect": {
@@ -580,21 +853,54 @@
         "teamId": "team-1",
         "accountId": "carol",
         "memberKeysVersion": 1,
-        "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
-        "memberEncryptionPublicKey": "IzlSExMN3xsqUGlJKcdTN1udE22PHOBSdl8L09GWnio",
+        "keysHash": "j6PPAFMpXyY9QvTdJWpaqNxEsWIUYc1MQmz5jdXc8X0",
         "teamKeyVersion": 3,
-        "sealedTeamKey": "PrWy1eE0RHnIA-TGuiRLCVeAoX_ONurz3M-2sOgp_VN7xfbh4-e0Cdhoy-XOOntuopqa2WeLdmCVCrB6Y_npXrQJWKXMfRoogX-JTY76dT5wCbaVmGRom-436qaUYyxzKXgbHOneQjeICbDkz4iIZzNwleh7OvnPbH8CDDpyafPVZiI2Iyg8d1mAxYU_vQ",
+        "sealedTeamKey": "a1xEyamD524_d-1nlyELnT9QIDtd1CxlnxqYayDQgyOH9016ap7xe5gsh3p0QTE8Qwa7PHDr81Q2-3XnfakOvvhuie6fkrxKrfdS4UBcS9S3cgZyFCgmZuvVMn8uvjvWAK1fvVJRM4ECJU36RdAz-q1RpCqmXYDHC9hMvqDOaZwsyjdE_JSToQzdm90fXQ",
         "signer": {
           "accountId": "bob",
           "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
         },
         "createdAt": 1700000103,
-        "signature": "wIgTdmZ3341Dalji30IGI6WfCpgC78nuIiN1pBJMKrrhPMFtL0BmzHIYq4g0-tLQxvTlk5vZuc7y940UdNKiBw"
+        "signature": "Hld6w2BzYCh11KLV5fZUIhyNgCQS2Ma6G6m4sYzuuOJkN7etOyKLg-cjA-Db-cd4Jv3D0L_3YnMyHpTIoe2LCA"
       },
       "member": "carol",
       "expect": {
         "error": "TRUST_FAILURE",
         "reason": "key_mismatch"
+      }
+    }
+  ],
+  "rosterCases": [
+    {
+      "name": "alice opens her v1 entry",
+      "version": 1,
+      "member": "alice",
+      "expect": {
+        "teamKey": "117cc780216cca32189d215555b98fed275de0f4bf00126a707017c3337142e9"
+      }
+    },
+    {
+      "name": "bob opens his v2 entry",
+      "version": 2,
+      "member": "bob",
+      "expect": {
+        "teamKey": "80a30718a805ca71b6ded872f7f43dd0a596e3c84f03f5ca47d1fbd826e3257d"
+      }
+    },
+    {
+      "name": "carol opens her v3 entry",
+      "version": 3,
+      "member": "carol",
+      "expect": {
+        "teamKey": "7df9978c1e759f6ebda77bf0f0ea3bfd66f2035a0c1d28000d2f63dd000938c8"
+      }
+    },
+    {
+      "name": "alice has no v3 entry",
+      "version": 3,
+      "member": "alice",
+      "expect": {
+        "error": "NOT_GRANTED"
       }
     }
   ],
@@ -614,13 +920,21 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNX6qWnxN9HaxcV_hf6gf1pX4y06zE9TYdOuNFMkta2FA"
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCd1e_uXRQJmO6YpMD4XAjTgSNY-pw0eACt_n_kL3bIGw"
       },
       "expect": {
         "error": "TRUST_FAILURE",
@@ -642,13 +956,21 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA"
+        "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
       },
       "expect": {
         "error": "TRUST_FAILURE",
@@ -670,13 +992,21 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA"
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
       },
       "expect": {
         "error": "MALFORMED_RECORD"
@@ -690,7 +1020,7 @@
         "type": "team-key-version",
         "teamId": "team-1",
         "version": 2,
-        "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+        "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
         "owners": [
           {
             "accountId": "bob",
@@ -699,6 +1029,20 @@
           {
             "accountId": "alice",
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          },
+          {
+            "accountId": "bob",
+            "memberKeysVersion": 1,
+            "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+            "sealedTeamKey": "GFjbZcpoPrXQGz89jX5cX3M7Nlk6IyBkLX2_tXCeTl7qBrPtnyt4hKuCI-mENmO3l4ALOyRvu0IjRdLG9-MWITzaK-gJQ_92j_4HGN4jx_2ry67IkqAxB2IDcfm9z9824_r9HeR7i-DjOxOtmaioYXduLOQkVe1lUbc12nyDrimpBq3b6KiedrMGugencCjB17D004tAbZBywYdT"
           }
         ],
         "wrappedPreviousKey": {
@@ -710,7 +1054,7 @@
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000002,
-        "signature": "C86aKRASkjNd5GQTudGmFwat-fPoz-nAdbbmFWwnjV_RCcpHvCYbfh3w2UbxIvC9actEI47Hl_J8icmNfFAFBQ"
+        "signature": "AFGED80oztaxCOMnRsxW1JCL694e-GnytAxuOa6dzXj4Hb9WENV_8EvpwGsDF7oGvNVEW2NNFeb7Rr3Q1Q3pDQ"
       },
       "expect": {
         "error": "MALFORMED_RECORD"
@@ -724,7 +1068,7 @@
         "type": "team-key-version",
         "teamId": "team-1",
         "version": 2,
-        "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+        "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
         "owners": [
           {
             "accountId": "alice",
@@ -733,6 +1077,20 @@
           {
             "accountId": "alice",
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          },
+          {
+            "accountId": "bob",
+            "memberKeysVersion": 1,
+            "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+            "sealedTeamKey": "GFjbZcpoPrXQGz89jX5cX3M7Nlk6IyBkLX2_tXCeTl7qBrPtnyt4hKuCI-mENmO3l4ALOyRvu0IjRdLG9-MWITzaK-gJQ_92j_4HGN4jx_2ry67IkqAxB2IDcfm9z9824_r9HeR7i-DjOxOtmaioYXduLOQkVe1lUbc12nyDrimpBq3b6KiedrMGugencCjB17D004tAbZBywYdT"
           }
         ],
         "wrappedPreviousKey": {
@@ -744,7 +1102,7 @@
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000002,
-        "signature": "C86aKRASkjNd5GQTudGmFwat-fPoz-nAdbbmFWwnjV_RCcpHvCYbfh3w2UbxIvC9actEI47Hl_J8icmNfFAFBQ"
+        "signature": "AFGED80oztaxCOMnRsxW1JCL694e-GnytAxuOa6dzXj4Hb9WENV_8EvpwGsDF7oGvNVEW2NNFeb7Rr3Q1Q3pDQ"
       },
       "expect": {
         "error": "MALFORMED_RECORD"
@@ -760,13 +1118,180 @@
         "version": 1,
         "prevHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "owners": [],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA"
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
+      },
+      "expect": {
+        "error": "MALFORMED_RECORD"
+      }
+    },
+    {
+      "name": "roster not sorted",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "team-key-version",
+        "teamId": "team-1",
+        "version": 2,
+        "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
+        "owners": [
+          {
+            "accountId": "alice",
+            "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+          },
+          {
+            "accountId": "bob",
+            "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "bob",
+            "memberKeysVersion": 1,
+            "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+            "sealedTeamKey": "GFjbZcpoPrXQGz89jX5cX3M7Nlk6IyBkLX2_tXCeTl7qBrPtnyt4hKuCI-mENmO3l4ALOyRvu0IjRdLG9-MWITzaK-gJQ_92j_4HGN4jx_2ry67IkqAxB2IDcfm9z9824_r9HeR7i-DjOxOtmaioYXduLOQkVe1lUbc12nyDrimpBq3b6KiedrMGugencCjB17D004tAbZBywYdT"
+          },
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          }
+        ],
+        "wrappedPreviousKey": {
+          "nonce": "hETFxIUSLAvS6bxKM5KfqhAwAvoH4tWJ",
+          "ciphertext": "izC_2YD2Je_AIF1bRtQ87D7ecIJz5iWxDVt68Ox-vPWFcsIjexTmg1VxS6_A_65U"
+        },
+        "signer": {
+          "accountId": "alice",
+          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        },
+        "createdAt": 1700000002,
+        "signature": "AFGED80oztaxCOMnRsxW1JCL694e-GnytAxuOa6dzXj4Hb9WENV_8EvpwGsDF7oGvNVEW2NNFeb7Rr3Q1Q3pDQ"
+      },
+      "expect": {
+        "error": "MALFORMED_RECORD"
+      }
+    },
+    {
+      "name": "duplicate roster entry",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "team-key-version",
+        "teamId": "team-1",
+        "version": 2,
+        "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
+        "owners": [
+          {
+            "accountId": "alice",
+            "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+          },
+          {
+            "accountId": "bob",
+            "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          },
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          }
+        ],
+        "wrappedPreviousKey": {
+          "nonce": "hETFxIUSLAvS6bxKM5KfqhAwAvoH4tWJ",
+          "ciphertext": "izC_2YD2Je_AIF1bRtQ87D7ecIJz5iWxDVt68Ox-vPWFcsIjexTmg1VxS6_A_65U"
+        },
+        "signer": {
+          "accountId": "alice",
+          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        },
+        "createdAt": 1700000002,
+        "signature": "AFGED80oztaxCOMnRsxW1JCL694e-GnytAxuOa6dzXj4Hb9WENV_8EvpwGsDF7oGvNVEW2NNFeb7Rr3Q1Q3pDQ"
+      },
+      "expect": {
+        "error": "MALFORMED_RECORD"
+      }
+    },
+    {
+      "name": "empty roster",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "team-key-version",
+        "teamId": "team-1",
+        "version": 1,
+        "prevHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "owners": [
+          {
+            "accountId": "alice",
+            "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+          }
+        ],
+        "roster": [],
+        "wrappedPreviousKey": null,
+        "signer": {
+          "accountId": "alice",
+          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        },
+        "createdAt": 1700000001,
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
+      },
+      "expect": {
+        "error": "MALFORMED_RECORD"
+      }
+    },
+    {
+      "name": "roster entry with a short sealed key",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "team-key-version",
+        "teamId": "team-1",
+        "version": 1,
+        "prevHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "owners": [
+          {
+            "accountId": "alice",
+            "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        ],
+        "wrappedPreviousKey": null,
+        "signer": {
+          "accountId": "alice",
+          "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
+        },
+        "createdAt": 1700000001,
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
       },
       "expect": {
         "error": "MALFORMED_RECORD"
@@ -787,6 +1312,14 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": {
           "nonce": "hETFxIUSLAvS6bxKM5KfqhAwAvoH4tWJ",
           "ciphertext": "izC_2YD2Je_AIF1bRtQ87D7ecIJz5iWxDVt68Ox-vPWFcsIjexTmg1VxS6_A_65U"
@@ -796,7 +1329,7 @@
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA"
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
       },
       "expect": {
         "error": "MALFORMED_RECORD"
@@ -810,7 +1343,7 @@
         "type": "team-key-version",
         "teamId": "team-1",
         "version": 2,
-        "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+        "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
         "owners": [
           {
             "accountId": "alice",
@@ -821,13 +1354,27 @@
             "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          },
+          {
+            "accountId": "bob",
+            "memberKeysVersion": 1,
+            "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+            "sealedTeamKey": "GFjbZcpoPrXQGz89jX5cX3M7Nlk6IyBkLX2_tXCeTl7qBrPtnyt4hKuCI-mENmO3l4ALOyRvu0IjRdLG9-MWITzaK-gJQ_92j_4HGN4jx_2ry67IkqAxB2IDcfm9z9824_r9HeR7i-DjOxOtmaioYXduLOQkVe1lUbc12nyDrimpBq3b6KiedrMGugencCjB17D004tAbZBywYdT"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000002,
-        "signature": "C86aKRASkjNd5GQTudGmFwat-fPoz-nAdbbmFWwnjV_RCcpHvCYbfh3w2UbxIvC9actEI47Hl_J8icmNfFAFBQ"
+        "signature": "AFGED80oztaxCOMnRsxW1JCL694e-GnytAxuOa6dzXj4Hb9WENV_8EvpwGsDF7oGvNVEW2NNFeb7Rr3Q1Q3pDQ"
       },
       "expect": {
         "error": "MALFORMED_RECORD"
@@ -841,7 +1388,7 @@
         "type": "team-key-version",
         "teamId": "team-1",
         "version": 2,
-        "prevHash": "8iAKfd8sWFxEeO7My3vkOO52HUDQQwmmqVfy5jhRsLA",
+        "prevHash": "rSDhAjXO6K-To5ujXZGic0A527y28sAGpxmFgaOmlFc",
         "owners": [
           {
             "accountId": "alice",
@@ -850,6 +1397,20 @@
           {
             "accountId": "bob",
             "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
+          }
+        ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "hTsVeuzXvpmN3JmjDJkqVjLi3ldXsbe5upOPdAkYVR6Fqw3yGXJEE8h8aHJRJvPpa_-93FAWGKP223_8jNleUof6K42ouASMbKe0p2OiQmUstDAZ4-Cnd_-983Ei5YuTUuD29OjXsyLBEvvRCcqyUO5q8v4tMBIjqde26tKfaAkp60C6w6CBr-03nrIm9ihl3b9zxILlgkP-WIiN"
+          },
+          {
+            "accountId": "bob",
+            "memberKeysVersion": 1,
+            "keysHash": "6PV-O8UCWsLMExyBlIJkbSnzEtkl4se_qecXEvdWYWM",
+            "sealedTeamKey": "GFjbZcpoPrXQGz89jX5cX3M7Nlk6IyBkLX2_tXCeTl7qBrPtnyt4hKuCI-mENmO3l4ALOyRvu0IjRdLG9-MWITzaK-gJQ_92j_4HGN4jx_2ry67IkqAxB2IDcfm9z9824_r9HeR7i-DjOxOtmaioYXduLOQkVe1lUbc12nyDrimpBq3b6KiedrMGugencCjB17D004tAbZBywYdT"
           }
         ],
         "wrappedPreviousKey": {
@@ -861,7 +1422,7 @@
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000003,
-        "signature": "C86aKRASkjNd5GQTudGmFwat-fPoz-nAdbbmFWwnjV_RCcpHvCYbfh3w2UbxIvC9actEI47Hl_J8icmNfFAFBQ"
+        "signature": "AFGED80oztaxCOMnRsxW1JCL694e-GnytAxuOa6dzXj4Hb9WENV_8EvpwGsDF7oGvNVEW2NNFeb7Rr3Q1Q3pDQ"
       },
       "expect": {
         "error": "TRUST_FAILURE",
@@ -883,13 +1444,21 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA",
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw",
         "extra": 1
       },
       "expect": {
@@ -911,13 +1480,21 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA"
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
       },
       "expect": {
         "error": "UNSUPPORTED_VERSION"
@@ -938,13 +1515,21 @@
             "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
           }
         ],
+        "roster": [
+          {
+            "accountId": "alice",
+            "memberKeysVersion": 1,
+            "keysHash": "aJLJU0953hAJlWIJ95LvHVmNK_urFCsRTfxZY-SdeJ8",
+            "sealedTeamKey": "E9aLX4ts3WKBc7gn-_Dq_16L3qfyIntg1a2R_HSLKko-tUIaL1sfsZp-7Juv0IZeciKKKWH94gGc1WamEWI9GyDXVncF5619p0-5SWLAYEghTRuU0pXSf_mqr4hRf1IqE8gfwjYJuQrvt0uLXOeAbg_KCkymR1tfcZfbKRKivee7kq19M3o0ntq-axIn6F0VlkE_0AGHh2GbJ8yr"
+          }
+        ],
         "wrappedPreviousKey": null,
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000001,
-        "signature": "NnCf5-WOm-d6HijIC2kH81QhSFh1u2dDPfLCVY2QjUNqFrBKqnw1E0F4BnUbiB5VX4y06zE9TYdOuNFMkta2BA"
+        "signature": "4cbAR_1Ifn52rNhojGBg0eVckR9_a2MxVaN90dxUPUCwAfqRQ7H2Pxj8rB0aYym-gSNY-pw0eACt_n_kL3bICw"
       },
       "expect": {
         "error": "UNSUPPORTED_VERSION"

@@ -70,7 +70,7 @@ describe("SP-15: owners see each member's access and what needs their action", (
     ]);
   });
 
-  it("warnings: single owner, members awaiting approval, rotation needed, rotation interrupted", async () => {
+  it("warnings: single owner, members awaiting approval, rotation needed; a failed rotation changes nothing", async () => {
     const { members, aliceTeam, w } = await team("bob");
     const codes = async (active: string[]) => (await aliceTeam.warnings(active)).map((x) => [x.code, x.accountIds, x.action]);
     expect(await codes(["alice", "bob"])).toEqual([["single-owner", ["alice"], "setOwners"]]);
@@ -82,18 +82,14 @@ describe("SP-15: owners see each member's access and what needs their action", (
     // bob leaves the product: still granted at the current version.
     expect(await codes(["alice"])).toContainEqual(["rotation-needed", ["bob"], "rotate"]);
 
-    // A rotation interrupted after its first batch: bob, kept, misses the new version.
-
-    members.alice!.store.onCommit((ops) => {
-      if (ops.every((op) => op.op === "create" && op.key.type === "grant") && ops.some((op) => op.op === "create" && "accountId" in op.key && op.key.accountId === "bob")) {
-        throw new Error("network");
-      }
+    // A rotation is one record: a failed write leaves nothing half done (D-34).
+    members.alice!.store.onCommit(() => {
+      throw new Error("network");
     });
     await expect(aliceTeam.rotate({ keep: ["bob"] })).rejects.toEqual(expect.objectContaining({ code: "STORE_ERROR" }));
     members.alice!.store.reset();
     const reopened = await members.alice!.vault.openTeam("team-1");
-    expect((await reopened.warnings(["alice", "bob"])).map((x) => x.code)).toContain("rotation-interrupted");
-    await reopened.completeRotation({ keep: ["bob"] });
-    expect((await reopened.warnings(["alice", "bob"])).map((x) => x.code)).not.toContain("rotation-interrupted");
+    expect(reopened.currentVersion).toBe(1);
+    expect((await reopened.members()).map((m) => m.accountId).sort()).toEqual(["alice", "bob"]);
   });
 });

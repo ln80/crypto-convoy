@@ -193,7 +193,7 @@ Status: Accepted.
 
 Problem: the server is untrusted, so a record could claim millions of parts or megabytes of metadata to crash or freeze a client. Readers need fixed limits to validate records before any crypto (SP-18). The limits must be part of the protocol, not per-integration settings, or one client could write data another refuses to read.
 
-Decision: at most 128 parts per item or submission, 4096 bytes of `meta` per part, 64 owners per team key version, 1,000 accounts in a team key version's roster (D-34), and 128 bytes per id. An integration may enforce lower limits in its own interface.
+Decision: at most 128 parts per item or submission, 4096 bytes of `meta` per part, 64 owners per team key version, 1,000 accounts in a team key version's roster and 384 KiB of JSON per version record (D-34), and 128 bytes per id. An integration may enforce lower limits in its own interface.
 
 Consequence: raising a limit later means a new record version.
 
@@ -404,7 +404,7 @@ Decision: each team key version record carries its **roster**: for every account
 
 Rejected: keeping the roster in a separate record committed with its hash. Smaller chain records, but one more record type and batch rule. Clients fetch the chain from their anchor (§6.1), so old rosters are downloaded only at first contact.
 
-Consequence: no interrupted rotations and no resume operation; the server's "version with its signer's grant" batch rule goes. A record grows to about 240 bytes per member (about 240 KB at 1,000 members with short ids). Who held each version is signed chain data.
+Consequence: no interrupted rotations and no resume operation; the server's "version with its signer's grant" batch rule goes. A record grows to about 360 bytes per member: about 360 KB at 1,000 members with 36-byte ids, under the 384 KiB cap per record that fits common database item limits (400 KB). Who held each version is signed chain data.
 
 ## D-35: Recovery is confirmed before team work
 

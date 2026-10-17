@@ -5,6 +5,7 @@ import { callPort, type LocalDevice, type OprfPurpose, type WriteOp } from "../p
 import {
   createAccountKeyWrap,
   openAccountKeyWrap,
+  openRecoveryPublicKey,
   parseAccountKeyWrap,
   type AccountKeyWrap,
   type UnlockMethod,
@@ -12,7 +13,7 @@ import {
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { createWrap, wrapKey } from "./context.js";
 import { derivePinKey, newKdf } from "./pin-key.js";
-import { deriveRecoveryKey } from "./recovery-key.js";
+import { deriveRecoveryKeys } from "./recovery-key.js";
 
 /** The server's current account key version, never below the highest this device accepted (SP-07). */
 export async function currentVersion(ports: AccountPorts, accountId: string): Promise<number | null> {
@@ -55,13 +56,25 @@ export async function pinWrap(ports: AccountPorts, account: OpenAccount, pin: st
   }
 }
 
+/** The recovery wrap, carrying the recovery public key under the account key (§4.1). Throws `WRONG_CREDENTIAL`. */
 export function recoveryWrap(ports: AccountPorts, account: OpenAccount, phrase: string): AccountKeyWrap {
-  const recoveryKey = deriveRecoveryKey(ports.suite, account.accountId, phrase);
+  const { recoveryKey, signing } = deriveRecoveryKeys(ports.suite, account.accountId, phrase);
   try {
-    return createAccountKeyWrap(ports.suite, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" }, recoveryKey, account.key);
+    const context = { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" } as const;
+    return createAccountKeyWrap(ports.suite, context, recoveryKey, account.key, signing.publicKey);
   } finally {
-    ports.suite.wipe(recoveryKey);
+    ports.suite.wipe(recoveryKey, signing.secretKey);
   }
+}
+
+/**
+ * The account's recovery public key, read authenticated from the recovery wrap at the current
+ * version (§4.1). Throws `RECOVERY_NOT_SET_UP` if there is none (D-35).
+ */
+export async function recoveryPublicKey(ports: AccountPorts, account: OpenAccount): Promise<Uint8Array> {
+  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
+  if (!wrap) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+  return openRecoveryPublicKey(wrap, account.key);
 }
 
 /** A new device key and its wrap (§5.5). The caller commits the op, then keeps the device. */

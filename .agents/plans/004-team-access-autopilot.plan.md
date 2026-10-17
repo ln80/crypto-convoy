@@ -299,4 +299,5 @@ Refinements found while writing the spec; the spec is the reference.
 - **`secureAccount({ phrase, newPin })`**: rotates the account key first (which already cuts every other device, D-10), then re-keys each team in its own commit with a recovery signature. It reports `{ rekeyed, failed }`; a failed team is retried with `vault.rekey(teamId, { phrase })`. No resume marker, no `secure-account-incomplete` warning.
 - **Invite proofs auto-approve only for invites of the current version** with no current-version grant naming them (single use without a server rule). A rotation turns older invites into hints.
 - **Errors:** `NOT_AN_OWNER` and `RECOVERY_NOT_SET_UP` are new codes.
+- **Roster size:** `crypto_box_seal` carries its context inside the box, so an entry is about 360 bytes, not 240. The roster seal uses a compact context (`roster-seal`, version and keys hash) and version records are capped at 384 KiB of JSON (about 1,000 members with 36-byte ids, about 850 with 128-byte ids).
 - **Owner API defaults:** `setOwners` and `remove` keep every current holder unless told otherwise, so callers don't build keep lists.

@@ -10,6 +10,8 @@ export type ErrorCode =
   | "NOT_GRANTED"
   | "STALE_VERSION"
   | "LAST_OWNER"
+  | "NOT_AN_OWNER"
+  | "RECOVERY_NOT_SET_UP"
   | "STORE_ERROR";
 
 /** Reasons carried by a `TRUST_FAILURE` (§9). */
@@ -34,6 +36,8 @@ const MESSAGES: Record<ErrorCode, string> = {
   NOT_GRANTED: "No grant for the required team key version.",
   STALE_VERSION: "The write used a version that is no longer current.",
   LAST_OWNER: "The only owner can't leave the team.",
+  NOT_AN_OWNER: "Only an owner of the current version can do this.",
+  RECOVERY_NOT_SET_UP: "Set up the recovery phrase first.",
   STORE_ERROR: "The record store or OPRF service failed.",
 };
 

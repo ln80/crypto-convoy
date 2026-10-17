@@ -6,7 +6,7 @@ import { fromBase64url, toBase64url } from "./base64url.js";
 export type JsonRecord = { readonly [key: string]: unknown };
 
 /** Protocol bounds (§2, D-18). */
-export const LIMITS = { idBytes: 128, parts: 128, meta: 4096, owners: 64 } as const;
+export const LIMITS = { idBytes: 128, parts: 128, meta: 4096, owners: 64, roster: 1000, versionRecordBytes: 393_216 } as const;
 
 const MAX_U32 = 0xffff_ffff;
 

@@ -9,6 +9,7 @@ import { openItemKey, parseItem } from "../../src/records/item.js";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { ContentStore, addParts, read } from "../support/content-store.js";
 import { bundleOf } from "../support/forge.js";
+import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 
@@ -29,9 +30,9 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     for (const key of [held.v1, held.accountKey, held.bundle.pairs.teamStateKey]) {
       expect(() => openItemKey(item, key)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
     }
-    expect(await bob.store.list({ type: "grant", teamId: "team-1", teamKeyVersion: 2, accountId: "bob" })).toEqual([]);
-    const carolGrant = parseGrant((await bob.store.list({ type: "grant", teamId: "team-1", teamKeyVersion: 2, accountId: "carol" }))[0], { teamId: "team-1" });
-    expect(() => openGrant(carolGrant, held.bundle.pairs.encryption)).toThrow();
+    expect(await accessOf(bob.store, "bob", 2)).toBeNull();
+    const carolAccess = (await accessOf(bob.store, "carol", 2))!;
+    expect(() => carolAccess.open(held.bundle.pairs.encryption)).toThrow();
 
     // Items from before stay readable: history is not protected (AS-07).
     expect((await members.carol!.vault.openTeam("team-1")).state).toBe("ready");

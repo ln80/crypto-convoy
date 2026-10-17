@@ -4,8 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { isConvoyError } from "../../src/errors.js";
-import { openGrant, parseGrant } from "../../src/records/grant.js";
-import { bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
+import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 describe("SP-12: compromised member keys can be replaced", () => {
@@ -28,8 +27,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     ]);
     expect((await aliceTeam.memberRequest("bob")).continuity).toBe("routine");
     await aliceTeam.rotate({ keep: ["bob"] });
-    const grants = await members.alice!.store.list({ type: "grant", teamId: "team-1", accountId: "bob", teamKeyVersion: 2 });
-    expect(grants.map((g) => (g as { memberKeysVersion: number }).memberKeysVersion)).toEqual([1]);
+    expect((await accessOf(members.alice!.store, "bob", 2))!.memberKeysVersion).toBe(1);
   });
 
   it("an approving rotation seals the new version to the new keys only", async () => {
@@ -39,15 +37,14 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await bob.vault.rekey("team-1");
     await aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
 
-    const grants = await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", teamKeyVersion: 2 });
-    expect(grants.map((g) => (g as { memberKeysVersion: number }).memberKeysVersion)).toEqual([2]);
+    const access = (await accessOf(bob.store, "bob", 2))!;
+    expect(access.memberKeysVersion).toBe(2);
     const session = await bob.vault.openTeam("team-1");
     expect(session.state).toBe("ready");
     expect(session.currentVersion).toBe(2);
 
-    // The old keys hold nothing for version 2: the only grant is sealed to the new keys.
-    const grant = parseGrant(grants[0], { teamId: "team-1", accountId: "bob" });
-    expect(() => openGrant(grant, old.pairs.encryption)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
+    // The old keys hold nothing for version 2: the roster seals it to the new keys only.
+    expect(() => access.open(old.pairs.encryption)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
   });
 
   it("keys replaced without proof from the current ones are flagged as unproven", async () => {

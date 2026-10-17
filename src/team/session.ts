@@ -3,7 +3,7 @@ import { encodeAnchor, type Anchor } from "../encoding/link.js";
 import { ConvoyError, isConvoyError, trustFailure } from "../errors.js";
 import { callPort } from "../ports.js";
 import type { Grant } from "../records/grant.js";
-import { hasValidContinuity, parseMemberKeys, type MemberKeys } from "../records/member-keys.js";
+import { hasValidContinuity, keysHash, parseMemberKeys, type MemberKeys } from "../records/member-keys.js";
 import { openPreviousKey, type TeamKeyVersion } from "../records/team-key-version.js";
 import { fetchInbox, openSubmissionRecord, storeInbox } from "../content/inbox.js";
 import { newItemDraft, openedItem, type ItemDraft } from "../content/items.js";
@@ -14,13 +14,13 @@ import { advanceAnchor } from "./anchors.js";
 import { chainFrom, loadChain } from "./load.js";
 import { isOwner, type OwnerChange, type VerifiedChain } from "./chain.js";
 import { commitTeam, type MemberBundle, type TeamPorts } from "./context.js";
-import { checkOwnerRule, listGrants, openOwnGrant, type OwnGrant } from "./grants.js";
-import { grantOp, recipientFromGrant, recipientFromKeys, versionOp, type Recipient, type Signer } from "./rotation.js";
+import { checkOwnerRule, holdersOf, listGrants, openOwnAccess, type Holder, type OwnAccess } from "./grants.js";
+import { grantOp, recipientFromKeys, versionOp, type Recipient, type Signer } from "./rotation.js";
 
 /** What this account can do in the team (§9). */
 export type AccessState = "not-joined" | "pending" | "ready" | "unverified";
 
-/** A member admitted at the current version, and who admitted them (SP-15). */
+/** A member holding the current version, and who gave it to them (SP-15). */
 export interface Member {
   readonly accountId: string;
   readonly memberKeysVersion: number;
@@ -49,9 +49,9 @@ export type MemberStatus =
 
 /** Something an owner should act on, with the operation that clears it (§12). */
 export interface Warning {
-  readonly code: "single-owner" | "members-awaiting-approval" | "rekeys-awaiting-approval" | "rotation-needed" | "rotation-interrupted";
+  readonly code: "single-owner" | "members-awaiting-approval" | "rekeys-awaiting-approval" | "rotation-needed";
   readonly accountIds: readonly string[];
-  readonly action: "setOwners" | "grant" | "rotate" | "completeRotation";
+  readonly action: "setOwners" | "grant" | "rotate";
 }
 
 /** Keys an owner reviewed: the approval holds for exactly this version (§6.8). */
@@ -95,7 +95,7 @@ export class TeamSession {
   #state: AccessState = "not-joined";
   #failure: ConvoyError | undefined;
   #chain: VerifiedChain | undefined;
-  #own: OwnGrant | undefined;
+  #own: OwnAccess | undefined;
   #keys = new Map<number, Uint8Array>();
   #ownerChanges: OwnerChange[] = [];
 
@@ -153,13 +153,13 @@ export class TeamSession {
     return encodeAnchor({ version, hash: chain.hashes.get(version)! });
   }
 
-  /** Grants of the current version, each with its signer (§6.5, SP-15). Throws `TRUST_FAILURE`. */
+  /** Holders of the current version (its roster, then grants since), each with who gave it (§6.5, SP-15). Throws `TRUST_FAILURE`. */
   async members(): Promise<Member[]> {
-    const grants = await this.#currentGrants();
-    return grants.map((g) => ({ accountId: g.accountId, memberKeysVersion: g.memberKeysVersion, grantedBy: g.signer.accountId }));
+    const holders = await this.#currentHolders();
+    return holders.map((h) => ({ accountId: h.accountId, memberKeysVersion: h.memberKeysVersion, grantedBy: h.signer.accountId }));
   }
 
-  /** Members whose current grant was signed by one of `accountIds`: review them before removing those owners (§6.7 step 3). */
+  /** Members whose current access was signed by one of `accountIds`: review them before removing those owners (§6.7 step 3). */
   async grantedBy(accountIds: readonly string[]): Promise<string[]> {
     return (await this.members()).filter((m) => accountIds.includes(m.grantedBy)).map((m) => m.accountId);
   }
@@ -176,8 +176,8 @@ export class TeamSession {
     const newest = keys.at(-1);
     if (!newest) throw new ConvoyError("NOT_GRANTED");
     const continuity = continuityOf(newest, keys);
-    const granted = (await this.#currentGrants()).some(
-      (g) => g.accountId === accountId && g.memberKeysVersion === newest.memberKeysVersion,
+    const granted = (await this.#currentHolders()).some(
+      (h) => h.accountId === accountId && h.memberKeysVersion === newest.memberKeysVersion,
     );
     return { accountId, memberKeysVersion: newest.memberKeysVersion, continuity, granted };
   }
@@ -191,7 +191,8 @@ export class TeamSession {
     const signer = this.#ownerSigner();
     const keys = await this.#reviewedKeys({ accountId, memberKeysVersion });
     const teamKey = await this.#teamKey(this.currentVersion);
-    await commitTeam(this.#ports.store, [grantOp(this.#ports, this.teamId, this.currentVersion, teamKey, recipientFromKeys(keys), signer)]);
+    const to = recipientFromKeys(this.#ports.suite, keys);
+    await commitTeam(this.#ports.store, [grantOp(this.#ports, this.teamId, this.currentVersion, teamKey, to, signer)]);
   }
 
   /**
@@ -205,24 +206,6 @@ export class TeamSession {
   /** Every owner change is a rotation carrying the new owner list (§6.7, D-13). */
   async setOwners(owners: readonly string[], options: RotationOptions): Promise<{ version: number; granted: string[] }> {
     return this.#rotate(options, owners);
-  }
-
-  /**
-   * Resumes an interrupted rotation (§6.6 step 7): grants the current version to kept accounts
-   * that held the previous one and still miss it. Creates no version.
-   */
-  async completeRotation(options: RotationOptions): Promise<{ granted: string[] }> {
-    const signer = this.#ownerSigner();
-    const version = this.currentVersion;
-    if (version < 2) return { granted: [] };
-    const have = new Set((await this.#currentGrants()).map((g) => g.accountId));
-    const previous = await this.#grantsOf(version - 1);
-    const missing = previous.filter((g) => this.#kept(options, g.accountId) && !have.has(g.accountId));
-    const recipients = await this.#recipients(missing, options);
-    const teamKey = await this.#teamKey(version);
-    const ops = recipients.map((r) => grantOp(this.#ports, this.teamId, version, teamKey, r, signer));
-    if (ops.length > 0) await commitTeam(this.#ports.store, ops);
-    return { granted: recipients.map((r) => r.accountId) };
   }
 
   /**
@@ -294,7 +277,7 @@ export class TeamSession {
    * `rekey-awaiting-approval` (newer keys published, with their continuity hint).
    */
   async memberStatuses(accountIds: readonly string[]): Promise<MemberStatus[]> {
-    const current = await this.#currentGrants();
+    const current = await this.#currentHolders();
     const statuses: MemberStatus[] = [];
     for (const accountId of accountIds) {
       const keys = await this.#publishedKeys(accountId);
@@ -307,7 +290,7 @@ export class TeamSession {
       } else if (granted.length > 0) {
         statuses.push({ accountId, status: "rekey-awaiting-approval", continuity: continuityOf(newest, keys) });
       } else {
-        const older = (await this.#grantsFor(accountId)).length > 0;
+        const older = await this.#heldBefore(accountId);
         statuses.push({ accountId, status: older ? "outdated" : "awaiting-approval", continuity: continuityOf(newest, keys) });
       }
     }
@@ -329,11 +312,6 @@ export class TeamSession {
     const granted = (await this.members()).map((m) => m.accountId);
     const inactive = [...new Set(granted.filter((id) => !activeAccountIds.includes(id)))];
     if (inactive.length > 0) warnings.push({ code: "rotation-needed", accountIds: inactive, action: "rotate" });
-    if (this.currentVersion > 1) {
-      const previous = (await this.#grantsOf(this.currentVersion - 1)).map((g) => g.accountId);
-      const missing = [...new Set(previous.filter((id) => activeAccountIds.includes(id) && !granted.includes(id)))];
-      if (missing.length > 0) warnings.push({ code: "rotation-interrupted", accountIds: missing, action: "completeRotation" });
-    }
     return warnings;
   }
 
@@ -343,12 +321,14 @@ export class TeamSession {
     return parseItem(json, { teamId: this.teamId, itemId });
   }
 
-  async #grantsFor(accountId: string): Promise<Grant[]> {
+  /** Whether the account held a version before the current one: a grant, or a roster entry of the loaded chain. */
+  async #heldBefore(accountId: string): Promise<boolean> {
     return this.#guard(async () => {
       const grants = await listGrants(this.#ports, this.teamId, { accountId });
       const chain = await this.#chainFrom(Math.min(...grants.map((g) => g.teamKeyVersion)));
       for (const grant of grants) checkOwnerRule(grant, chain);
-      return grants;
+      const older = (v: number) => v < this.currentVersion;
+      return grants.some((g) => older(g.teamKeyVersion)) || chain.records.some((r) => older(r.version) && r.roster.some((e) => e.accountId === accountId));
     });
   }
 
@@ -360,9 +340,9 @@ export class TeamSession {
   async #teamKey(version: number): Promise<Uint8Array> {
     this.#requireUsable();
     const own = this.#own;
-    if (!own || version > own.grant.teamKeyVersion || version < 1) throw new ConvoyError("NOT_GRANTED");
+    if (!own || version > own.teamKeyVersion || version < 1) throw new ConvoyError("NOT_GRANTED");
     await this.#guard(() => this.#chainFrom(version));
-    for (let k = own.grant.teamKeyVersion; k > version; k--) {
+    for (let k = own.teamKeyVersion; k > version; k--) {
       if (!this.#keys.has(k - 1)) this.#keys.set(k - 1, openPreviousKey(this.#record(k), this.#keys.get(k)!));
     }
     return this.#keys.get(version)!;
@@ -404,22 +384,23 @@ export class TeamSession {
 
   async #verify(): Promise<void> {
     const { chain, server } = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles, this.#invite);
-    const own = await openOwnGrant(this.#ports, this.teamId, this.accountId, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
+    const own = await openOwnAccess(this.#ports, this.teamId, this.accountId, chain, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
 
     this.#chain = own?.chain ?? chain;
     this.#ownerChanges = [...chain.ownerChanges];
     this.close();
     this.#own = own ?? undefined;
-    if (own) this.#keys.set(own.grant.teamKeyVersion, own.teamKey);
-    this.#state = own && own.grant.teamKeyVersion === this.currentVersion ? "ready" : "pending";
+    if (own) this.#keys.set(own.teamKeyVersion, own.teamKey);
+    this.#state = own && own.teamKeyVersion === this.currentVersion ? "ready" : "pending";
     await advanceAnchor(this.#ports, this.accountId, this.teamId, chain, this.#bundles[0]!, server);
   }
 
-  #markUnverified(error: ConvoyError) {
+  #markUnverified(error: ConvoyError): ConvoyError {
     // Sticky for the session: tampering or a bug, never retried automatically (§9).
     this.#state = "unverified";
     this.#failure = error;
     this.close();
+    return error;
   }
 
   #requireUsable() {
@@ -459,17 +440,17 @@ export class TeamSession {
     }
   }
 
-  async #grantsOf(version: number): Promise<Grant[]> {
+  /** Who holds `version`: its roster and its grants, owner rule checked (§6.5). Throws `TRUST_FAILURE`. */
+  async #holdersOf(version: number): Promise<Holder[]> {
     return this.#guard(async () => {
       const chain = await this.#chainFrom(version);
       const grants = await listGrants(this.#ports, this.teamId, { teamKeyVersion: version });
-      for (const grant of grants) checkOwnerRule(grant, chain);
-      return grants;
+      return holdersOf(this.#record(version), grants, chain);
     });
   }
 
-  #currentGrants(): Promise<Grant[]> {
-    return this.#grantsOf(this.currentVersion);
+  #currentHolders(): Promise<Holder[]> {
+    return this.#holdersOf(this.currentVersion);
   }
 
   async #publishedKeys(accountId: string): Promise<MemberKeys[]> {
@@ -492,21 +473,25 @@ export class TeamSession {
     return accountId === this.accountId || options.keep.includes(accountId);
   }
 
-  /** One set of keys per account: approved newest keys, or the granted ones (§6.6 step 2). */
-  async #recipients(grants: readonly Grant[], options: RotationOptions): Promise<Recipient[]> {
-    const newestGrant = new Map<string, Grant>();
-    for (const g of grants) {
-      const seen = newestGrant.get(g.accountId);
-      if (!seen || g.memberKeysVersion > seen.memberKeysVersion) newestGrant.set(g.accountId, g);
+  /** One set of keys per account: approved newest keys, or the keys it holds (§6.6 step 2). */
+  async #recipients(holders: readonly Holder[], options: RotationOptions): Promise<Recipient[]> {
+    const { suite } = this.#ports;
+    const newest = new Map<string, Holder>();
+    for (const h of holders) {
+      const seen = newest.get(h.accountId);
+      if (!seen || h.memberKeysVersion > seen.memberKeysVersion) newest.set(h.accountId, h);
     }
     const recipients: Recipient[] = [];
-    for (const [accountId, grant] of newestGrant) {
+    for (const [accountId, holder] of newest) {
       const approval = options.approveRekeys?.find((a) => a.accountId === accountId);
       if (approval) {
-        recipients.push(recipientFromKeys(await this.#reviewedKeys(approval)));
-      } else {
-        recipients.push(recipientFromGrant(grant));
+        recipients.push(recipientFromKeys(suite, await this.#reviewedKeys(approval)));
+        continue;
       }
+      // The keys held, resolved from their published record and checked against the pinned hash.
+      const keys = (await this.#publishedKeys(accountId)).find((k) => k.memberKeysVersion === holder.memberKeysVersion);
+      if (!keys || !suite.equal(keysHash(suite, keys), holder.keysHash)) throw this.#markUnverified(trustFailure("key_mismatch"));
+      recipients.push(recipientFromKeys(suite, keys));
     }
     return recipients;
   }
@@ -515,22 +500,19 @@ export class TeamSession {
     const signer = this.#ownerSigner();
     const current = this.#current!;
     const chain = this.#requireChain();
-    const kept = (await this.#currentGrants()).filter((g) => this.#kept(options, g.accountId));
+    const kept = (await this.#currentHolders()).filter((h) => this.#kept(options, h.accountId));
     const recipients = await this.#recipients(kept, options);
-    const self = recipients.find((r) => r.accountId === this.accountId)!;
 
     const nextKey = this.#ports.suite.randomBytes(this.#ports.suite.sizes.key);
     const currentKey = await this.#teamKey(current.version);
     const owners = newOwners ?? current.owners.map((o) => o.accountId);
-    const version = versionOp(this.#ports, current, chain.hashes.get(current.version)!, currentKey, nextKey, owners, recipients, signer);
-    // The version and its signer's grant in one batch: this makes it current (§6.6 step 5).
-    await commitTeam(this.#ports.store, [version, grantOp(this.#ports, this.teamId, current.version + 1, nextKey, self, signer)]);
-
-    const others = recipients.filter((r) => r !== self);
-    if (others.length > 0) {
-      await commitTeam(this.#ports.store, others.map((r) => grantOp(this.#ports, this.teamId, current.version + 1, nextKey, r, signer)));
+    try {
+      const version = versionOp(this.#ports, current, chain.hashes.get(current.version)!, currentKey, nextKey, owners, recipients, signer);
+      // One record, roster included: a rotation is never half done (§6.6 step 5, D-34).
+      await commitTeam(this.#ports.store, [version]);
+    } finally {
+      this.#ports.suite.wipe(nextKey);
     }
-    this.#ports.suite.wipe(nextKey);
     await this.#load();
     return { version: current.version + 1, granted: recipients.map((r) => r.accountId) };
   }

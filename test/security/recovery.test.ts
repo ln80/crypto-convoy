@@ -45,6 +45,7 @@ describe("SP-19: only authorized material opens the account key", () => {
           },
           cc1.randomBytes(32),
           cc1.randomBytes(32),
+          method === "recovery" ? cc1.signingKeyPair(cc1.randomBytes(32)).publicKey : undefined,
         ),
       );
 

@@ -6,7 +6,7 @@ import { fc, test } from "@fast-check/vitest";
 import { describe, expect } from "vitest";
 import { fromBase64url } from "../../src/encoding/base64url.js";
 import { Reader } from "../../src/encoding/canonical.js";
-import { decodeAnchor, decodeLinkKey } from "../../src/encoding/link.js";
+import { decodeAnchor, decodeInvite, decodeLinkKey } from "../../src/encoding/link.js";
 import { ConvoyError } from "../../src/errors.js";
 import { decodeRequest, openTransfer } from "../../src/records/transfer.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
@@ -34,6 +34,9 @@ describe("SP-18: decoders", () => {
   });
   test.prop([text], RUNS)("anchor", (value) => {
     onlyTypedErrors(() => decodeAnchor(value));
+  });
+  test.prop([text], RUNS)("invite", (value) => {
+    onlyTypedErrors(() => decodeInvite(value));
   });
   const receiver = cc1.generateEncryptionKeyPair();
   test.prop([text], RUNS)("transfer request", (value) => {
@@ -66,12 +69,16 @@ describe("SP-18: record parsers", () => {
     fc.jsonValue(),
   );
 
+  // Proofs aren't covered by the self-signature: stripping one leaves a valid record without that proof (§4.2).
+  const OPTIONAL: Record<string, readonly string[]> = { "member-keys": ["continuitySignature", "recoverySignature", "inviteProof"] };
+
   for (const [type, json] of Object.entries(sample.records)) {
     const keys = Object.keys(json);
+    const required = keys.filter((k) => !OPTIONAL[type]?.includes(k));
     test.prop([fc.constantFrom(...keys), anyJson], RUNS)(`${type}: one field replaced`, (key, value) => {
       onlyTypedErrors(() => parse[type as keyof typeof parse]({ ...json, [key]: value }));
     });
-    test.prop([fc.constantFrom(...keys)], { numRuns: keys.length * 2 })(`${type}: one field removed`, (key) => {
+    test.prop([fc.constantFrom(...required)], { numRuns: required.length * 2 })(`${type}: one required field removed`, (key) => {
       const { [key]: _, ...rest } = json as Record<string, unknown>;
       expect(() => parse[type as keyof typeof parse](rest)).toThrow(ConvoyError);
     });

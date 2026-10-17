@@ -19,7 +19,11 @@ const IDENTITY: Record<RecordKey["type"], readonly string[]> = {
   grant: ["teamId", "accountId", "memberKeysVersion", "teamKeyVersion"],
   item: ["teamId", "itemId"],
   inbox: ["teamId", "inboxId"],
+  invite: ["teamId", "inviteId"],
 };
+
+/** Writers keep a version record within this size (§2, D-34); a server refuses larger ones. */
+const VERSION_RECORD_BYTES = 393_216;
 
 /** Records served only to their own account (§11, server contract rule 1). */
 const PRIVATE = new Set<RecordKey["type"]>(["account-key-wrap", "member-keys-wrap", "team-state"]);
@@ -123,7 +127,7 @@ export class MemoryRecordStore {
       const entry = records.get(keyString(key));
       return entry && !entry.deleted ? entry : undefined;
     };
-    const newVersions: { teamId: string; version: number; signer: string }[] = [];
+    const newVersions: { teamId: string; version: number }[] = [];
     const atCurrentVersion: { teamId: string; version: unknown }[] = [];
 
     for (const op of ops) {
@@ -138,10 +142,10 @@ export class MemoryRecordStore {
             if (version !== before + 1 || newVersions.some((v) => v.teamId === teamId)) {
               throw conflict("version must be current + 1");
             }
-            const signer = fieldsOf(op.record["signer"] as object)["accountId"] as string;
-            newVersions.push({ teamId, version, signer });
+            if (new TextEncoder().encode(JSON.stringify(op.record)).length > VERSION_RECORD_BYTES) throw conflict("record too large");
+            newVersions.push({ teamId, version });
           }
-          if (op.key.type === "grant" || op.key.type === "item" || op.key.type === "inbox") {
+          if (op.key.type === "grant" || op.key.type === "item" || op.key.type === "inbox" || op.key.type === "invite") {
             atCurrentVersion.push({ teamId: op.key.teamId, version: op.record["teamKeyVersion"] });
           }
           records.set(keyString(op.key), { key: clone(op.key), record: clone(op.record), deleted: false });
@@ -179,18 +183,9 @@ export class MemoryRecordStore {
       }
     }
 
-    // Grants, items and inboxes only at the current version, the batch's new version included (§11).
+    // Grants, items, inboxes and invites only at the current version, the batch's new version included (§11).
     for (const { teamId, version } of atCurrentVersion) {
       if (version !== this.#currentTeamKeyVersion(teamId, records)) throw conflict("not the current team key version");
-    }
-
-    // A new team key version is stored atomically with its signer's grant (§11).
-    for (const { teamId, version, signer } of newVersions) {
-      const hasGrant = [...records.values()].some((e) => {
-        const k = fieldsOf(e.key);
-        return !e.deleted && e.key.type === "grant" && k["teamId"] === teamId && k["teamKeyVersion"] === version && k["accountId"] === signer;
-      });
-      if (!hasGrant) throw conflict("version without its signer's grant");
     }
 
     this.#records.clear();

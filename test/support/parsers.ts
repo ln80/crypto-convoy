@@ -2,6 +2,7 @@
 import { parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
 import { parseGrant } from "../../src/records/grant.js";
 import { parseInbox } from "../../src/records/inbox.js";
+import { parseInvite } from "../../src/records/invite.js";
 import { parseItem } from "../../src/records/item.js";
 import { parseMemberKeys } from "../../src/records/member-keys.js";
 import { parseMemberKeysWrap } from "../../src/records/member-keys-wrap.js";
@@ -20,6 +21,7 @@ export function parsers(submissionId: string): Record<SampleType, (json: unknown
     grant: (j) => parseGrant(j, { teamId: "team-1" }),
     item: (j) => parseItem(j, { teamId: "team-1", itemId: "item-1" }),
     inbox: (j) => parseInbox(j, { teamId: "team-1", inboxId: "inbox-1" }),
+    invite: (j) => parseInvite(j, { teamId: "team-1", inviteId: "invite-1" }),
     submission: (j) => parseSubmission(j, { teamId: "team-1", inboxId: "inbox-1", submissionId }),
   };
 }

@@ -143,7 +143,7 @@ Property: each team key version carries the owner list for that version, and the
 Assumptions: AS-01. The client starts from a trusted point (an anchor it verified, or trust on first use at first contact, TH-04).
 
 Verification:
-- `test/security/owner-chain.test.ts`: forged records; records signed by a non-owner or by a removed owner; gaps; forks (two records for one version); a removed owner signing a grant for a later version; and an owner change attempted as two separate writes (refused by construction).
+- `test/security/owner-chain.test.ts`: forged records; records signed by a non-owner or by a removed owner; gaps; forks (two records for one version); a removed owner signing a grant for a later version; and a version whose owner doesn't hold it (missing from its roster).
 - `test/vectors/team-key.v1.json`.
 
 Related threats: TH-03, TH-17.

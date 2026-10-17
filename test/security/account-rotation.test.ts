@@ -7,6 +7,7 @@ import { openAccountKeyWrap, parseAccountKeyWrap } from "../../src/records/accou
 import { world } from "../support/fixtures.js";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { bundleOf } from "../support/forge.js";
+import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
@@ -81,7 +82,6 @@ describe("SP-11: teams survive an account key rotation", () => {
     const copied = await bundleOf(bob.vault);
     await bob.vault.rotate({ pin: bob.pin });
     await aliceTeam.rotate({ keep: ["bob"] });
-    const grant = parseGrant((await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", teamKeyVersion: 2 }))[0], { teamId: "team-1" });
-    expect(openGrant(grant, copied.pairs.encryption)).toHaveLength(32);
+    expect((await accessOf(bob.store, "bob", 2))!.open(copied.pairs.encryption)).toHaveLength(32);
   });
 });

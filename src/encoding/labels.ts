@@ -20,6 +20,7 @@ export const LABELS = [
   "team-key-link",
   "grant",
   "grant-seal",
+  "roster-seal",
   "invite",
   "invite-secret",
   "invite-proof",

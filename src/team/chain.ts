@@ -2,7 +2,7 @@
 import type { Anchor } from "../encoding/link.js";
 import { trustFailure } from "../errors.js";
 import type { SignerRef } from "../records/common.js";
-import type { MemberKeys } from "../records/member-keys.js";
+import { keysHash, type MemberKeys } from "../records/member-keys.js";
 import { recordHash, type TeamKeyVersion } from "../records/team-key-version.js";
 
 /** One accepted change of the owner list, for the integration to show (SP-15). */
@@ -62,9 +62,15 @@ export function verifyChain(input: {
       if (!isOwner(previous, record.signer)) throw trustFailure("not_an_owner");
     }
     for (const owner of record.owners) {
-      const published = memberKeys.some((m) => m.accountId === owner.accountId && equal(m.signingPublicKey, owner.signingPublicKey));
+      const published = memberKeys.find((m) => m.accountId === owner.accountId && equal(m.signingPublicKey, owner.signingPublicKey));
       if (!published) throw trustFailure("key_mismatch");
+      // Owners hold the version they own, with these keys (§4.5 rule 5).
+      const entry = record.roster.find((e) => e.accountId === owner.accountId);
+      if (!entry || entry.memberKeysVersion !== published.memberKeysVersion || !equal(entry.keysHash, keysHash(record.suite, published))) {
+        throw trustFailure("key_mismatch");
+      }
     }
+    if (!record.roster.some((e) => e.accountId === record.signer.accountId)) throw trustFailure("key_mismatch");
     hashes.set(record.version, hash);
   });
 

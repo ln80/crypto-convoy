@@ -86,7 +86,8 @@ Every `wrap`, `seal`, `sign`, `stream` and key derivation below encodes `string 
 | `team-key-version` | Signing a team key version record (with its owner list) |
 | `team-key-link` | Wrapping version n−1 under version n |
 | `grant` | Signing a grant |
-| `grant-seal` | Context inside a grant's or roster entry's sealed box |
+| `grant-seal` | Context inside a grant's sealed box |
+| `roster-seal` | Context inside a roster entry's sealed box (§4.5) |
 | `invite` | Signing an invite record (§4.11) |
 | `invite-secret` | Wrapping an invite's join secret (§4.11) |
 | `invite-proof` | Computing an invite proof (§4.2) |
@@ -166,6 +167,7 @@ The client checks these before any work, so a server can't weaken the PIN hashin
 | Argon2id `memlimit` | 256 MiB (setting) | from the setting's minimum (default 256 MiB) to 1 GiB | 64 MiB |
 | Owners in a team key version | — | 1–64 | — |
 | Accounts in a team key version's roster | — | 1–1,000 | — |
+| A team key version record's JSON | at most 384 KiB (393,216 bytes) | — | — |
 | Member key bundles in a transfer | — | 1–64 | — |
 | Parts in an item or submission | — | 1–128 |
 | Id length | — | 1–128 bytes |
@@ -404,7 +406,7 @@ Announces team key version n, names the team's owners for that version, and link
 
 Protection:
 - `wrappedPreviousKey = wrap(teamKey_n, "team-key-link", teamId, u32 n, teamKey_{n−1})`.
-- Each roster entry: `sealedTeamKey = seal(encryptionPublicKey, "grant-seal", teamId, accountId, u32 memberKeysVersion, u32 n, teamKey_n)`, to the keys whose `keysHash` (§4.2) the entry carries. The same construction as a grant's: either gives one member version n.
+- Each roster entry: `sealedTeamKey = seal(encryptionPublicKey, "roster-seal", u32 n, bytes keysHash, teamKey_n)`, to the keys whose `keysHash` (§4.2) the entry carries. `keysHash` binds the team, the account and its keys, so the context stays short: a roster entry is about 360 bytes of JSON with 36-byte ids.
 - `payload = enc(string label("team-key-version"), teamId, u32 n, bytes prevHash, list<string accountId, bytes signingPublicKey> owners, list<string accountId, u32 memberKeysVersion, bytes keysHash, bytes sealedTeamKey> roster, optional<bytes> BLAKE2b-256(wrappedPreviousKey.nonce ‖ wrappedPreviousKey.ciphertext), string signer.accountId, bytes signer.signingPublicKey, u64 createdAt)`, and `signature` is the signer's Ed25519 signature over `payload`.
 - The **record hash** is `BLAKE2b-256(payload)`. The signature isn't part of it, so the chain doesn't depend on how a signature is encoded.
 
@@ -414,7 +416,7 @@ Reader checks, for the chain from the client's anchor (or from version 1 at firs
 2. **Version 1:** `prevHash` is all zeros, `wrappedPreviousKey` is `null`, and the signer is in its own `owners` list.
 3. **Version n > 1:** `prevHash` equals the record hash of version n−1; `wrappedPreviousKey` is present; and the signer (same `accountId` **and** same key) is in the `owners` list of version n−1.
 4. **Owners are real members:** for each owner, a valid `member-keys` record (§4.2) of that `accountId` has that `signingPublicKey`. Otherwise `TRUST_FAILURE` (reason `key_mismatch`). Owner changes reported to the integration (SP-15) therefore name the account the key belongs to.
-5. **Owners hold the version:** every owner, and the signer, has a roster entry whose `keysHash` is that of the `member-keys` record holding the owner's `signingPublicKey`. Otherwise `TRUST_FAILURE` (reason `key_mismatch`).
+5. **Owners hold the version:** every owner has a roster entry whose `keysHash` is that of the `member-keys` record holding the owner's `signingPublicKey`, and the signer has a roster entry (with any of its keys: a signer approving its own re-key signs with its previous key). Otherwise `TRUST_FAILURE` (reason `key_mismatch`).
 6. The chain contains every anchor the client holds (§6.1). If a version holds a different record: `TRUST_FAILURE` (reason `chain_conflict`). If the chain stops before an anchor: `TRUST_FAILURE` (reason `rollback`).
 
 These checks need no team key, so a `pending` member verifies the chain too. A reader opening its own roster entry also checks that its `keysHash` is that of its own keys, else `TRUST_FAILURE` (`key_mismatch`), and opens `sealedTeamKey` with the expected context. Opening `wrappedPreviousKey` with `teamKey_n` additionally confirms that `teamKey_n` is the key this record was made with.
@@ -700,7 +702,7 @@ Any member can list who holds the current version, with who signed it (`team.mem
    - its newest published `member-keys` record, if this rotation approves it. An approval names the `memberKeysVersion` the owner reviewed; if the account's newest published keys are no longer that version, the rotation stops with `STALE_VERSION` before anything is written (§6.8);
    - otherwise the keys it holds.
 
-   Only access to the **current** version counts, so an older grant is never carried forward, and an account's older keys never receive the new version. An account left out of the list loses access to the new version: forgetting someone costs them access, never leaks it. More than 1,000 recipients is `MALFORMED_RECORD`, before anything is written.
+   Only access to the **current** version counts, so an older grant is never carried forward, and an account's older keys never receive the new version. An account left out of the list loses access to the new version: forgetting someone costs them access, never leaks it. More than 1,000 recipients, or a record over 384 KiB of JSON (§2), is `MALFORMED_RECORD`, before anything is written.
 3. Owners of version n+1: the same list as version n, unless the owner list changes (§6.7). Every owner must be a recipient.
 4. Generate `teamKey_{n+1}`. Create the version record n+1 (§4.5): `prevHash` = record hash of version n, `wrappedPreviousKey = wrap(teamKey_{n+1}, "team-key-link", …, teamKey_n)`, the roster with `teamKey_{n+1}` sealed to each recipient's keys, signed by the caller.
 5. Store it. This makes n+1 current. If the server refuses because n is no longer current, stop with `STALE_VERSION`.
@@ -888,7 +890,7 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 | `member-keys` | team, account, memberKeysVersion | Write-once. Readable by the team's members. |
 | `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Deleted with its account key version. |
 | `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. |
-| `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer and the listed owners must hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30). With 1,000 roster entries and 36-byte ids, a record is about 240 KB; the server accepts records of that size. |
+| `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer and the listed owners must hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30). Writers keep the record's JSON within 384 KiB (§2), about 1,000 roster entries with 36-byte ids; the server accepts records of that size. |
 | `grant` | team, account, memberKeysVersion, teamKeyVersion | Write-once; `teamKeyVersion` must be current (defence in depth: grants of older versions serve no honest purpose, TH-33). |
 | `item` | team, item | Write-once; `teamKeyVersion` must be current. Readable by the team's members, and by whoever the integration lets open the item's links, by the route it chooses. |
 | `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. Readable by the team's members. |

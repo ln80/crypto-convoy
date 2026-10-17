@@ -54,7 +54,7 @@ describe("SP-07: a client never goes back", () => {
 
     // A server that swaps a record below the anchor is caught by the hash link.
     const alice = await bundleOf(t.members.alice!.vault);
-    bob.store.fork("team-1", 2, await forgeVersion(bob.store, { version: 2, owners: [{ accountId: "alice", keys: alice.pairs }], signer: { accountId: "alice", keys: alice.pairs } }));
+    bob.store.fork("team-1", 2, await forgeVersion(bob.store, { version: 2, owners: [{ ...alice, accountId: "alice", keys: alice.pairs }], signer: { ...alice, accountId: "alice", keys: alice.pairs } }));
     const later = await bob.vault.openTeam("team-1");
     expect(later.state).toBe("ready");
     await expect(later.openItem("old")).rejects.toEqual(trust("chain_conflict"));
@@ -72,7 +72,7 @@ describe("SP-07: a client never goes back", () => {
   it("refuses a chain that diverges from its anchor", async () => {
     const { bob, members } = await threeVersions();
     const alice = await bundleOf(members.alice!.vault);
-    bob.store.fork("team-1", 3, await forgeVersion(bob.store, { version: 3, owners: [{ accountId: "alice", keys: alice.pairs }], signer: { accountId: "alice", keys: alice.pairs } }));
+    bob.store.fork("team-1", 3, await forgeVersion(bob.store, { version: 3, owners: [{ ...alice, accountId: "alice", keys: alice.pairs }], signer: { ...alice, accountId: "alice", keys: alice.pairs } }));
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
   });
 

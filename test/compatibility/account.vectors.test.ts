@@ -5,7 +5,8 @@
 import { ristretto255_oprf } from "@noble/curves/ed25519.js";
 import { describe, expect, it } from "vitest";
 import { derivePinKey } from "../../src/account/pin-key.js";
-import { deriveRecoveryKey } from "../../src/account/recovery-key.js";
+import { deriveRecoveryKey, deriveRecoveryKeys } from "../../src/account/recovery-key.js";
+import { hasValidRecoveryProof, type MemberKeys } from "../../src/records/member-keys.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { loadVectors, tohex, unhex } from "../support/vectors.js";
 
@@ -18,7 +19,8 @@ interface PinKey {
   };
 }
 interface Recovery {
-  cases: { phrase: string; accountId: string; seed: string; recoveryKey: string }[];
+  cases: { phrase: string; accountId: string; seed: string; recoveryKey: string; recoveryPublicKey: string }[];
+  recoveryProof: { keys: Record<string, string | number>; signature: string };
   refused: { name: string; phrase: string; error: string }[];
 }
 
@@ -47,9 +49,30 @@ describe("pin-key.v1", () => {
 });
 
 describe("recovery-key.v1", () => {
-  it.each(recovery.cases)("derives the seed and recovery key of $phrase", ({ phrase, accountId, seed, recoveryKey }) => {
+  it.each(recovery.cases)("derives the seed, recovery key and recovery signing key of $phrase", ({ phrase, accountId, seed, recoveryKey, recoveryPublicKey }) => {
     expect(tohex(cc1.recoverySeed(phrase))).toBe(seed);
     expect(tohex(deriveRecoveryKey(cc1, accountId, phrase))).toBe(recoveryKey);
+    const keys = deriveRecoveryKeys(cc1, accountId, phrase);
+    expect(tohex(keys.recoveryKey)).toBe(recoveryKey);
+    expect(tohex(keys.signing.publicKey)).toBe(recoveryPublicKey);
+  });
+
+  it("checks a recovery signature over member keys (§4.2)", () => {
+    const { keys, signature } = recovery.recoveryProof;
+    const record = {
+      suite: cc1,
+      teamId: keys["teamId"],
+      accountId: keys["accountId"],
+      memberKeysVersion: keys["memberKeysVersion"],
+      signingPublicKey: unhex(keys["signingPublicKey"] as string),
+      encryptionPublicKey: unhex(keys["encryptionPublicKey"] as string),
+      recoveryPublicKey: unhex(keys["recoveryPublicKey"] as string),
+      recoverySignature: unhex(signature),
+    } as unknown as MemberKeys;
+    const recoveryKey = unhex(recovery.cases[0]!.recoveryPublicKey);
+    expect(hasValidRecoveryProof(record, recoveryKey)).toBe(true);
+    expect(hasValidRecoveryProof(record, unhex(recovery.cases[1]!.recoveryPublicKey))).toBe(false);
+    expect(hasValidRecoveryProof({ ...record, memberKeysVersion: 3 }, recoveryKey)).toBe(false);
   });
 
   it.each(recovery.refused)("refuses $name", ({ phrase, error }) => {

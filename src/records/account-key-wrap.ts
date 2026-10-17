@@ -31,6 +31,8 @@ export interface AccountKeyWrapContext {
 
 export interface AccountKeyWrap extends RecordHeader, AccountKeyWrapContext {
   readonly wrappedAccountKey: Wrapped;
+  /** Only for `recovery`: the recovery signing key's public half, under the account key (§4.1, D-33). */
+  readonly wrappedRecoveryPublicKey?: Wrapped;
 }
 
 const KEY = 32;
@@ -46,26 +48,42 @@ function adFields(context: AccountKeyWrapContext): Field[] {
   ];
 }
 
+const recoveryContext = (c: Pick<AccountKeyWrapContext, "accountId" | "accountKeyVersion">): Field[] => [
+  string(c.accountId),
+  u32(c.accountKeyVersion),
+];
+
 function checkMethodFields(context: AccountKeyWrapContext) {
   if ((context.method === "device") !== (context.deviceId !== undefined)) throw malformed();
   if ((context.method === "pin") !== (context.kdf !== undefined)) throw malformed();
 }
 
+/** `recoveryPublicKey` is required for `recovery` and refused otherwise. */
 export function createAccountKeyWrap(
   suite: Suite,
   context: AccountKeyWrapContext,
   methodKey: Uint8Array,
   accountKey: Uint8Array,
+  recoveryPublicKey?: Uint8Array,
 ): AccountKeyWrap {
   checkMethodFields(context);
+  if ((context.method === "recovery") !== (recoveryPublicKey !== undefined)) throw malformed();
   const wrappedAccountKey = wrap(suite, methodKey, "account-key-wrap", adFields(context), accountKey);
-  return { v: 1, suite, ...context, wrappedAccountKey };
+  return {
+    v: 1,
+    suite,
+    ...context,
+    wrappedAccountKey,
+    ...(recoveryPublicKey
+      ? { wrappedRecoveryPublicKey: wrap(suite, accountKey, "recovery-public-key", recoveryContext(context), recoveryPublicKey) }
+      : {}),
+  };
 }
 
 /** §8 steps 1–3. `expected` names the wrap the caller asked for; `kdf` comes from the record. */
 export function parseAccountKeyWrap(json: unknown, expected: Omit<AccountKeyWrapContext, "kdf">): AccountKeyWrap {
   const method = (json as JsonRecord | null)?.["method"];
-  const optional = method === "device" ? ["deviceId"] : method === "pin" ? ["kdf"] : [];
+  const optional = method === "device" ? ["deviceId"] : method === "pin" ? ["kdf"] : ["wrappedRecoveryPublicKey"];
   const { header, fields } = readRecord(
     json,
     ACCOUNT_KEY_WRAP,
@@ -90,6 +108,9 @@ export function parseAccountKeyWrap(json: unknown, expected: Omit<AccountKeyWrap
     ...(fields.has("deviceId") ? { deviceId: fields.randomId("deviceId") } : {}),
     ...(kdf ? { kdf } : {}),
     wrappedAccountKey: readWrapped(fields, "wrappedAccountKey", suite, KEY + suite.sizes.tag),
+    ...(fields.has("wrappedRecoveryPublicKey")
+      ? { wrappedRecoveryPublicKey: readWrapped(fields, "wrappedRecoveryPublicKey", suite, KEY + suite.sizes.tag) }
+      : {}),
   };
   expectContext({ ...expected }, { ...record });
   return record;
@@ -107,6 +128,17 @@ export function openAccountKeyWrap(record: AccountKeyWrap, methodKey: Uint8Array
   return accountKey;
 }
 
+/**
+ * The recovery public key, authenticated by the account key (§4.1): a vault opened by the PIN or
+ * a device reads it without the phrase. Throws `DECRYPTION_FAILED`, `MALFORMED_RECORD`.
+ */
+export function openRecoveryPublicKey(record: AccountKeyWrap, accountKey: Uint8Array): Uint8Array {
+  if (!record.wrappedRecoveryPublicKey) throw malformed();
+  const key = unwrap(record.suite, accountKey, "recovery-public-key", recoveryContext(record), record.wrappedRecoveryPublicKey);
+  if (key.length !== KEY || !record.suite.isValidSigningPublicKey(key)) throw malformed();
+  return key;
+}
+
 export function accountKeyWrapToJson(record: AccountKeyWrap): JsonRecord {
   const { kdf } = record;
   return {
@@ -119,5 +151,6 @@ export function accountKeyWrapToJson(record: AccountKeyWrap): JsonRecord {
       ? { kdf: { salt: b64(kdf.salt), opslimit: kdf.opslimit, memlimit: kdf.memlimit, oprfKeyId: kdf.oprfKeyId } }
       : {}),
     wrappedAccountKey: writeWrapped(record.wrappedAccountKey),
+    ...(record.wrappedRecoveryPublicKey ? { wrappedRecoveryPublicKey: writeWrapped(record.wrappedRecoveryPublicKey) } : {}),
   };
 }

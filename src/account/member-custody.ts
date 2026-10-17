@@ -4,8 +4,7 @@ import { ConvoyError, isConvoyError } from "../errors.js";
 import { decodeRequest, sealTransfer } from "../records/transfer.js";
 import { loadChain } from "../team/load.js";
 import { callPort, type WriteOp } from "../ports.js";
-import { createGrant, grantToJson } from "../records/grant.js";
-import { createMemberKeys, memberKeysToJson, parseMemberKeys } from "../records/member-keys.js";
+import { createMemberKeys, keysHash, memberKeysToJson, parseMemberKeys, type MemberKeysProofs } from "../records/member-keys.js";
 import {
   bundleKeyPairs,
   createMemberKeysWrap,
@@ -37,13 +36,22 @@ export async function openBundles(ports: AccountPorts, account: OpenAccount, tea
   return bundles;
 }
 
-/** New member keys: the published record and its wrap (§5.9). On a re-key, the previous keys sign for continuity. */
+export interface NewMemberKeysOptions {
+  /** The account's recovery public key, read authenticated from its recovery wrap (§4.1). */
+  readonly recoveryPublicKey: Uint8Array;
+  /** On a re-key: the previous keys sign for continuity (a hint). */
+  readonly previous?: MemberBundle;
+  readonly recoverySigningSecretKey?: Uint8Array;
+  readonly invite?: MemberKeysProofs["invite"];
+}
+
+/** New member keys: the published record, with its proofs, and its wrap (§5.9). */
 export function newMemberKeys(
   ports: AccountPorts,
   account: OpenAccount,
   teamId: string,
   memberKeysVersion: number,
-  previous?: MemberBundle,
+  options: NewMemberKeysOptions,
 ): { ops: WriteOp[]; bundle: MemberBundle } {
   const { suite, clock } = ports;
   const { accountId } = account;
@@ -57,10 +65,15 @@ export function newMemberKeys(
       memberKeysVersion,
       signingPublicKey: pairs.signing.publicKey,
       encryptionPublicKey: pairs.encryption.publicKey,
+      recoveryPublicKey: options.recoveryPublicKey,
       createdAt: clock.now(),
     },
     pairs.signing.secretKey,
-    previous?.pairs.signing.secretKey,
+    {
+      ...(options.previous ? { previousSigningSecretKey: options.previous.pairs.signing.secretKey } : {}),
+      ...(options.recoverySigningSecretKey ? { recoverySigningSecretKey: options.recoverySigningSecretKey } : {}),
+      ...(options.invite ? { invite: options.invite } : {}),
+    },
   );
   const context = { accountId, teamId, memberKeysVersion, accountKeyVersion: account.version };
   const wrap = createMemberKeysWrap(suite, context, account.key, raw);
@@ -73,10 +86,10 @@ export function newMemberKeys(
   };
 }
 
-/** Team creation (§6.3): member keys, version 1 owned by the creator, and its grant, in one batch. */
-export function newTeamOps(ports: AccountPorts, account: OpenAccount, teamId: string): WriteOp[] {
+/** Team creation (§6.3): member keys and version 1, owned by and rostered to the creator, in one batch. */
+export function newTeamOps(ports: AccountPorts, account: OpenAccount, teamId: string, recoveryPublicKey: Uint8Array): WriteOp[] {
   const { suite, clock } = ports;
-  const { ops, bundle } = newMemberKeys(ports, account, teamId, 1);
+  const { ops, bundle } = newMemberKeys(ports, account, teamId, 1, { recoveryPublicKey });
   const teamKey = suite.randomBytes(suite.sizes.key);
   const signer = { accountId: account.accountId, signingPublicKey: bundle.pairs.signing.publicKey };
   const version = createTeamKeyVersion(suite, {
@@ -84,29 +97,21 @@ export function newTeamOps(ports: AccountPorts, account: OpenAccount, teamId: st
     version: 1,
     prevHash: new Uint8Array(suite.sizes.hash),
     owners: [signer],
+    roster: [
+      {
+        accountId: account.accountId,
+        memberKeysVersion: 1,
+        keysHash: keysHash(suite, bundle.published),
+        encryptionPublicKey: bundle.pairs.encryption.publicKey,
+      },
+    ],
     createdAt: clock.now(),
     signer,
     signerSecretKey: bundle.pairs.signing.secretKey,
     teamKey,
-  });
-  const grant = createGrant(suite, {
-    teamId,
-    accountId: account.accountId,
-    memberKeysVersion: 1,
-    teamKeyVersion: 1,
-    memberSigningPublicKey: bundle.pairs.signing.publicKey,
-    memberEncryptionPublicKey: bundle.pairs.encryption.publicKey,
-    teamKey,
-    signer,
-    signerSecretKey: bundle.pairs.signing.secretKey,
-    createdAt: clock.now(),
   });
   suite.wipe(teamKey);
-  return [
-    ...ops,
-    { op: "create", key: { type: "team-key-version", teamId, version: 1 }, record: teamKeyVersionToJson(version) },
-    { op: "create", key: { type: "grant", teamId, accountId: account.accountId, memberKeysVersion: 1, teamKeyVersion: 1 }, record: grantToJson(grant) },
-  ];
+  return [...ops, { op: "create", key: { type: "team-key-version", teamId, version: 1 }, record: teamKeyVersionToJson(version) }];
 }
 
 /**

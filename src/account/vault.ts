@@ -30,6 +30,7 @@ import {
   newDevice,
   openWithPin,
   pinWrap,
+  recoveryPublicKey,
   recoveryWrap,
 } from "./unlock-methods.js";
 
@@ -245,7 +246,7 @@ export class Vault {
   /** Creates a team with this account as its first owner (§6.3). Throws `STALE_VERSION` if it exists. */
   async createTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
-    await commit(this.#ports, newTeamOps(this.#ports, account, teamId));
+    await commit(this.#ports, newTeamOps(this.#ports, account, teamId, await recoveryPublicKey(this.#ports, account)));
   }
 
   /**
@@ -255,7 +256,8 @@ export class Vault {
   async joinTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
     if ((await openBundles(this.#ports, account, teamId)).length === 0) {
-      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1).ops);
+      const options = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account) };
+      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1, options).ops);
     }
   }
 
@@ -284,7 +286,8 @@ export class Vault {
     const account = this.#requireAccount();
     const [newest] = await openBundles(this.#ports, account, teamId);
     if (!newest) throw new ConvoyError("NOT_GRANTED");
-    await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, newest.memberKeysVersion + 1, newest).ops);
+    const options = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account), previous: newest };
+    await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, newest.memberKeysVersion + 1, options).ops);
   }
 
   /**

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { openPreviousKey, parseTeamKeyVersion } from "../../src/records/team-key-version.js";
 import { bundleOf } from "../support/forge.js";
+import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 describe("SP-02: a team session holds only its own team's keys", () => {
@@ -30,9 +31,9 @@ describe("SP-02: a team session holds only its own team's keys", () => {
     await teamB.rotate({ keep: [] });
     const teamA = await alice.vault.openTeam("team-1");
 
-    const grantB = parseGrant((await alice.store.list({ type: "grant", teamId: "team-2", accountId: "alice", teamKeyVersion: 2 }))[0], { teamId: "team-2" });
+    const accessB = (await accessOf(alice.store, "alice", 2, "team-2"))!;
     const keysA = await bundleOf(alice.vault, "team-1");
-    expect(() => openGrant(grantB, keysA.pairs.encryption)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
+    expect(() => accessB.open(keysA.pairs.encryption)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
 
     const v2B = parseTeamKeyVersion(await alice.store.get({ type: "team-key-version", teamId: "team-2", version: 2 }), { teamId: "team-2" });
     const keyA = await sessionInternals(teamA).teamKey(1);

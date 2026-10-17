@@ -18,6 +18,7 @@ const keyOf = (record: WireRecord): RecordKey => {
     case "grant": return pick("teamId", "accountId", "memberKeysVersion", "teamKeyVersion") as RecordKey;
     case "item": return pick("teamId", "itemId") as RecordKey;
     case "inbox": return pick("teamId", "inboxId") as RecordKey;
+    case "invite": return pick("teamId", "inviteId") as RecordKey;
     case "member-keys": return pick("teamId", "accountId", "memberKeysVersion") as RecordKey;
     case "account-key-wrap": return pick("accountId", "accountKeyVersion", "method") as RecordKey;
     default: throw new Error(type);
@@ -32,12 +33,19 @@ function teamStore() {
 }
 
 describe("server contract (§11)", () => {
-  it("creates a team only with its version 1 and the creator's grant, atomically", async () => {
+  it("creates a team with its version 1 alone: the record carries its roster (D-34)", async () => {
     const { alice } = teamStore();
-    await expect(alice.commit([create(r["team-key-version"])])).rejects.toEqual(conflict);
-    expect(await alice.list({ type: "team-key-version", teamId: "team-1", fromVersion: 1 })).toEqual([]);
-    await alice.commit([create(r["team-key-version"]), create(r.grant)]);
+    await expect(alice.commit([create({ ...r["team-key-version"], version: 2 })])).rejects.toEqual(conflict);
+    await alice.commit([create(r["team-key-version"])]);
     expect(await alice.list({ type: "team-key-version", teamId: "team-1", fromVersion: 1 })).toHaveLength(1);
+    await alice.commit([create(r.invite)]);
+    expect(await alice.list({ type: "invite", teamId: "team-1" })).toHaveLength(1);
+  });
+
+  it("refuses a version record over 384 KiB", async () => {
+    const { alice } = teamStore();
+    const huge = { ...r["team-key-version"], padding: "x".repeat(393_216) };
+    await expect(alice.commit([create(huge)])).rejects.toEqual(conflict);
   });
 
   it("never overwrites a write-once record", async () => {
