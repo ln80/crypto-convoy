@@ -462,3 +462,18 @@ This fixes the doconvoy gap in `use-fragment-key.ts`.
 ## Execution notes
 
 _Appended per phase: what changed, deviations, spec changes made through protocol-change, follow-ups._
+
+### Phase 0 (done)
+- Spec closure committed before code: the §2 strict lists (Ed25519 small-order R, X25519 low-order keys, both with bit 255 ignored; the Ed25519 list was checked against the 8-torsion computed with `@noble/curves`), §3.6 randomness, §3.7 local storage with labels `local-device-key`, `local-account-version` and `local-anchor`, §4.4 first revision, §12 interface contracts, D-23 and D-24.
+- Deviation: the public surface is guarded by entry-point tests and by reviewing the bundled `dist/*.d.ts`, instead of api-extractor reports. `vite-plugin-dts` already bundles each entry with api-extractor; a separate report config adds tooling and no extra guarantee. To revisit before the first release.
+- Added a `browser` vitest project, included in `npm test`. The libsodium versions: `libsodium-wrappers-sumo` 0.8.4 (libsodium 1.0.22), `@noble/curves` 2.4.0, `@scure/bip39` 2.4.0, all pinned exactly.
+- Proved the guard: the boundary test fails on a layer violation, an unlisted dependency and a DOM global.
+
+### Phase 1 (done)
+- §3.4 clarified: ⌈length / 4 MiB⌉ chunks, at least one, so an exact multiple ends with a full `FINAL` chunk.
+- Vectors: canonical (expected bytes written by hand), wrap, seal, stream and link, from `test/vectors/generate/*.mjs` (raw libsodium and their own encoder; they refuse to overwrite). The multi-chunk stream ciphertexts are binary attachments in `test/vectors/stream.v1/`, checked by their hash.
+- Proved the guards:
+  - Removing the `final !== last` check makes "final chunk dropped" and "no FINAL tag" fail. An early `FINAL` is still caught by the done-state check.
+  - Removing the explicit X25519 list check makes the 14 low-order seal cases fail. libsodium throws an untyped error instead of `MALFORMED_RECORD`.
+  - Non-canonical `S` and small-order `R` are also refused by libsodium 1.0.22 itself. Our explicit checks are defence in depth, and `isCanonicalScalar` is tested on its own.
+- Follow-up: there is no streaming *encryption* in v1. A record must be stored before or with its parts (§7.1), and the manifest needs each part's hash first.
