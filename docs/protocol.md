@@ -670,8 +670,8 @@ If the integration's page fetches the inbox public key from its server instead o
 
 Every record is checked in this order. The first failure stops processing (fail closed).
 
-1. **Shape:** a JSON object with the required fields and types; byte fields decode as base64url without padding, to the right length; nothing unknown. Else `MALFORMED_RECORD`.
-2. **Version and suite:** `v` and `suite` are in the supported list. Else `UNSUPPORTED_VERSION` (SP-17).
+1. **Shape:** a JSON object whose `v` is an integer, `suite` a string and `type` the expected record type. Else `MALFORMED_RECORD`.
+2. **Version and suite:** `v` and `suite` are in the supported list. Else `UNSUPPORTED_VERSION` (SP-17). The rest of the shape depends on `v`, so it is checked next: the required fields and types for that version; byte fields decode as base64url without padding, to the right length; integers, lists and ids within the bounds of §2; nothing unknown. Else `MALFORMED_RECORD`.
 3. **Context:** the ids in the record equal the ids the caller asked for (team, item, inbox, account). Else `TRUST_FAILURE` (reason `context_mismatch`).
 4. **Signature and trust:** signatures, the owner rule, chain continuity and anchors. Else `TRUST_FAILURE`.
 5. **Decryption:** `unwrap`, `open` and `stream` with the expected context. Else `DECRYPTION_FAILED`.
