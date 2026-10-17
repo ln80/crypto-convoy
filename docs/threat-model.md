@@ -1,6 +1,6 @@
 # Threat model
 
-> Status: draft, under review. Second pass: TH-33 to TH-35 and AS-07 come from the key hierarchy and an adversarial review of the protocol. Third pass: A11 and TH-36 to TH-38 come from a review of session theft and equivocation.
+> Status: draft, under review. Second pass: TH-33 to TH-35 and AS-07 come from the key hierarchy and an adversarial review of the protocol. Third pass: A11 and TH-36 to TH-38 come from a review of session theft and equivocation. Fourth pass: TH-41 to TH-43 come from the owner autopilot, invite proofs, recovery proofs and rosters (D-31 to D-36).
 
 ## Role
 
@@ -67,7 +67,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |
 | TH-08 | Online PIN guessing with a stolen session | A11, A9 | Mitigated: SP-08 (server rate limit) |
 | TH-09 | The server operator brute-forces a PIN | A2 | Accepted |
-| TH-10 | Lost or stolen device | A7 | Partly mitigated: SP-10 (revoke only); full remedy SP-11 + SP-12 |
+| TH-10 | Lost or stolen device | A7 | Partly mitigated: SP-10 (revoke only); full remedy `secureAccount`: SP-11 + SP-23 |
 | TH-11 | Leaked PIN or recovery phrase | A8 | Mitigated: SP-09, SP-19 |
 | TH-12 | Account key leaked | A9, A7 | Mitigated: SP-11 + SP-12; past access accepted |
 | TH-13 | Member keys of one team leaked | A9, A7 | Mitigated: SP-12; past access accepted |
@@ -94,10 +94,13 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-34 | PIN hashing cost set too low | Integration error, A2 | Mitigated: library hard floor (D-17, SP-08) |
 | TH-35 | A timestamp shown as proof of when something was sent | A5, A10 | Accepted; integration must not present it as trusted |
 | TH-36 | Session thief destroys the account | A11 | Mitigated: soft delete with a restore window (server contract) |
-| TH-37 | Session thief injects member keys | A11 | Partly mitigated: AS-06, continuity hint (SP-12); residual accepted |
+| TH-37 | Session thief injects member keys | A11 | Partly mitigated: SP-12 (pinned approvals), SP-23 (recovery proof), SP-24 (invite proof); residual accepted |
 | TH-38 | Split view: two records for one version | A6 with A2 | Accepted (needs key transparency) |
 | TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
 | TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
+| TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
+| TH-42 | The server hides grants to suppress a rotation | A2 | Mitigated for rotations: SP-15 (signed rosters); residual for grants between rotations |
+| TH-43 | An invite link leaks | A2, A11, A1 | Accepted when the integration's server delivers it; integration keeps it out of UI and logs |
 
 ---
 
@@ -121,7 +124,7 @@ Attack: when an owner admits a member or rotates the team key, the server return
 
 Impact: the owner seals the team key to the server, which can then read every new item.
 
-Disposition: mitigated by SP-04. Owners seal only to member keys they signed, and members open only team keys an owner signed for them. The first time an owner sees a new member's keys, they come from the server: see TH-04.
+Disposition: mitigated by SP-04. Owners seal only to member keys they signed, and members open only team keys an owner signed for them. The first time an owner sees a new member's keys, they come from the server: see TH-04. An invite proof (SP-24) shows the keys were made by someone holding the invite link; if the integration's server delivered that link, the server could have made them, so with `autoApproveInvites` (D-32) a server-delivered invite admits whoever the server chooses.
 
 ### TH-03: Server forges the owner list
 
@@ -144,7 +147,7 @@ Attack: the first time a client meets something, it has nothing earlier to compa
 
 Impact: the user trusts fake owners and their fake members, or the owner grants the team key to the server.
 
-Disposition: accepted in v1. Every later change is checked against what the client first accepted (SP-05, SP-07), so the exposure is limited to first contact. A client that already holds the team's state (on the device or in its encrypted team state) is not exposed. A joiner whose invite link carries an invite anchor and travelled outside the server starts from that anchor, so a forged team is refused (protocol §6.4). Out-of-band fingerprint verification is deferred (D-11, SP-20): v1 claims no protection here, by choice.
+Disposition: accepted in v1. Every later change is checked against what the client first accepted (SP-05, SP-07), so the exposure is limited to first contact. A client that already holds the team's state (on the device or in its encrypted team state) is not exposed. A joiner whose invite link carries an invite anchor and travelled outside the server starts from that anchor, so a forged team is refused (protocol §6.4). The same link carries a join proof the owner checks (SP-24); it protects the owner side only as far as the link avoided the server (TH-43). Out-of-band fingerprint verification is deferred (D-11, SP-20): v1 claims no protection here, by choice.
 
 ### TH-05: Server rolls back or hides team state
 
@@ -212,7 +215,7 @@ Impact: everything the account can reach, for as long as the device keeps workin
 
 Disposition: partly mitigated by SP-10. The user revokes the device from another one: the server deletes its wrap, so the device can't unlock again. That stops a thief who hasn't used the device yet. The integration can also have the server stop serving device wraps after a period of inactivity, so a forgotten device asks for the PIN again (protocol §5.5).
 
-A thief who used the device while it was unlocked may have copied the account key and the member keys of every team it opened. Revocation alone doesn't evict them (D-21). The full remedy is to rotate the account key (SP-11) and re-key in each affected team (SP-12), each re-key approved by an owner. The library offers both; the integration decides whether to guide users through them. Anything already decrypted is accepted as lost.
+A thief who used the device while it was unlocked may have copied the account key and the member keys of every team it opened. Revocation alone doesn't evict them (D-21). The full remedy is `secureAccount` (D-36): it rotates the account key with a new PIN (SP-11) and re-keys every team with a recovery proof (SP-23), which each team's owners approve at their next `reconcile`, without an out-of-band check, unless the account is an owner there. The user enters the recovery phrase on a device the thief didn't control. Anything already decrypted, and what a team writes before its owners reconcile, is accepted as lost.
 
 ### TH-11: Leaked PIN or recovery phrase
 
@@ -234,7 +237,7 @@ Attack: extracts the account key from memory or storage.
 
 Impact: every team key and item the account can reach.
 
-Disposition: mitigated by SP-11 and SP-12 together. Rotating the account key retires it, but member keys don't change. An attacker who held the account key could have opened every member keys bundle, so team access only ends once the member re-keys in each team and the team key is rotated (TH-13). What the attacker opened before is accepted as lost.
+Disposition: mitigated by SP-11 and SP-12 together, in one operation (`secureAccount`, D-36). Rotating the account key retires it, but member keys don't change. An attacker who held the account key could have opened every member keys bundle, so team access only ends once the member re-keys in each team and the team key is rotated (TH-13). The recovery phrase isn't under the account key, so it still proves the re-keys (SP-23). What the attacker opened before is accepted as lost.
 
 ### TH-13: Member keys of one team leaked
 
@@ -244,7 +247,7 @@ Attack: extracts a member's private keys for one team.
 
 Impact: the attacker can open every team key version granted to that member, and sign as that member.
 
-Disposition: mitigated by SP-12. The member gets new keys, approved by an owner, and the team key is rotated, so the old keys open nothing new. A key can't vouch for its own replacement, since the attacker holds it too. Past versions are accepted as lost.
+Disposition: mitigated by SP-12. The member gets new keys, approved by an owner, and the team key is rotated, so the old keys open nothing new. A key can't vouch for its own replacement, since the attacker holds it too; the recovery key, which isn't stored anywhere, can (SP-23). Past versions are accepted as lost.
 
 ## Team members
 
@@ -256,7 +259,7 @@ Attack: keeps the team keys they held and reads items, including new ones.
 
 Impact: continued access after removal.
 
-Disposition: mitigated by SP-06 for items and inboxes created after the next rotation. When to rotate after a removal is the integration's decision; `needsRotation` tells it when a granted account is no longer active. Rotations take a list of accounts to keep, so forgetting a removed member costs them access instead of leaving them in. The member keeps every key they had (AS-07), so items they could read before removal are accepted as lost, as in any E2EE system. Inboxes created before the rotation are covered by TH-30. A member re-admitted later can open the versions created while they were away (D-07); this is accepted.
+Disposition: mitigated by SP-06 for items and inboxes created after the next rotation. An owner's `reconcile` rotates as soon as an account holding the current version is no longer in the integration's active list (SP-22); the list of who holds a version is signed chain data (TH-42). Rotations take a list of accounts to keep, so forgetting a removed member costs them access instead of leaving them in. The member keeps every key they had (AS-07), so items they could read before removal are accepted as lost, as in any E2EE system. Inboxes created before the rotation are covered by TH-30. A member re-admitted later can open the versions created while they were away (D-07); this is accepted.
 
 ### TH-15: Member forges an item's author
 
@@ -286,7 +289,7 @@ Attack: uses the owner's keys to admit members they control, or to remove the ot
 
 Impact: reads future items; may lock out the honest owners.
 
-Disposition: partly mitigated by SP-15, which is detection, not prevention. Every owner-list change and every new member is reported on all members' clients, but the attacker can act before anyone reads the reports. The warning shown when an owner is removed (members granted by that owner) can be washed out by a later grant from another owner. Owner keys must match the accounts' published member keys, so a report can't show an attacker's key under another member's name, unless the server also forges that member's keys record. The honest owners recover by removing the stolen key while they are still owners, or, if locked out, by creating a new team and moving members to it out of band. A single stolen owner key allowing a takeover is accepted (D-06): a quorum wouldn't prevent the more damaging attack, admitting a fake member.
+Disposition: partly mitigated by SP-15, which is detection, not prevention. Every owner-list change and every new member is reported on all members' clients, but the attacker can act before anyone reads the reports. The warning shown when an owner is removed (members granted by that owner) can be washed out by access re-signed later by another owner. Owner keys must match the accounts' published member keys, so a report can't show an attacker's key under another member's name, unless the server also forges that member's keys record. The honest owners recover by removing the stolen key while they are still owners, or, if locked out, by creating a new team and moving members to it out of band. A single stolen owner key allowing a takeover is accepted (D-06): a quorum wouldn't prevent the more damaging attack, admitting a fake member. Automatic approvals never change the owner list: an owner's re-key, even proven by their recovery key, needs another owner's approval (SP-23, TH-41).
 
 ### TH-18: Owner loses their credentials
 
@@ -457,7 +460,7 @@ Attack: after removal, signs a grant of a version they were an owner of, for exa
 
 Impact: the fake member opens that version and every earlier one.
 
-Disposition: accepted. The removed owner already holds those versions (AS-07), so a grant gives away nothing they couldn't leak directly. Such a grant is never carried forward: a rotation only carries members holding a grant for the current version, and the removed owner isn't in the owner list of any version after their removal (SP-05). The server also refuses grants for any version but the current one (defence in depth).
+Disposition: accepted. The removed owner already holds those versions (AS-07), so a grant gives away nothing they couldn't leak directly. Such a grant is never carried forward: a rotation only carries members holding the current version, and the removed owner isn't in the owner list of any version after their removal (SP-05). The server also refuses grants for any version but the current one (defence in depth).
 
 ### TH-34: PIN hashing cost set too low
 
@@ -499,7 +502,13 @@ Attack: publishes member keys under the victim's account in a team: a join befor
 
 Impact: the attacker reads the team from the grant on.
 
-Disposition: partly mitigated. Owners confirm joins and re-keys out of band (AS-06). A routine re-key carries a continuity signature by the member's current keys, so a request without one is reported as "keys replaced without proof", prompting that check (SP-12). A preempted first join is detected by the real member: their vault finds a `member-keys` record that doesn't match its own keys (`key_mismatch`). Residual, accepted: an owner who approves without checking.
+Disposition: partly mitigated.
+- **Proofs.** A join made with the invite link carries an invite proof (SP-24); a re-key signed by the member's recovery key is proven (SP-23). The thief has neither: the phrase isn't stored, and the invite link isn't in the session (as long as the integration keeps it out of its UI, TH-43).
+- **Pinned approvals.** An owner's approval holds for exactly the keys they reviewed; keys published afterwards are refused (SP-12).
+- **Hints.** A re-key with a continuity signature by the current keys is reported as routine; without one, as "keys replaced without proof", prompting an out-of-band check (AS-06).
+- **Detection.** A preempted first join is detected by the real member: their vault finds a `member-keys` record that doesn't match its own keys (`key_mismatch`).
+
+Residual, accepted: an owner who approves an unproven request without checking, and, with `autoApproveInvites`, a server that delivered the invite link (TH-43).
 
 ### TH-38: Split view
 
@@ -530,4 +539,36 @@ Attack: the integration sends its server a reference for each part, for deduplic
 Impact: confirmation of a file's presence, and links between items, without decrypting anything.
 
 Disposition: mitigated by SP-21 for references made with `partRef` (D-28). Values the integration computes from plaintext by other means stay its responsibility ([scope.md](scope.md#what-the-integration-does)).
+
+## Fourth pass: autopilot, proofs and rosters
+
+### TH-41: A leaked recovery phrase replaces a member's keys
+
+Actor: credential thief (A8) holding a member's recovery phrase.
+
+Attack: publishes new member keys signed with the recovery key in every team of the account. Owners' `reconcile` approves them as proven re-keys, and the real member's keys stop receiving new versions. The real member re-keys with the same phrase; the two race.
+
+Impact: the thief reads what the teams write next, and the real member is cut out until a human intervenes. The phrase also opens the account key, so the thief already read everything the account could (TH-11).
+
+Disposition: partly mitigated. An owner's re-key is never approved automatically, so the owner list can't change this way (SP-23). Each approved re-key is reported (SP-15), and the cut-out member sees `pending` and a `key_mismatch` on their next open. Accepted: the race itself; it ends when an owner removes the account or approves one set of keys by hand, after the user has replaced the phrase.
+
+### TH-42: The server hides grants to suppress a rotation
+
+Actor: malicious server (A2).
+
+Attack: hides a removed member's grant from the list an owner reads, so the owner's client doesn't see that a removed account still holds the current version, and never rotates.
+
+Impact: the removed member keeps reading new items.
+
+Disposition: mitigated for every version created by a rotation: who receives a version is the roster signed inside the version record (D-34), which the server can't edit or trim. Residual: a member admitted by a grant between two rotations can be hidden from other owners until the next rotation. A rotation carries only accounts the owner keeps, so the hidden member is left out at the next rotation either way.
+
+### TH-43: An invite link leaks
+
+Actor: the integration's server or mail provider (A2), a session thief who can see the invite in the product (A11), a data thief reading a stored outbox or logs (A1).
+
+Attack: uses the join secret in the invite link to publish keys with a valid invite proof under the invitee's account.
+
+Impact: if the integration set `autoApproveInvites`, the attacker is admitted without a human; otherwise the owner sees a proof that doesn't mean what it claims.
+
+Disposition: accepted when the integration's server delivers the link: an invite proof only shows that the joiner held the link (D-32). The integration keeps invite links out of its own UI, logs and stored outbox, and leaves `autoApproveInvites` off unless it trusts its delivery. An invite auto-approves once, and only while its team key version is current.
 

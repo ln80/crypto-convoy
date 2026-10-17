@@ -39,7 +39,7 @@ How values are written down, so two implementations produce the same bytes.
 
 | Id | Chosen by | Form |
 | --- | --- | --- |
-| `accountId`, `teamId`, `itemId`, `inboxId`, `submissionId` | The integration | Opaque UTF-8 string, 1–128 bytes, no NUL. Unique in its scope (`itemId` and `inboxId` within a team, `submissionId` within an inbox). It may be assigned by the integration's server after the first part is encrypted: ids are bound when a draft is sealed (D-26). |
+| `accountId`, `teamId`, `itemId`, `inboxId`, `submissionId`, `inviteId` | The integration | Opaque UTF-8 string, 1–128 bytes, no NUL. Unique in its scope (`itemId`, `inboxId` and `inviteId` within a team, `submissionId` within an inbox). It may be assigned by the integration's server after the first part is encrypted: ids are bound when a draft is sealed (D-26). |
 | `deviceId` | The library, at registration | 16 random bytes, base64url without padding. |
 | Part `index` | The library | Position of a part in its item or submission, from 0. |
 
@@ -74,15 +74,22 @@ Every `wrap`, `seal`, `sign`, `stream` and key derivation below encodes `string 
 | `pin-key` | Combining the Argon2id and OPRF outputs |
 | `pin-oprf` | The server's per-account OPRF key derivation (§5.1) |
 | `recovery-key` | Deriving the recovery key |
+| `recovery-signing-key` | Deriving the recovery signing key's seed (§5.2) |
+| `recovery-public-key` | Wrapping the recovery public key under the account key (§4.1) |
 | `account-key-wrap` | Wrapping the account key for an unlock method |
 | `member-keys` | Self-signature of a member keys record |
 | `member-keys-continuity` | Optional signature by a member's current keys over their new keys (§4.2) |
+| `member-keys-recovery` | Optional signature by the recovery key over a member's new keys (§4.2) |
+| `member-keys-hash` | Hashing a member's public keys, as grants and rosters pin them (§4.2) |
 | `member-keys-wrap` | Wrapping a member keys bundle |
 | `team-state` | Wrapping a member's team state |
 | `team-key-version` | Signing a team key version record (with its owner list) |
 | `team-key-link` | Wrapping version n−1 under version n |
 | `grant` | Signing a grant |
-| `grant-seal` | Context inside a grant's sealed box |
+| `grant-seal` | Context inside a grant's or roster entry's sealed box |
+| `invite` | Signing an invite record (§4.11) |
+| `invite-secret` | Wrapping an invite's join secret (§4.11) |
+| `invite-proof` | Computing an invite proof (§4.2) |
 | `item-key` | Wrapping an item key |
 | `item-manifest` | Encrypting an item's manifest |
 | `item-part` | Associated data of an item part's stream |
@@ -105,7 +112,7 @@ Records are JSON objects. Every record has:
 
 Byte values are base64url **without** padding, everywhere: in records and in links. There is one encoding. Integers are JSON numbers (all fit in 53 bits). Item and submission parts are raw binary, not JSON.
 
-Values carried in links (an item key, an inbox public key, an invite anchor) use the same encoding, after a one-character version prefix (§3.5).
+Values carried in links (an item key, an inbox public key, an invite anchor, an invite) use the same encoding, after a one-character version prefix (§3.5).
 
 Timestamps (`createdAt`) are Unix seconds from the writer's `Clock`. They are informative: authenticated where listed, so the server can't change them, but the writer chooses them freely. They are never used for a security decision, and an integration must not present them as a trusted time, for example as proof of when a submission was sent (TH-35).
 
@@ -158,6 +165,7 @@ The client checks these before any work, so a server can't weaken the PIN hashin
 | Argon2id `opslimit` | 3 (setting) | from the setting's minimum (default 3) to 10 | 2 |
 | Argon2id `memlimit` | 256 MiB (setting) | from the setting's minimum (default 256 MiB) to 1 GiB | 64 MiB |
 | Owners in a team key version | — | 1–64 | — |
+| Accounts in a team key version's roster | — | 1–1,000 | — |
 | Member key bundles in a transfer | — | 1–64 | — |
 | Parts in an item or submission | — | 1–128 |
 | Id length | — | 1–128 bytes |
@@ -230,6 +238,7 @@ Every value the library puts in a link starts with a one-character **format vers
 - `encodeLinkKey(32 bytes)` = `"1"` followed by the key in base64url without padding (44 characters). Used for item keys (§7.3) and inbox public keys (§7.4).
 - `decodeLinkKey` accepts only `"1"` followed by input that decodes to exactly 32 bytes, and for an inbox public key, not a low-order point (§2); anything else is `MALFORMED_RECORD`.
 - `encodeAnchor(version, recordHash)` = `"1"` followed by `enc(u32 version, bytes recordHash)` in base64url without padding. An **invite anchor** (§6.4) lets someone joining a team start from a chain position they received outside the server. `decodeAnchor` applies the same rules.
+- `encodeInvite(version, recordHash, inviteId, joinSecret)` = `"1"` followed by `enc(u32 version, bytes recordHash, string inviteId, bytes joinSecret)` in base64url without padding: the anchor and the invite of §4.11 in one value. `decodeInvite` requires a 32-byte hash, a valid id (§1) and a 32-byte secret, else `MALFORMED_RECORD`.
 
 The integration places these values in the URL fragment (after `#`), which browsers don't send to servers.
 
@@ -286,8 +295,9 @@ Each record lists its fields, how it is protected, and what a reader checks. Key
 | `member-keys` | The member | Team members | Self-signature | Write-once |
 | `member-keys-wrap` | The account | The account | `wrap` under the account key | Write-once; deleted with its account key version |
 | `team-state` | The account | The account | `wrap` under the team state key | Compare-and-set |
-| `team-key-version` | An owner | Team members | Owner signature, hash chain, `wrap` link | Write-once; current + 1; atomic with the signer's grant |
+| `team-key-version` | An owner | Team members | Owner signature, hash chain, `wrap` link, `seal` per roster entry | Write-once; current + 1 |
 | `grant` | An owner | The member (and owners) | Owner signature, `seal` | Write-once; current version only |
+| `invite` | An owner | Team members | Owner signature, `wrap` under the team key | Write-once; current version only |
 | `item` | A member | Members, link holders | `wrap` under the team key and the item key | Write-once; current version only |
 | Item part (content) | A member | Members, link holders | `stream` under the item key | Stored by the integration (D-25) |
 | `inbox` | A member | Members | `wrap` under the team key | Write-once; current version only |
@@ -305,10 +315,13 @@ The account key, wrapped for one unlock method.
 | `deviceId` | present only for `device` |
 | `kdf` | present only for `pin`: `{ salt, opslimit, memlimit, oprfKeyId }` |
 | `wrappedAccountKey` | `wrap` output |
+| `wrappedRecoveryPublicKey` | present only for `recovery`: `wrap` output |
 
 Protection: `wrappedAccountKey = wrap(methodKey, "account-key-wrap", accountId, u32 accountKeyVersion, string method, optional<string> deviceId, kdfFields, accountKey)`. For `pin`, `kdfFields` = `bytes salt, u64 opslimit, u64 memlimit, u32 oprfKeyId`; for the others it is empty. `methodKey` is the `pinKey`, `recoveryKey` or `deviceKey`.
 
-Reader checks: `kdf` within bounds (§2); `accountKeyVersion` not lower than the highest the device has seen (SP-07); the opened key is 32 bytes. For PIN and recovery, a failed `unwrap` is reported as `WRONG_CREDENTIAL`.
+For `recovery`, `wrappedRecoveryPublicKey = wrap(accountKey, "recovery-public-key", accountId, u32 accountKeyVersion, recoveryPublicKey)`: the recovery signing key's public half (§5.2), which a vault opened by the PIN or a device reads authenticated, without the phrase. A recovery wrap without it is `MALFORMED_RECORD`.
+
+Reader checks: `kdf` within bounds (§2); `accountKeyVersion` not lower than the highest the device has seen (SP-07); the opened key is 32 bytes. For PIN and recovery, a failed `unwrap` is reported as `WRONG_CREDENTIAL`. `wrappedRecoveryPublicKey` opens with the account key to 32 bytes, a valid Ed25519 public key (§2), else `DECRYPTION_FAILED` or `MALFORMED_RECORD`; when the vault was opened with the phrase, it equals the key derived from it, else `TRUST_FAILURE` (`key_mismatch`).
 
 The server also tells the client which `accountKeyVersion` is current. The client never trusts a lower one than it has seen. A device with no stored state has seen none: a malicious server that kept a retired version's wraps can make it adopt that version, which the user's PIN still opens. That residual is accepted (TH-05, SP-19).
 
@@ -321,15 +334,29 @@ A member's public keys for one team. Public.
 | `teamId`, `accountId` | string |
 | `memberKeysVersion` | integer ≥ 1, increases on each re-key |
 | `signingPublicKey`, `encryptionPublicKey` | 32 bytes each |
+| `recoveryPublicKey` | 32 bytes: the account's recovery signing key (§5.2) |
 | `createdAt` | integer |
 | `signature` | 64 bytes |
 | `continuitySignature` | 64 bytes, optional: only on a re-key, when the previous keys are still trusted |
+| `recoverySignature` | 64 bytes, optional: only on a re-key, when the user entered the recovery phrase |
+| `inviteProof` | optional `{ inviteId, mac (32 bytes) }`: only on a first join with an invite link |
 
-Protection: `signature = sign(memberSigningKey, "member-keys", teamId, accountId, u32 memberKeysVersion, bytes signingPublicKey, bytes encryptionPublicKey, u64 createdAt)`.
+Protection: `signature = sign(memberSigningKey, "member-keys", teamId, accountId, u32 memberKeysVersion, bytes signingPublicKey, bytes encryptionPublicKey, bytes recoveryPublicKey, u64 createdAt)`.
 
-On a routine re-key, the member also signs the new record with their **previous** signing key: `continuitySignature = sign(previousSigningKey, "member-keys-continuity", teamId, accountId, u32 memberKeysVersion, bytes signingPublicKey, bytes encryptionPublicKey)`.
+The **keys hash**, which grants and rosters pin, is `keysHash = BLAKE2b-256(enc(string label("member-keys-hash"), teamId, accountId, u32 memberKeysVersion, bytes signingPublicKey, bytes encryptionPublicKey, bytes recoveryPublicKey))`.
 
-Reader checks: `encryptionPublicKey` is not a low-order point (§2); the signature verifies with `signingPublicKey` (proof that both keys belong to the same holder). It proves nothing about who the member is; that comes from a grant (§4.6). If present, `continuitySignature` is checked against the signing key of the `member-keys` record with `memberKeysVersion` − 1; it is shown to the approving owner as a hint, never accepted as approval on its own (§6.8).
+Proofs on a re-key, over the same `keysPayload = enc(teamId, accountId, u32 memberKeysVersion, bytes signingPublicKey, bytes encryptionPublicKey, bytes recoveryPublicKey)` each preceded by its own label:
+- `continuitySignature = sign(previousSigningKey, "member-keys-continuity", keysPayload)`, by the member's previous signing key: a **hint**, never an approval.
+- `recoverySignature = sign(recoverySigningKey, "member-keys-recovery", keysPayload)`, by a recovery signing key: a **proof** (D-33).
+
+On a first join with an invite (§6.4): `inviteProof.mac = keyed BLAKE2b-256(key = joinSecret, message = enc(string label("invite-proof"), inviteId, keysPayload))`.
+
+Reader checks:
+- `encryptionPublicKey` is not a low-order point; `signingPublicKey` and `recoveryPublicKey` are valid Ed25519 public keys (§2); the signature verifies with `signingPublicKey` (proof that the keys belong to the same holder). It proves nothing about who the member is; that comes from an owner's approval (§4.5, §4.6).
+- `continuitySignature`, if present, is checked against the signing key of the `member-keys` record with `memberKeysVersion` − 1. It is shown to the approving owner as a hint, never accepted as approval (§6.8).
+- `recoverySignature`, if present, is checked against the `recoveryPublicKey` of the keys the account **holds** at the current version (its roster entry or grant, §6.1). Only then is the re-key **proven** (§6.8, SP-23). A signature by another recovery key, including the one this record carries, proves nothing.
+- `inviteProof`, if present, is checked against the join secret of the `invite` record it names (§4.11, SP-24). It is a hint unless the owner's `reconcile` is allowed to act on it (§6.9).
+- A proof that doesn't verify is reported as absent; it never makes the record invalid.
 
 ### 4.3 `member-keys-wrap`
 
@@ -370,13 +397,15 @@ Announces team key version n, names the team's owners for that version, and link
 | `prevHash` | 32 bytes: the record hash of version n−1; 32 zero bytes when n = 1 |
 | `owners` | list of `{ accountId, signingPublicKey }`: the owners for version n, sorted by `accountId` (byte order), no duplicate `accountId`, 1–64 |
 | `wrappedPreviousKey` | `wrap` output, or `null` when n = 1 |
+| `roster` | list of `{ accountId, memberKeysVersion, keysHash, sealedTeamKey }`: the accounts receiving version n, sorted by `accountId` (byte order), no duplicate `accountId`, 1–1,000 |
 | `signer` | `{ accountId, signingPublicKey }` |
 | `createdAt` | integer |
 | `signature` | 64 bytes |
 
 Protection:
 - `wrappedPreviousKey = wrap(teamKey_n, "team-key-link", teamId, u32 n, teamKey_{n−1})`.
-- `payload = enc(string label("team-key-version"), teamId, u32 n, bytes prevHash, list<string accountId, bytes signingPublicKey> owners, optional<bytes> BLAKE2b-256(wrappedPreviousKey.nonce ‖ wrappedPreviousKey.ciphertext), string signer.accountId, bytes signer.signingPublicKey, u64 createdAt)`, and `signature` is the signer's Ed25519 signature over `payload`.
+- Each roster entry: `sealedTeamKey = seal(encryptionPublicKey, "grant-seal", teamId, accountId, u32 memberKeysVersion, u32 n, teamKey_n)`, to the keys whose `keysHash` (§4.2) the entry carries. The same construction as a grant's: either gives one member version n.
+- `payload = enc(string label("team-key-version"), teamId, u32 n, bytes prevHash, list<string accountId, bytes signingPublicKey> owners, list<string accountId, u32 memberKeysVersion, bytes keysHash, bytes sealedTeamKey> roster, optional<bytes> BLAKE2b-256(wrappedPreviousKey.nonce ‖ wrappedPreviousKey.ciphertext), string signer.accountId, bytes signer.signingPublicKey, u64 createdAt)`, and `signature` is the signer's Ed25519 signature over `payload`.
 - The **record hash** is `BLAKE2b-256(payload)`. The signature isn't part of it, so the chain doesn't depend on how a signature is encoded.
 
 Reader checks, for the chain from the client's anchor (or from version 1 at first contact) to the newest record:
@@ -385,34 +414,36 @@ Reader checks, for the chain from the client's anchor (or from version 1 at firs
 2. **Version 1:** `prevHash` is all zeros, `wrappedPreviousKey` is `null`, and the signer is in its own `owners` list.
 3. **Version n > 1:** `prevHash` equals the record hash of version n−1; `wrappedPreviousKey` is present; and the signer (same `accountId` **and** same key) is in the `owners` list of version n−1.
 4. **Owners are real members:** for each owner, a valid `member-keys` record (§4.2) of that `accountId` has that `signingPublicKey`. Otherwise `TRUST_FAILURE` (reason `key_mismatch`). Owner changes reported to the integration (SP-15) therefore name the account the key belongs to.
-5. The chain contains every anchor the client holds (§6.1). If a version holds a different record: `TRUST_FAILURE` (reason `chain_conflict`). If the chain stops before an anchor: `TRUST_FAILURE` (reason `rollback`).
+5. **Owners hold the version:** every owner, and the signer, has a roster entry whose `keysHash` is that of the `member-keys` record holding the owner's `signingPublicKey`. Otherwise `TRUST_FAILURE` (reason `key_mismatch`).
+6. The chain contains every anchor the client holds (§6.1). If a version holds a different record: `TRUST_FAILURE` (reason `chain_conflict`). If the chain stops before an anchor: `TRUST_FAILURE` (reason `rollback`).
 
-These checks need no team key, so a `pending` member verifies the chain too. Opening `wrappedPreviousKey` with `teamKey_n` additionally confirms that `teamKey_n` is the key this record was made with.
+These checks need no team key, so a `pending` member verifies the chain too. A reader opening its own roster entry also checks that its `keysHash` is that of its own keys, else `TRUST_FAILURE` (`key_mismatch`), and opens `sealedTeamKey` with the expected context. Opening `wrappedPreviousKey` with `teamKey_n` additionally confirms that `teamKey_n` is the key this record was made with.
 
-**Owner rule.** A grant for version n is valid only if its signer is in the `owners` list of version n. A record for version n is valid only if its signer is in the `owners` list of version n−1. There's nothing else to compute: every owner change is a new version (§6.7), so the owner list of a version never changes after it's written.
+**Owner rule.** A grant or an invite for version n is valid only if its signer is in the `owners` list of version n. A record for version n is valid only if its signer is in the `owners` list of version n−1. There's nothing else to compute: every owner change is a new version (§6.7), so the owner list of a version never changes after it's written.
 
 ### 4.6 `grant`
 
-Gives one member one team key version. This is also how an owner approves a member's keys.
+Gives one member one team key version, between two rotations: a member admitted after version n was created receives n in a grant, and the next rotation puts them in its roster (§6.6). This is also how an owner approves a member's keys.
 
 | Field | Type |
 | --- | --- |
 | `teamId`, `accountId` | string (the member) |
 | `memberKeysVersion` | integer: which of the member's keys |
-| `memberSigningPublicKey`, `memberEncryptionPublicKey` | 32 bytes each |
+| `keysHash` | 32 bytes: the keys hash of that `member-keys` record (§4.2) |
 | `teamKeyVersion` | integer n |
 | `sealedTeamKey` | bytes |
+| `inviteId` | string, optional: the invite whose proof this grant accepted (§6.9) |
 | `signer` | `{ accountId, signingPublicKey }` |
 | `createdAt` | integer |
 | `signature` | 64 bytes |
 
 Protection:
-- `sealedTeamKey = seal(memberEncryptionPublicKey, "grant-seal", teamId, accountId, u32 memberKeysVersion, u32 n, teamKey_n)`.
-- `signature = sign(signerKey, "grant", teamId, accountId, u32 memberKeysVersion, bytes memberSigningPublicKey, bytes memberEncryptionPublicKey, u32 n, bytes BLAKE2b-256(sealedTeamKey), string signer.accountId, bytes signer.signingPublicKey, u64 createdAt)`.
+- `sealedTeamKey = seal(encryptionPublicKey, "grant-seal", teamId, accountId, u32 memberKeysVersion, u32 n, teamKey_n)`.
+- `signature = sign(signerKey, "grant", teamId, accountId, u32 memberKeysVersion, bytes keysHash, u32 n, bytes BLAKE2b-256(sealedTeamKey), optional<string> inviteId, string signer.accountId, bytes signer.signingPublicKey, u64 createdAt)`.
 
 Reader checks:
 - the signature, and the owner rule: the signer is in the `owners` list of version n (§4.5);
-- the member's public keys equal the reader's own keys (when opening for oneself) or the published `member-keys` record (when carrying the member forward in a rotation);
+- `keysHash` equals the keys hash of the reader's own keys (when opening for oneself) or of the published `member-keys` record it names (when carrying the member forward in a rotation), else `TRUST_FAILURE` (`key_mismatch`);
 - the sealed box opens with the expected context, and the team key is 32 bytes.
 
 ### 4.7 `item`
@@ -481,6 +512,30 @@ Reader checks: the envelope opens with the expected context; the manifest rules 
 
 ---
 
+### 4.11 `invite`
+
+An owner's invitation to join the team, carrying a join secret (D-32). Readable by the team's members.
+
+| Field | Type |
+| --- | --- |
+| `teamId`, `inviteId` | string |
+| `teamKeyVersion` | integer n: the version current at creation |
+| `inviteeRef` | string, optional: an opaque reference chosen by the integration (for example a hash of the invitee's address), 1–128 bytes |
+| `wrappedSecret` | `wrap` output |
+| `signer` | `{ accountId, signingPublicKey }` |
+| `createdAt` | integer |
+| `signature` | 64 bytes |
+
+Protection:
+- `wrappedSecret = wrap(teamKey_n, "invite-secret", teamId, inviteId, u32 n, optional<string> inviteeRef, joinSecret)`, where `joinSecret` is 32 random bytes.
+- `signature = sign(signerKey, "invite", teamId, inviteId, u32 n, optional<string> inviteeRef, bytes BLAKE2b-256(wrappedSecret.nonce ‖ wrappedSecret.ciphertext), string signer.accountId, bytes signer.signingPublicKey, u64 createdAt)`.
+
+The invite link carries the anchor of version n and the join secret (`encodeInvite`, §3.5); the integration puts `inviteId` wherever it likes, the library reads it from the link value.
+
+Reader checks: the signature; the owner rule (the signer is an owner of version n, §4.5); `wrappedSecret` opens with `teamKey_n` and the expected context to 32 bytes.
+
+---
+
 ## 5. Account operations
 
 What the account vault does. Each step that can fail names its error.
@@ -504,14 +559,17 @@ Server side (SP-08):
 1. Normalise the phrase as BIP-39 requires (NFKD) and check its checksum, else `WRONG_CREDENTIAL`.
 2. `seed` = BIP-39 seed (64 bytes).
 3. `recoveryKey` = keyed BLAKE2b-256(key = `seed`, message = `enc(string label("recovery-key"), accountId)`).
+4. The **recovery signing key** (D-33) is the Ed25519 key pair whose seed is keyed BLAKE2b-256(key = `seed`, message = `enc(string label("recovery-signing-key"), accountId)`). Its public half is `recoveryPublicKey`.
+
+Both are derived when the user types the phrase, used for the one operation that needed them, and wiped. Neither is ever stored.
 
 ### 5.3 Setting up an account
 
 1. Generate `accountKey` (version 1) and a 16-byte `salt`.
 2. Derive the `pinKey` (§5.1, purpose `enroll`). Create the PIN `account-key-wrap`.
-3. Generate a recovery phrase and derive the `recoveryKey` (§5.2). Create the recovery wrap. Return the phrase once, for the integration to show.
-4. Register this device (§5.5).
-5. Store the three wraps and set the current version to 1, atomically.
+3. Register this device (§5.5).
+4. Store the two wraps and set the current version to 1, atomically.
+5. Set up recovery (§5.10). Until then the account can unlock with the PIN and its devices, but can't create or join a team (`RECOVERY_NOT_SET_UP`).
 
 ### 5.4 Unlocking
 
@@ -520,7 +578,7 @@ The account key opens only through one of these three paths (SP-19).
 - **Same device.** Read the `deviceKey` and `deviceId` from `LocalKeyStore`, fetch that device's wrap at the current version, and unwrap. If the wrap is gone (revoked, or removed by a rotation), the device must register again: `DEVICE_NOT_REGISTERED`.
 - **PIN.** Fetch the PIN wrap, derive the `pinKey` (purpose `unlock`), unwrap. Then register the device (§5.5).
   - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the server's current one, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget.
-- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap. Then register the device (§5.5) and set a new PIN (§5.6). Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it.
+- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6). Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it.
 
 ### 5.5 Registering and revoking a device
 
@@ -533,19 +591,27 @@ If the device may have been used by an attacker while unlocked, revocation isn't
 
 ### 5.6 Changing the PIN, replacing the recovery phrase
 
-With the `accountKey` open, create the new wrap (a new `salt` for a PIN; a new phrase for recovery) and store it in place of the old one. The old credential keeps working until the server stops serving the old wrap, which it must do after a short delay ([server contract](scope.md#server-contract), rule 7; SP-09). The server keeps removed wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36).
+**PIN.** With the `accountKey` open, create the new wrap with a new `salt` and store it in place of the old one. The old credential keeps working until the server stops serving the old wrap, which it must do after a short delay ([server contract](scope.md#server-contract), rule 7; SP-09). The server keeps removed wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36).
+
+**Recovery phrase.** Set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new `recoveryPublicKey`:
+- if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the current recovery key: proven, and approved by owners' `reconcile` unless the account is an owner of that team (SP-23);
+- otherwise, the re-keys carry no proof, and an owner approves each by hand.
+
+Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed; a failed team is retried with the re-key of §6.8.
 
 ### 5.7 Rotating the account key (D-10)
 
 1. Open the current `accountKey` (version a).
-2. Derive the `pinKey` (purpose `enroll`). Either derive the `recoveryKey` from the current phrase, or generate a new phrase.
+2. Derive the `pinKey` (purpose `enroll`) from the PIN the user enters (the current one or a new one). If the user enters the recovery phrase, derive the `recoveryKey` and recovery signing key, and check them against the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`.
 3. Generate `accountKey` version a+1.
 4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1.
-5. Create the PIN, recovery and current-device wraps for version a+1.
+5. Create the PIN and current-device wraps for version a+1, and the recovery wrap if the phrase was entered.
 6. Store everything and switch the current version to a+1, in one atomic batch.
 7. The server deletes every record of version a. Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
 
-Rotation retires the account key only. Member keys are unchanged, so anyone who already copied a member keys bundle keeps that team's access until the member re-keys in that team (§6.8) (SP-11).
+Without the phrase, version a+1 has no recovery wrap: recovery isn't set up (D-35), and setting up a new phrase re-keys every team as in §5.6.
+
+Rotation retires the account key only. Member keys are unchanged, so anyone who already copied a member keys bundle keeps that team's access until the member re-keys in that team (§6.8) (SP-11). §5.11 does both.
 
 ### 5.8 Opening a team (vault → session)
 
@@ -557,9 +623,27 @@ Rotation retires the account key only. Member keys are unchanged, so anyone who 
 
 Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so it runs in the vault:
 
-- **Create member keys** (when creating or joining a team, and when re-keying): generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record; store the `member-keys-wrap`. Then open the team (§5.8).
+- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and the proofs that apply (§4.2); store the `member-keys-wrap`. Then open the team (§5.8).
 - **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is the only owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): another owner must be added first (§6.7). The member's keys and grants stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
 - **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is the only owner of a team, for the same reason as above (TH-18).
+
+### 5.10 Setting up recovery (D-35)
+
+1. **Begin.** With the `accountKey` open, the vault generates a recovery phrase (§3.6) and keeps it in memory. It returns the phrase for the integration to show. Beginning again replaces the phrase held.
+2. **Confirm.** The user enters the phrase. It must equal the one held, else `WRONG_CREDENTIAL`. Derive the `recoveryKey` and the recovery signing key (§5.2), create the recovery `account-key-wrap` with `wrappedRecoveryPublicKey`, and store it; the vault then forgets the phrase.
+
+Recovery is set up when a recovery wrap exists at the current account key version. Replacing a phrase (§5.6) runs the same two steps.
+
+### 5.11 Securing an account (D-36)
+
+For a device that may have been used while unlocked, or a leaked PIN, run from a device the attacker didn't control. Input: the recovery phrase and a new PIN.
+
+1. Rotate the account key (§5.7) with the new PIN and the phrase. This cuts every other device: their wraps belong to the retired version (D-10).
+2. For every team the account has member keys for, in its own write: create new member keys (§5.9) whose record carries a `recoverySignature` by the recovery signing key (§4.2).
+3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase.
+4. Wipe the phrase and the keys derived from it.
+
+Each team's owners approve the new keys at their next `reconcile` (§6.9, SP-23), except where the account is an owner: another owner approves by hand. Until a team approves them, keys copied by the attacker still open what that team writes. The integration also ends the account's other sign-in sessions.
 
 ---
 
@@ -575,7 +659,7 @@ Run when a team session starts, before any other team operation.
 2. **Verify the chain.** Fetch the team key version records from the lowest anchor (or from version 1 at first contact) to the newest, and check them (§4.5). The chain must contain **every** anchor. The client adopts nothing newer than its anchors before this check passes. This order matters: the anchor comes from what the client verified, never from the record it's about to check.
 3. **Report owner changes.** For every record newer than the highest anchor whose owner list differs from the previous version, report to the integration the signer and the owners added or removed (SP-15).
 4. The current version n is the newest record of the verified chain.
-5. Fetch the newest grant for this member's keys. Check it (§4.6) and open it. For a granted version above 1, open its `wrappedPreviousKey` with the granted key.
+5. Find this member's newest access: the newest version whose roster has an entry for one of its keys, or a newer grant to one of its keys (§4.6). Check it (§4.5, §4.6) and open it. For a version above 1, open its `wrappedPreviousKey` with the opened key. The keys and version it names are the keys the account **holds**.
 6. Work out the access state (§9).
 7. **Advance the anchor** to version n, locally and in the server's `team-state` (compare-and-set on `revision`). On conflict: reload the server's state, check that the chain contains it, then retry.
 
@@ -591,40 +675,45 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 
 1. The vault creates the creator's member keys (§5.9), `memberKeysVersion` 1.
 2. Generate `teamKey_1`.
-3. Create the version record for version 1 (owners: the creator; `prevHash` all zeros; no `wrappedPreviousKey`) and a grant of version 1 to the creator.
-4. Store both in one atomic batch.
+3. Create the version record for version 1: owners and roster are the creator; `prevHash` all zeros; no `wrappedPreviousKey`.
+4. Store the record with the member keys in one atomic batch.
 5. Save the anchor (§6.1 step 7).
 
-### 6.4 Joining a team
+### 6.4 Inviting and joining a team
 
-1. The vault creates the member's keys for the team (§5.9). If the invite link carried an invite anchor (§3.5), it becomes the member's first anchor: the chain must contain it (§6.1), so a server can't present a forged team. An owner gets the anchor to put in an invite from `team.inviteAnchor()`.
-2. The member is `pending` until an owner grants them (§6.5).
+1. **Invite (owner).** Create an `invite` record (§4.11) at the current version with a random join secret, and return the invite link value (`encodeInvite`, §3.5) for the integration to deliver. An owner can also get a bare anchor from `team.inviteAnchor()`.
+2. **Join.** The vault creates the member's keys for the team (§5.9). With an invite link value, the `member-keys` record carries an `inviteProof` for its `inviteId` (§4.2), and the invite's anchor becomes the member's first anchor: the chain must contain it (§6.1), so a server can't present a forged team.
+3. The member is `pending` until an owner grants them (§6.5), by hand or through `reconcile` (§6.9).
 
 ### 6.5 Granting a member (owner)
 
-1. Fetch and check the member's `member-keys` record (§4.2).
-2. The integration confirms the request is genuine (AS-06). The library reports the member's identity and keys.
-3. Create and store a grant of the current version to those keys (§4.6). The owner names the `memberKeysVersion` they reviewed; it must be the account's newest published keys, else `STALE_VERSION`: keys replaced by a re-key, or published after the review, are never granted.
+1. Fetch and check the member's `member-keys` record (§4.2), with its proofs.
+2. The integration confirms the request is genuine (AS-06), unless a proof the integration accepts covers it (§6.9). The library reports the member's identity, keys and proofs.
+3. Create and store a grant of the current version to those keys (§4.6). The owner names the `memberKeysVersion` they reviewed; it must be the account's newest published keys, else `STALE_VERSION`: keys replaced by a re-key, or published after the review, are never granted. A grant made because of an invite proof names the invite (`inviteId`).
 
-Any member can list the grants of the current version, with who signed each one (`team.members()`), so a newly admitted member is visible to everyone (SP-15). This is detection, not prevention: a member admitted by a stolen owner key can read until someone notices and rotates.
+Any member can list who holds the current version, with who signed it (`team.members()`): the roster of the current version, then grants made since. A newly admitted member is visible to everyone (SP-15). This is detection, not prevention: a member admitted by a stolen owner key can read until someone notices and rotates.
 
 ### 6.6 Rotating the team key (owner)
 
-1. Open the current version n. The caller must be in the `owners` list of version n.
-2. Recipients: for each account the caller **keeps** (an explicit allowlist, normally the integration's active members) that holds a valid grant for version n (§4.6 checks), **one** set of keys: the newest `member-keys` record the account published, if an owner approves it in this rotation, otherwise the keys in its grant. An approval names the `memberKeysVersion` the owner reviewed; if the account's newest published keys are no longer that version, the rotation stops with `STALE_VERSION` before anything is written (§6.8). Only grants for the **current** version count, so a grant for an older version is never carried forward, and an account's older keys never receive the new version. An account left out of the list loses access to the new version: forgetting someone costs them access, never leaks it. `team.needsRotation(activeAccountIds)` tells the integration when a granted account is no longer active, so it can rotate at the removal or at an owner's next session (TH-14).
-3. Owners of version n+1: the same list as version n, unless the owner list changes (§6.7).
-4. Generate `teamKey_{n+1}`. Create the version record n+1 (§4.5): `prevHash` = record hash of version n, `wrappedPreviousKey = wrap(teamKey_{n+1}, "team-key-link", …, teamKey_n)`, signed by the caller.
-5. Store the version record and the caller's own grant for n+1 in one atomic batch. This makes n+1 current. If the server refuses because n is no longer current, stop with `STALE_VERSION`.
-6. Grant n+1 to the other recipients.
-7. **Resume:** if interrupted after step 5, run step 6 again for recipients still missing a grant for n+1. No new version is created.
+1. Open the current version n. The caller must be in the `owners` list of version n, else `NOT_AN_OWNER`.
+2. **Recipients.** Every account the caller **keeps** (an explicit allowlist, normally the integration's active members) that holds version n: in its roster, or by a valid grant (§4.6 checks). The caller is always kept. Each receives **one** set of keys:
+   - its newest published `member-keys` record, if this rotation approves it. An approval names the `memberKeysVersion` the owner reviewed; if the account's newest published keys are no longer that version, the rotation stops with `STALE_VERSION` before anything is written (§6.8);
+   - otherwise the keys it holds.
+
+   Only access to the **current** version counts, so an older grant is never carried forward, and an account's older keys never receive the new version. An account left out of the list loses access to the new version: forgetting someone costs them access, never leaks it. More than 1,000 recipients is `MALFORMED_RECORD`, before anything is written.
+3. Owners of version n+1: the same list as version n, unless the owner list changes (§6.7). Every owner must be a recipient.
+4. Generate `teamKey_{n+1}`. Create the version record n+1 (§4.5): `prevHash` = record hash of version n, `wrappedPreviousKey = wrap(teamKey_{n+1}, "team-key-link", …, teamKey_n)`, the roster with `teamKey_{n+1}` sealed to each recipient's keys, signed by the caller.
+5. Store it. This makes n+1 current. If the server refuses because n is no longer current, stop with `STALE_VERSION`.
+
+A rotation is one record: it is never half done (D-34).
 
 ### 6.7 Changing the owner list (owner)
 
 Every owner change is a rotation (§6.6) whose new version carries the new owner list (D-13, D-19). There is no separate owner record.
 
-1. Choose the new owner list. New owners must be members with a valid grant for version n; their signing keys come from their `member-keys` records.
-2. Run the rotation (§6.6) with that list in version n+1. The version record, signed by an owner of version n, and the caller's grant are written in one atomic batch. An owner change is never half applied.
-3. When an owner is removed: members whose newest grant was signed by the removed owner are listed for the caller to review before step 2 includes them. This is a **warning**, not a guarantee: a grant later signed by another owner no longer shows as coming from the removed owner (SP-15).
+1. Choose the new owner list. New owners must hold version n; their signing keys come from their `member-keys` records.
+2. Run the rotation (§6.6) with that list in version n+1. The record, signed by an owner of version n, carries the owner list and the roster in one write: an owner change is never half applied.
+3. When an owner is removed: members whose current access was signed by the removed owner (a grant they signed, or the roster of a version they signed) are listed for the caller to review before step 2 includes them. This is a **warning**, not a guarantee: access later re-signed by another owner no longer shows as coming from the removed owner (SP-15).
 
 Adding an owner, removing an owner and replacing an owner's signing key (after a re-key) are all this one operation. Any single owner can run it, so a team with two or more owners never depends on one person (SP-16).
 
@@ -632,11 +721,39 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 ### 6.8 Re-keying a member
 
-1. The vault creates new member keys for the team with `memberKeysVersion` + 1 (§5.9). The member stays able to read with the old keys until the rotation.
-2. An owner checks the request is genuine and rotates the team key (§6.6), approving the new keys. If the new record carries a valid `continuitySignature` (§4.2), the library reports a routine re-key; without one, it reports that the keys were replaced without proof from the current keys, and the owner should verify out of band (AS-06, TH-37). Either way, the rotation is the approval: the new version is sealed to them, and the old keys receive nothing. The approval is pinned to the reviewed `memberKeysVersion`: keys published after the review, for example by someone holding the member's session (TH-37), are never approved by it, and for an owner never replace their signing key in the owner list. That one rotation is the approval; a signature by the old keys is never accepted as approval, since an attacker may hold them (SP-12).
+1. The vault creates new member keys for the team with `memberKeysVersion` + 1 (§5.9), with a `continuitySignature` by the current keys, and a `recoverySignature` if the user entered the recovery phrase. The member stays able to read with the old keys until the rotation.
+2. An owner approves the new keys by rotating the team key (§6.6), naming the `memberKeysVersion` reviewed. The library classifies the request:
+   - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23);
+   - **routine**: only a valid `continuitySignature`. A hint: the owner should still check;
+   - **unproven**: neither. The keys were replaced without proof from the current ones; the owner verifies out of band (AS-06, TH-37).
+
+   Whatever the class, the rotation is the approval: the new version is sealed to the new keys, and the old keys receive nothing. A signature by the old keys is never accepted as approval, since an attacker may hold them (SP-12). The approval is pinned to the reviewed `memberKeysVersion`: keys published after the review, for example by someone holding the member's session (TH-37), are never approved by it, and for an owner never replace their signing key in the owner list.
 3. If the member is an owner, the same rotation replaces their signing key in the owner list (§6.7).
 
-The new grant gives the member the current version, and the chain gives every earlier one, so no grant of an older version to the new keys is needed.
+The new keys receive the current version, and the chain gives every earlier one, so no grant of an older version to the new keys is needed.
+
+### 6.9 Owner overview and `reconcile` (D-31)
+
+**Overview.** For an owner, the library reports, for each account the integration lists and each account holding the current version:
+- its status: `no-keys`, `awaiting-approval` (keys published, never granted), `approved` (holds the current version with its newest keys), `outdated` (granted only an older version), `rekey-awaiting-approval` (holds the current version, newer keys published);
+- the newest keys as a handle `{ accountId, memberKeysVersion }`, which every approval takes (§6.5, §6.8);
+- the proof those keys carry: `invite` (with the invite's `inviteeRef`), `recovery`, `continuity` or `none`;
+- whether the account is an owner, and whether it is in the integration's active list.
+
+Warnings name what needs a human: a single owner (D-06), members awaiting approval, unproven re-keys, owners' re-keys.
+
+**`reconcile(activeAccountIds, options)`** plans from the overview, then writes:
+
+1. **Remove:** accounts holding the current version that aren't in `activeAccountIds` are left out of a rotation. The caller is always kept.
+2. **Approve proven re-keys:** active accounts holding the current version, not owners of it, whose newest keys are proven by their recovery key: the rotation approves those keys.
+3. **Admit invited joiners**, only if `options.autoApproveInvites` allows it (a boolean, or a function the integration gives, called with the account, the `inviteId` and the `inviteeRef`): active accounts with `awaiting-approval` status whose newest keys carry a valid invite proof (§4.2) for an invite of the **current** version that no grant of the current version names. Each gets a grant naming the invite.
+4. If step 1 or 2 found anything, run one rotation (§6.6) keeping every other holder, approving the keys of step 2. Then grant step 3's joiners at the version current after it.
+5. Return the report: the version rotated to, if any; the accounts removed, re-keys approved and joiners admitted; and everything else needing a human, with its handle and reason (`awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey`, `invite-not-accepted`).
+
+Rules (SP-22):
+- `reconcile` never gives a version to an `outdated` account, to unproven keys, or to an owner's new keys, and never changes the owner list. **Automatic actions only reduce access**; widening it needs a proof the rules accept, or a human.
+- On `STALE_VERSION` (another owner wrote first), it reloads the team (§6.1) and plans once more; a second conflict is returned to the caller.
+- `options.dryRun` returns the plan without writing.
 
 ---
 
@@ -721,7 +838,7 @@ What a team session reports to the integration after loading (§6.1):
 | State | Meaning | Can read | Can write |
 | --- | --- | --- | --- |
 | `not-joined` | This account has no member keys for the team. | No | No |
-| `pending` | Member keys exist, but no grant for the current version yet. | Versions up to the newest grant | No |
+| `pending` | Member keys exist, but no access to the current version yet. | Versions up to the newest it holds | No |
 | `ready` | A valid grant for the current version. | All versions | Yes |
 | `unverified` | A trust check failed in this session. | No | No |
 
@@ -733,7 +850,7 @@ What a team session reports to the integration after loading (§6.1):
 | --- | --- | --- |
 | `MALFORMED_RECORD` | A record or link value has the wrong shape. | No |
 | `UNSUPPORTED_VERSION` | Unknown `v` or `suite`: update the library. | No |
-| `TRUST_FAILURE` | A signature, owner rule, chain or context check failed. Carries a `reason`: `bad_signature`, `not_an_owner`, `chain_conflict`, `rollback`, `state_unreadable`, `context_mismatch`, `key_mismatch`. | No |
+| `TRUST_FAILURE` | A signature, owner rule, chain or context check failed in a record (a caller who simply isn't an owner gets `NOT_AN_OWNER`). Carries a `reason`: `bad_signature`, `not_an_owner`, `chain_conflict`, `rollback`, `state_unreadable`, `context_mismatch`, `key_mismatch`. | No |
 | `DECRYPTION_FAILED` | Authenticated decryption failed: wrong key, tampered or truncated data. | No |
 | `WRONG_CREDENTIAL` | The PIN or recovery phrase didn't open the account key. | Yes, by the user |
 | `PIN_RATE_LIMITED` | The server refused another PIN evaluation. | Later, or use the recovery phrase |
@@ -741,6 +858,8 @@ What a team session reports to the integration after loading (§6.1):
 | `NOT_GRANTED` | The member has no grant for the version required. | After an owner grants |
 | `STALE_VERSION` | A write used a version that is no longer current. | After reloading team state |
 | `LAST_OWNER` | The account is the only owner: it can't leave the team until another owner is added. | After adding an owner |
+| `NOT_AN_OWNER` | The caller isn't an owner of the current version, so it can't run an owner operation. | No |
+| `RECOVERY_NOT_SET_UP` | Recovery must be set up before creating or joining a team (§5.10, D-35). | After setting up recovery |
 | `STORE_ERROR` | `RecordStore` or `OprfService` failed (network, server). | Yes, except PIN evaluations |
 
 Error messages never contain keys, plaintext or record contents.
@@ -765,15 +884,16 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 
 | Record | Identity on the server | Rule |
 | --- | --- | --- |
-| `account-key-wrap` | account, version, method, deviceId | Write-once. Served only to the account. Removed on revocation, replacement, or retirement of the version, after a short delay at most: the server stops serving it, and keeps it for a restore window (rule 7). A device wrap may also stop being served after a period of inactivity. The switch of current version is atomic with the new wraps. |
+| `account-key-wrap` | account, version, method, deviceId | Write-once. Served only to the account. A recovery wrap may be created after the version's other wraps (§5.10). Removed on revocation, replacement, or retirement of the version, after a short delay at most: the server stops serving it, and keeps it for a restore window (rule 7). A device wrap may also stop being served after a period of inactivity. The switch of current version is atomic with the new wraps. |
 | `member-keys` | team, account, memberKeysVersion | Write-once. Readable by the team's members. |
 | `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Deleted with its account key version. |
 | `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. |
-| `team-key-version` | team, version | Write-once; version must be current + 1; stored atomically with its signer's grant, which makes it current. The signer and the listed owners must hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30). |
+| `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer and the listed owners must hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30). With 1,000 roster entries and 36-byte ids, a record is about 240 KB; the server accepts records of that size. |
 | `grant` | team, account, memberKeysVersion, teamKeyVersion | Write-once; `teamKeyVersion` must be current (defence in depth: grants of older versions serve no honest purpose, TH-33). |
 | `item` | team, item | Write-once; `teamKeyVersion` must be current. Readable by the team's members, and by whoever the integration lets open the item's links, by the route it chooses. |
 | `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. Readable by the team's members. |
-| Team creation | — | Version 1 and the creator's grant in one atomic batch. |
+| `invite` | team, invite | Write-once; `teamKeyVersion` must be current. Readable by the team's members. The integration deletes it when the invite expires or is withdrawn. |
+| Team creation | — | Version 1 and the creator's member keys in one atomic batch. |
 | OPRF evaluation | account | Per-account key. One total budget per account across `unlock` and `enroll`; the purposes may only split it. |
 
 **Content, stored by the integration.** Item parts (team, item, index), submission records and their parts (team, inbox, submission, index) are checked by readers against their key record or envelope, wherever they are stored. Recommended, not relied on: keep them write-once, and don't present an item until its `item` record is stored. Parts of a draft never sealed (§7.1) open with no key and can be deleted.
@@ -788,21 +908,25 @@ Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyErr
 
 ```ts
 // Account vault: holds the account key; only what needs it runs here (scope, "Key custody").
-vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered }
-vault.setup(pin)                          → { recoveryPhrase }
+vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered,
+                                          //   recovery: "not-set-up" | "set-up" }
+vault.warnings()                          → recovery not set up; teams whose keys need re-keying
+vault.setup(pin)                          // then set up recovery before any team work
+vault.beginRecoverySetup()                → { recoveryPhrase }   // held in memory until confirmed (§5.10)
+vault.confirmRecoveryPhrase(phrase, { currentPhrase? }) → { rekeyed, failed }   // a replacement re-keys teams (§5.6)
 vault.unlock()                            // device; throws DEVICE_NOT_REGISTERED
 vault.unlockWithPin(pin)                  // upgrades an outdated PIN wrap (§5.4)
 vault.recover(phrase, newPin)
 vault.changePin(newPin)
-vault.replaceRecoveryPhrase()             → { recoveryPhrase }
 vault.listDevices()                       → deviceId[]
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
-vault.rotate({ pin, phrase? })            → { recoveryPhrase? }
-vault.createTeam(teamId)                  // creator is the first owner
-vault.joinTeam(teamId)                    // "pending" until granted
-vault.rekey(teamId)                       // new member keys; an owner approves them by rotating
+vault.rotate({ pin, phrase? })            // without the phrase, recovery must be set up again
+vault.secureAccount({ phrase, newPin })   → { rekeyed: teamId[], failed: teamId[] }   // §5.11
+vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
+vault.joinTeam(teamId, { invite? })       // "pending" until granted; invite: the invite link value
+vault.rekey(teamId, { phrase? })          // new member keys; with the phrase, proven (§6.8)
 vault.leaveTeam(teamId)                   // throws LAST_OWNER for the only owner
-vault.openTeam(teamId, { anchor? })       → TeamSession   // same context; anchor from an invite link
+vault.openTeam(teamId, { invite? })       → TeamSession   // same context; invite link value on a first join
 vault.exportTeamKeys(teamId, request)     → transfer      // another context (§3.8)
 
 // Receiving context (split layouts): one receiver per transfer.
@@ -810,18 +934,25 @@ createTeamKeyReceiver(accountId, teamId)  → { request, openTeam({ store, ancho
 
 // Team session: one team's keys.
 team.state                                // "not-joined" | "pending" | "ready" | "unverified"
-team.memberStatuses(accountIds)           → per account: "no-keys" | "awaiting-approval" | "approved"
-                                          //   | "outdated" | "rekey-awaiting-approval" (+ continuity hint)
-team.warnings(activeAccountIds)           → single owner, members awaiting approval,
-                                          //   rotation needed, rotation interrupted
-team.memberRequest(accountId)             → { memberKeysVersion, continuity }
-team.grant(accountId, memberKeysVersion)  // the keys the owner confirmed
-team.members()                            → grants of the current version, with signer
-team.inviteAnchor()                       → string        // for an invite link's fragment
-team.rotate({ keep, approveRekeys? })     // keep: accounts that receive the new version;
-                                          //   approveRekeys: [{ accountId, memberKeysVersion }] reviewed
-team.completeRotation({ keep })           // resume an interrupted rotation (§6.6 step 7)
-team.setOwners(owners, { keep })          // always a rotation with the new owner list
+team.ownerChanges                         // owner list changes since this account's last verified state
+team.owners()                             → accountId[]
+team.members()                            → holders of the current version, with who signed their access
+team.inviteAnchor()                       → string        // a bare anchor for an invite link
+team.owner()                              → TeamOwner     // throws NOT_AN_OWNER
+
+// Owner operations: plain data in and out.
+owner.overview(activeAccountIds)          → { version, owners, accounts: [{ accountId, status, keys?: handle,
+                                          //   proof, inviteeRef?, isOwner, active }], warnings }
+owner.reconcile(activeAccountIds, { autoApproveInvites?, dryRun? })
+                                          → { rotatedTo?, removed, approvedRekeys, admitted, needsHuman }
+owner.approve(handles)                    // handles from overview: grants joiners, rotates for re-keys
+owner.remove(accountIds)                  // a rotation keeping every other holder
+owner.setOwners(owners)                   // always a rotation with the new owner list
+owner.createInvite(inviteId, { inviteeRef? }) → { invite }   // the invite link value (§3.5)
+owner.grantedBy(ownerIds)                 → accounts whose current access those owners signed (§6.7)
+owner.grant(handle) / owner.rotate({ keep, approveRekeys? })  // low level
+
+// Content.
 team.beginItem()                          → draft         // §7.1
 draft.addPart(content, { meta? })         → ciphertext
 draft.addPartStream(chunks, { meta? })    → ciphertext chunks
@@ -854,7 +985,7 @@ What the library expects from each interface. A conforming server enforces the r
 | Method | Contract |
 | --- | --- |
 | `get(key)` | The record (a JSON value, parsed by the library) or `null`. |
-| `list(query)` | The records matching a query, in identity order: an account's wraps at one account key version, its member keys wraps at one version, a team's team key versions from a given version, a team's member keys records (optionally of one account), grants of a team (optionally of one version, account or member keys version). |
+| `list(query)` | The records matching a query, in identity order: an account's wraps at one account key version, its member keys wraps at one version, a team's team key versions from a given version, a team's member keys records (optionally of one account), grants of a team (optionally of one version, account or member keys version), and a team's invites. |
 | `getAccountKeyVersion(accountId)` | The current account key version, or `null` for an account that was never set up. |
 | `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none), `delete`, and `setAccountKeyVersion` (with the expected current version). |
 
@@ -872,7 +1003,7 @@ A write that a server rule refuses (write-once, current version, compare-and-set
 
 ## 13. Test vectors
 
-Frozen JSON files under `test/vectors/`, each with inputs (including fixed random values), intermediate values and outputs. A change to a released vector means stored data would break. Protocol v1 isn't released yet: `item.v1.json` and `submission.v1.json` are regenerated for D-26 before the first release, and frozen from then on.
+Frozen JSON files under `test/vectors/`, each with inputs (including fixed random values), intermediate values and outputs. A change to a released vector means stored data would break. Protocol v1 isn't released yet: `item.v1.json` and `submission.v1.json` were regenerated for D-26, and `team-key.v1.json`, `recovery-key.v1.json` and `link.v1.json` for D-32 to D-34, before the first release; they are frozen from then on.
 
 | File | Covers |
 | --- | --- |
@@ -881,13 +1012,14 @@ Frozen JSON files under `test/vectors/`, each with inputs (including fixed rando
 | `seal.v1.json` | `seal` with context, wrong-context cases, low-order public keys |
 | `stream.v1.json` | Empty, one-chunk, exact-multiple and multi-chunk streams; truncation |
 | `pin-key.v1.json` | Argon2id, the RFC 9497 vectors, and the final combination |
-| `recovery-key.v1.json` | BIP-39 seed and recovery key |
-| `team-key.v1.json` | Version records and their chain (owners, hashes, links), grants; forks, rollbacks, gaps, owner-rule cases (a removed owner signing a later version or grant), owner keys not matching `member-keys`, and strict Ed25519 edge cases (non-canonical `S`, small-order keys and `R`) |
+| `recovery-key.v1.json` | BIP-39 seed, recovery key, recovery signing key, and member keys recovery signatures |
+| `team-key.v1.json` | Version records and their chain (owners, rosters, hashes, links), grants; rosters without the signer or an owner, out of order, or over 1,000 entries; forks, rollbacks, gaps, owner-rule cases (a removed owner signing a later version or grant), owner keys not matching `member-keys`, and strict Ed25519 edge cases (non-canonical `S`, small-order keys and `R`) |
 | `item.v1.json` | `item` record, manifest, parts bound by index (D-26); parts swapped, moved to another item, dropped |
-| `link.v1.json` | Link values: item keys, inbox public keys and invite anchors, with their version prefix; refused prefixes, lengths and low-order keys |
+| `link.v1.json` | Link values: item keys, inbox public keys, invite anchors and invites, with their version prefix; refused prefixes, lengths and low-order keys |
 | `submission.v1.json` | Envelope and parts bound by index; envelope moved to another inbox or id |
 | `transfer.v1.json` | Team key transfer requests and transfers (§3.8): open, wrong receiver, other account or team, refused prefixes and low-order requests |
 | `part-ref.v1.json` | Part reference key derivation and references (§3.9), for an item key and a submission content key |
+| `invite.v1.json` | `invite` records, invite link values, invite proofs; a wrong secret, account or keys |
 
 ---
 

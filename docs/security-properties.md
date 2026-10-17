@@ -47,6 +47,9 @@ Developers, testers, reviewers, auditors.
 | SP-19 | Recovering an account requires authorized material |
 | SP-20 | Keys can be verified out of band (deferred, D-11) |
 | SP-21 | A part reference reveals nothing without the item key |
+| SP-22 | Automatic owner actions never widen access |
+| SP-23 | A re-key proven by the recovery key is approved without an out-of-band check |
+| SP-24 | An invite proof shows the joiner held the invite link |
 
 ---
 
@@ -88,7 +91,7 @@ Limits:
 - **Until a later grant.** If the member is granted a later version again, the chain (D-07) gives them every earlier version too, including those created while they were excluded.
 - **Old inboxes.** Inboxes created before the rotation keep their key pair (TH-30, D-20).
 
-Assumptions: AS-01. The rotation leaves the removed member out: rotations take an explicit list of accounts to keep, so this is the default unless the integration lists the member (protocol §6.6). The rotation completes and writers use the new version (SP-07).
+Assumptions: AS-01. The rotation leaves the removed member out: rotations take an explicit list of accounts to keep, and `reconcile` keeps only active accounts (SP-22), so this is the default unless the integration lists the member (protocol §6.6). Writers use the new version (SP-07).
 
 Verification:
 - `test/security/member-removal.test.ts`: remove a member, rotate with the remaining members as the keep list, encrypt an item, then try every key the removed member held (refused). Re-admit them with a grant of a later version and check that the gap opens, as specified.
@@ -124,7 +127,7 @@ Related threats: TH-06, TH-29.
 
 ### SP-04: Team keys go only to owner-approved member keys
 
-Property: a client seals a team key only to member keys that an owner approved for that member and team. A client opens a team key only from a grant whose signer is in the owner list of that team key version, naming that member's own keys. Anything else is refused.
+Property: a client seals a team key only to member keys that an owner approved for that member and team. A client opens a team key only from a version record's roster entry or a grant whose signer is in the owner list of that team key version, naming that member's own keys. Anything else is refused.
 
 Assumptions: AS-01. The client trusts the right owner list (SP-05, SP-07; at first contact, trust on first use, TH-04).
 
@@ -200,12 +203,13 @@ Related threats: TH-11.
 
 Property: once a device is revoked, the server stops serving its wrap of the account key, and the device can't unlock the account again.
 
-Limit: revocation doesn't evict someone who already copied keys from the device while it was unlocked (D-21). For that, the account key is rotated (SP-11) and the member re-keys in each affected team (SP-12).
+Limit: revocation doesn't evict someone who already copied keys from the device while it was unlocked (D-21). For that, `secureAccount` rotates the account key (SP-11) and re-keys every team with a recovery proof (SP-23).
 
 Assumptions: AS-01. The server deletes the wrap ([server contract](scope.md#server-contract), rule 7). The device never caches its wrap, and the integration ends the device's sign-in sessions when revoking it. Revocation runs from another unlocked device or through recovery.
 
 Verification:
 - `test/security/device-revocation.test.ts`: revoke a device, then try to unlock with its device key (refused). Then run the full remedy and check that keys copied from the device open nothing written afterwards.
+- `test/security/secure-account.test.ts`: a misused device; after `secureAccount` and an owner's `reconcile`, keys copied from it open nothing written afterwards; a team that failed to re-key is retried.
 
 Related threats: TH-10.
 
@@ -213,7 +217,7 @@ Related threats: TH-10.
 
 Property: an account can replace its account key without leaving any team and without changing its member keys. After rotation, the old account key opens no record the account writes afterwards. The PIN and the recovery phrase (or its replacement) open the new key; other devices must register again (D-10).
 
-Limit: rotation retires the account key only. Member keys don't change, so anyone who already copied a member keys bundle (or the old account key and its wraps) keeps that team's access until the member re-keys in that team and the team key is rotated (SP-12).
+Limit: rotation retires the account key only. Member keys don't change, so anyone who already copied a member keys bundle (or the old account key and its wraps) keeps that team's access until the member re-keys in that team and the team key is rotated (SP-12); `secureAccount` does both (D-36). A rotation without the recovery phrase leaves the account without recovery until a new phrase is confirmed (D-35).
 
 Assumptions: AS-01.
 
@@ -224,14 +228,15 @@ Related threats: TH-12, TH-20.
 
 ### SP-12: Compromised member keys can be replaced
 
-Property: a member can get new member keys for a team. The new keys are accepted only once an owner approves them, by a rotation sealed to them; a signature by the old keys is never enough. A rotation carries one set of keys per account, so after that rotation the old member keys open nothing new.
+Property: a member can get new member keys for a team. The new keys are accepted only once an owner approves them, by a rotation sealed to them; a signature by the old keys is never enough. An approval holds for exactly the keys the owner reviewed: keys published after the review, or replaced by a newer re-key, are refused. A rotation carries one set of keys per account, so after that rotation the old member keys open nothing new.
 
-An optional continuity signature by the old keys is shown to the owner as a hint (routine re-key, or keys replaced without proof), never accepted as approval.
+An optional continuity signature by the old keys is shown to the owner as a hint (routine re-key, or keys replaced without proof), never accepted as approval. A recovery signature is a proof (SP-23).
 
 Assumptions: AS-01, AS-06 for the owner's check that the request is genuine.
 
 Verification:
-- `test/security/member-rekey.test.ts`: old keys sign their own replacement (refused as approval; reported as a routine re-key); an owner approves by rotating (accepted); the old keys get no grant of the new version and open nothing created after it.
+- `test/security/member-rekey.test.ts`: old keys sign their own replacement (refused as approval; reported as a routine re-key); an owner approves by rotating (accepted); the old keys get no grant of the new version and open nothing created after it; keys published after the owner's review, including an owner's own, are refused.
+- `test/security/key-substitution.test.ts`: granting keys a re-key replaced is refused.
 
 Related threats: TH-13.
 
@@ -252,14 +257,14 @@ Related threats: TH-11, TH-18.
 
 ### SP-15: Owner and membership changes are visible
 
-Property: every accepted change to the owner list and every newly approved member key is reported by the library to the integration, with the signer and what changed, on every member's client. Owners also get each member's access status and the warnings that need their action (members awaiting approval, a rotation needed or interrupted, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Each owner's key must match that account's published member keys, so a report names the account the key belongs to, unless the server also forges that account's member keys record.
+Property: every accepted change to the owner list and every newly approved member key is reported by the library to the integration, with the signer and what changed, on every member's client. Who received each version created by a rotation is its signed roster, which the server can't edit or trim. Owners also get an overview of each member's access, its proof, and what needs their action (members awaiting approval, unproven re-keys, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Each owner's key must match that account's published member keys, so a report names the account the key belongs to, unless the server also forges that account's member keys record.
 
-Limit: this is detection, not prevention. Someone holding a stolen owner key can admit a member, rotate, and remove the other owners before anyone reads the report. The "granted by a removed owner" list shown during an owner removal is a warning, not a control: a later grant by another owner hides the origin (TH-17).
+Limit: this is detection, not prevention. Someone holding a stolen owner key can admit a member, rotate, and remove the other owners before anyone reads the report. Members admitted by a grant between two rotations are listed only as far as the server serves those grants (TH-42). The "granted by a removed owner" list shown during an owner removal is a warning, not a control: a later grant by another owner hides the origin (TH-17).
 
 Assumptions: the integration displays these changes.
 
 Verification:
-- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; member statuses and warnings follow each step.
+- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; a hidden grant can't hide a roster member.
 
 Related threats: TH-17.
 
@@ -326,4 +331,51 @@ Verification:
 - `test/vectors/part-ref.v1.json`.
 
 Related threats: TH-40.
+
+## Owner autopilot and proofs
+
+### SP-22: Automatic owner actions never widen access
+
+Property: `reconcile` (D-31) gives a team key version only to accounts that already hold the current version with the same keys, to accounts whose re-key is proven by their recovery key (SP-23) and who aren't owners, and, only when the integration enables `autoApproveInvites`, to first-time joiners with a valid invite proof (SP-24). It never gives a version to an account granted only an older version, to unproven keys, or to an owner's new keys. It never changes the owner list. Removing an account from the active list leads to a rotation without it.
+
+Limit: the active list comes from the integration. An account the integration wrongly lists as active, and that still holds the current version, keeps it; one wrongly left out loses access until an owner approves it again.
+
+Assumptions: AS-01. An owner runs `reconcile` with the integration's active list.
+
+Verification:
+- `test/security/reconcile.test.ts`: a removed member listed as active again is not re-granted; an inactive holder is rotated out; unproven re-keys, owners' re-keys and joins without an accepted proof are returned as needing a human; a dry run writes nothing.
+- `test/properties/reconcile.properties.test.ts`: for any snapshot, the plan gives the new version to no account outside the rule above.
+
+Related threats: TH-14, TH-37.
+
+### SP-23: A re-key proven by the recovery key is approved without an out-of-band check
+
+Property: a `member-keys` record signed by the recovery key that the account's currently held keys carry is a proven re-key. Owners' clients approve it in `reconcile` for accounts that aren't owners of the current version; a continuity signature or no signature never counts. Neither a stolen device nor a stolen session can produce the proof: the recovery signing key is derived from the phrase when the user types it and never stored. Replacing the phrase re-keys every team with the new recovery key, proven by the old phrase if given.
+
+Limits:
+- **A leaked phrase** proves re-keys too: a thief can replace a member's keys in every team, racing the real user (TH-41).
+- **Owners** are never approved automatically, even with a proof.
+- A phrase replaced **without** the old one re-keys every team without proof, so each needs a human approval.
+
+Assumptions: AS-01, AS-03 for the device where the phrase is typed.
+
+Verification:
+- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one.
+- `test/vectors/recovery-key.v1.json`.
+
+Related threats: TH-10, TH-12, TH-13, TH-37, TH-41.
+
+### SP-24: An invite proof shows the joiner held the invite link
+
+Property: an invite proof in a `member-keys` record verifies only with the join secret of an `invite` record that an owner of that version signed, over exactly those keys and that account. Owners see it as a hint; `reconcile` admits the joiner automatically only when the integration enables `autoApproveInvites`, only for an invite of the current team key version, and only once per invite.
+
+Limit: it proves possession of the link, not identity. Whoever saw the link (the integration's server and mail provider if they delivered it, anyone reading a stored outbox or logs) can make a valid proof (TH-43).
+
+Assumptions: AS-01. The integration keeps invite links out of its own UI and logs.
+
+Verification:
+- `test/security/invite-proof.test.ts`: a valid proof; a wrong secret, another account, other keys; an invite of an older version; a second join with one invite; `autoApproveInvites` off and on.
+- `test/vectors/invite.v1.json`.
+
+Related threats: TH-02, TH-04, TH-37, TH-43.
 

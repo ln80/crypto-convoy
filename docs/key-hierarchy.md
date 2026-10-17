@@ -27,6 +27,7 @@ Implementers, maintainers, security auditors.
 ACCOUNT  (one per person)
   PIN ──Argon2id + server OPRF──► pinKey ──────┐
   recovery phrase ──BIP-39──► recoveryKey ─────┤ each wraps the same
+                  └─────────► recovery signing key (proves re-keys, D-33)
   deviceKey (one per registered device) ───────┘ accountKey (versioned)
                                                     │ wraps
                                                     ▼
@@ -35,10 +36,12 @@ TEAM MEMBERSHIP  (one bundle per account and team)
      │ public halves published; an owner approves them by granting a team key
      ▼
 TEAM  (one per team)
-  teamKey v1 ◄── v2 ◄── v3 …     one signed chain: each version lists its owners,
-                                 links to the previous record's hash, and wraps
-                                 the previous key (D-07, D-19)
-     │ each version sealed to members' encryption keys, in owner-signed grants
+  teamKey v1 ◄── v2 ◄── v3 …     one signed chain: each version lists its owners
+                                 and its roster, links to the previous record's
+                                 hash, and wraps the previous key (D-07, D-19, D-34)
+     │ each version sealed to members' encryption keys: in its roster, or in an
+     │ owner-signed grant for members admitted between rotations
+  invite join secret (one per invite)  wrapped by a teamKey version; travels in the invite link
      ▼
 CONTENT
   itemKey (one per item)           wrapped by a teamKey version; may travel in a share link
@@ -85,9 +88,22 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Generation | The phrase is generated on the client and shown once. The user keeps it outside the product. |
 | Storage | Never stored by the library or the server. |
 | Access | Whoever holds the phrase. |
-| Rotation | When the user replaces the phrase, and at each account key rotation unless the user enters the current phrase again (D-10). |
+| Rotation | When the user replaces the phrase. An account key rotation keeps it if the user enters it again; otherwise the recovery wrap is dropped and a new phrase is set up (D-10, D-35). |
 | Recovery | None. Losing the phrase and every other unlock method loses the account. |
 | Destruction | The server deletes the old wrap after a replacement. |
+
+### Recovery signing key
+
+| Attribute | Value |
+| --- | --- |
+| Purpose | Proves that a member's new keys come from the account's owner: it signs re-keys (D-33, SP-23). The account's offline root of trust. |
+| Algorithm | Ed25519. Seed: keyed BLAKE2b-256 of the BIP-39 seed with its own label (§5.2). |
+| Generation | Derived from the phrase each time the user types it. |
+| Storage | Never stored. Its public half is in every `member-keys` record of the account, and authenticated under the `accountKey` in the recovery wrap, so the vault reads it without the phrase. |
+| Access | Whoever holds the phrase. |
+| Rotation | With the phrase. Replacing the phrase re-keys every team with the new public key, proven by the old phrase if the user still has it. |
+| Recovery | None, as for the phrase. |
+| Destruction | Never stored, so nothing to destroy. |
 
 ### `deviceKey`
 
@@ -115,7 +131,7 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 | Generation | Random, on the client, when the account joins the team or re-keys. |
 | Storage | Private half: in the member keys bundle, wrapped by the `accountKey`. Public half: in the member keys record, published. |
 | Access | That team's session. |
-| Rotation | On re-key after a suspected leak (SP-12). An owner must approve the new keys. |
+| Rotation | On re-key after a suspected leak (SP-12). An owner must approve the new keys, pinned to the version they reviewed; owners' clients approve a re-key proven by the recovery key automatically, except for owners (SP-23). |
 | Recovery | Through the `accountKey`. |
 | Destruction | The old bundle is deleted after a re-key. |
 
@@ -154,9 +170,9 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 | Purpose | Protects the team's content: wraps item keys and inbox private keys. |
 | Algorithm | 256-bit symmetric key, used with XChaCha20-Poly1305. Versioned: 1, 2, … |
 | Generation | Random, on an owner's client, when the team is created and at each rotation. A new version is never derived from the previous one. |
-| Storage | Never in clear. Each version is sealed to each member's encryption key, in a grant signed by an owner. From version 2 on, each version's record also stores the previous version wrapped under itself (D-07), and every record lists the owners for that version (D-19). |
+| Storage | Never in clear. Each version is sealed to each member's encryption key in the version record's roster, signed by an owner (D-34), or in a grant for a member admitted between rotations. From version 2 on, each version's record also stores the previous version wrapped under itself (D-07), and every record lists the owners for that version (D-19). |
 | Access | Members holding a grant for that version or a later one. |
-| Rotation | After a member is removed (when the integration decides), at every owner change (always, D-13), or after a suspected leak. |
+| Rotation | After a member is removed (at the next owner `reconcile`, D-31), at every owner change (always, D-13), at a re-key, or after a suspected leak. |
 | Recovery | Any member with a grant for the current version can open every version. If no member can unlock their account any more, the team's keys are lost. |
 | Destruction | None in v1: earlier versions are kept so history stays readable. |
 
@@ -201,6 +217,19 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 | Recovery | Through the inbox private key. |
 | Destruction | With the submission. |
 
+### Invite join secret
+
+| Attribute | Value |
+| --- | --- |
+| Purpose | Lets the joiner prove they held the invite link (D-32, SP-24). |
+| Algorithm | 32 random bytes; the proof is a keyed BLAKE2b-256 over the joiner's keys. |
+| Generation | Random, on an owner's client, when the invite is created. |
+| Storage | Wrapped by the team key version current at creation, in the `invite` record; in clear only in the invite link's fragment. |
+| Access | Members who can open that version, and whoever holds the link. |
+| Rotation | None: one per invite. Auto-approval uses only invites of the current version, once. |
+| Recovery | Through the team key. |
+| Destruction | When the integration deletes the invite. |
+
 ### Part reference key
 
 | Attribute | Value |
@@ -239,12 +268,16 @@ Three kinds of records carry signatures. They hold no secret, but they decide wh
 | --- | --- | --- |
 | **Member keys record** | The member's own signing key | "These are my signing and encryption public keys for this team." The self-signature proves the two keys belong together. It doesn't prove who the member is: an owner approves that by granting. |
 | **Team key version record** | An owner of the previous version (version 1: its own creator, listed as owner) | "Version n of this team's key exists; its owners are this list; the previous record has this hash; here is version n−1 wrapped under it." The records form one chain that can't be edited, and that chain is also the history of owners (D-19). |
-| **Grant** | An owner of that version | "Member M, with these public keys, receives team key version n; here it is, sealed to M's encryption key." |
+| **Team key version record** (roster) | The same signature | "These accounts, with these keys, receive version n; here it is, sealed to each." |
+| **Grant** | An owner of that version | "Member M, with these public keys, receives team key version n; here it is, sealed to M's encryption key." For members admitted between rotations. |
+| **Invite** | An owner of that version | "This invite, with this join secret wrapped under version n, was made by an owner." |
+| **Member keys record**, recovery signature | The account's recovery signing key | "These new keys are mine." A proof the old member keys can't give (SP-23). |
 
 `item` and `inbox` records aren't signed. Their wrap under the team key, with their context, already proves a member created them; signing for authorship is deferred (D-09).
 
 **The owner rule.**
-- A grant for version n is valid only if its signer is in the owner list of version n.
+- A roster is valid with its version record; every owner of a version is in its roster.
+- A grant or an invite for version n is valid only if its signer is in the owner list of version n.
 - A version record n is valid only if its signer is in the owner list of version n−1.
 
 Each owner's signing key must also be the one in that account's published member keys record, so "bob became an owner" really is about Bob's key (SP-15). That's a direct lookup, with nothing to compute. Every owner change (add, remove, replace a key) creates a new version (D-13), so a version's owner list never changes once written, and version numbers are consecutive: nobody chooses them.
@@ -260,8 +293,10 @@ The blast radius of each leak, and its remedy:
 | A PIN (with the user's session) | The `accountKey`, and everything under it | Change the PIN; rotate the account key if it may have been used (SP-09, SP-11) |
 | A recovery phrase | Same as a PIN, without needing the server | Replace the phrase; rotate the account key (SP-09, SP-11) |
 | A device, not used by the attacker | Nothing yet | Revoke the device (SP-10) |
-| A device, used by the attacker while unlocked | The `accountKey` and the member keys of every team the device opened | Revoke the device, rotate the account key, re-key in each affected team (SP-10, SP-11, SP-12; D-21) |
-| The `accountKey` | Every member keys bundle of the account, so every team key the account can reach | Rotate the account key **and** re-key in each team: rotation alone doesn't change member keys (SP-11, SP-12) |
+| A device, used by the attacker while unlocked | The `accountKey` and the member keys of every team the device opened | `secureAccount` from another device: rotates the account key and re-keys every team with a recovery proof (SP-11, SP-23; D-36) |
+| The `accountKey` | Every member keys bundle of the account, so every team key the account can reach | `secureAccount`: rotation alone doesn't change member keys (SP-11, SP-12, SP-23) |
+| A recovery phrase, with the attacker using it | The `accountKey`, and proven re-keys in every team (TH-41) | Replace the phrase, then have an owner approve one set of keys by hand in each team |
+| An invite link | Admission without a human if `autoApproveInvites` is on (TH-43) | Delete the invite; review the joins it proved |
 | One team's member keys | Every version of that team's key granted to the member, and every earlier version | Re-key in that team, approved by an owner, then rotate the team key (SP-12) |
 | One `teamKey` version | That version, every earlier one, their items and inboxes | Rotate the team key; replace inboxes (SP-06, TH-30) |
 | One `itemKey` | That item only | Delete the item if appropriate |
@@ -278,8 +313,8 @@ Each scenario lists what changes and what old key material can still open afterw
 
 1. Generate `accountKey` version 1.
 2. The user chooses a PIN: derive `pinKey` (one server evaluation) and store the PIN wrap.
-3. Generate a recovery phrase, show it once, derive `recoveryKey` and store the recovery wrap.
-4. Register this device: generate `deviceKey`, keep it locally, store the device wrap.
+3. Register this device: generate `deviceKey`, keep it locally, store the device wrap.
+4. Set up recovery (D-35): the vault generates a phrase and keeps it in memory; the user enters it back; only then derive `recoveryKey` and the recovery signing key, and store the recovery wrap with the recovery public key. Until this is done, the account can't create or join a team.
 
 ### Adding a device
 
@@ -293,70 +328,77 @@ Other devices are not affected.
 1. The user enters the recovery phrase, which opens the `accountKey`.
 2. The user chooses a new PIN. The new PIN wrap replaces the old one.
 
-### Changing the PIN or replacing the recovery phrase
+### Changing the PIN
 
 1. Open the `accountKey` with any unlock method.
 2. Store the new wrap. The server deletes the old one after a short delay; the old credential works until then (SP-09).
 
 A copy of the old wrap taken before the deletion still opens the current `accountKey` with the old credential. If that's a concern, also rotate the account key.
 
-### Losing a device (D-21)
+### Replacing the recovery phrase
+
+1. Open the `accountKey`, set up a new phrase as at account setup (two steps), and store its wrap in place of the old one (SP-09).
+2. Re-key every team (§6.8): the new member keys carry the new recovery public key.
+   - The user still has the old phrase: the re-keys are signed by the old recovery key, and owners' `reconcile` approves them (SP-23), except in teams where the account is an owner.
+   - The old phrase is lost: the re-keys carry no proof, and an owner approves each by hand.
+
+### Losing a device (D-21, D-36)
 
 Two cases:
 
 - **Not used by anyone** (locked, wiped, or nobody opened the app). From another device, or after recovery, revoke it. The server deletes its wrap, and the device can't unlock again (SP-10). Nothing else is needed.
-- **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. The full remedy:
-  1. revoke the device;
-  2. rotate the account key (SP-11);
-  3. re-key in each affected team, each approved by an owner, followed by a team key rotation (SP-12).
+- **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. From another device, the user runs `secureAccount` with the recovery phrase and a new PIN:
+  1. the account key is rotated (SP-11), which cuts every other device (D-10);
+  2. every team is re-keyed, each re-key signed by the recovery key (SP-23);
+  3. each team's owners approve the new keys at their next `reconcile`, by rotating; an owner's own re-key waits for another owner.
 
-  After that, the copied keys open nothing written afterwards. The library offers each step; the integration decides whether to guide users through them.
+  After that, the copied keys open nothing written afterwards. A team that failed to re-key is reported and retried.
 
 ### Rotating the account key (D-10)
 
 1. Open the current `accountKey`.
-2. The user enters the PIN (one server evaluation), and either enters the recovery phrase or receives a new one.
+2. The user enters the PIN (one server evaluation), and enters the recovery phrase or not.
 3. Generate the next `accountKey` version and re-wrap every member keys bundle under it.
-4. Store the new PIN, recovery and current-device wraps, and switch the account to the new version in one atomic step.
-5. The server deletes every wrap of the old version. Other devices ask for the PIN once to register again.
+4. Store the new PIN and current-device wraps, and the recovery wrap if the phrase was entered; switch the account to the new version in one atomic step.
+5. The server deletes every wrap of the old version. Other devices ask for the PIN once to register again. Without the phrase, the user sets up a new one next (D-35), which re-keys every team as when replacing a lost phrase.
 
-Member keys don't change, so teams see nothing. The old `accountKey` only opens records that the server has deleted (SP-11). For the same reason, rotation alone doesn't end team access for someone who already copied a member keys bundle; that takes a re-key in each team (SP-12).
+Member keys don't change, so teams see nothing. The old `accountKey` only opens records that the server has deleted (SP-11). For the same reason, rotation alone doesn't end team access for someone who already copied a member keys bundle; that takes a re-key in each team (`secureAccount` does both).
 
 ### Creating a team
 
-1. The creator's vault generates their member keys for the team.
-2. They generate `teamKey` version 1 and its record (owners: themselves), and a grant of version 1 to themselves.
-3. Both are stored in one atomic batch, so a team never exists half set up.
+1. The creator's vault generates their member keys for the team (recovery must be set up).
+2. They generate `teamKey` version 1 and its record: owners and roster are the creator.
+3. The record and the member keys are stored in one atomic batch, so a team never exists half set up.
 
-### Joining a team
+### Inviting and joining a team
 
-1. The joining account's vault generates member keys for the team, stores the bundle wrapped by its `accountKey`, and publishes its member keys record. (Anything that wraps member keys runs in the vault.)
-2. An owner checks the request is genuine (AS-06) and stores a grant of the current version to those keys.
-3. The new member opens the current version from the grant, and every earlier version by walking the chain (D-07).
+1. An owner creates an invite: a join secret wrapped under the current version, in a signed `invite` record. The invite link carries the team's anchor and the secret (D-32).
+2. The joining account's vault generates member keys for the team, with an invite proof made from the link, stores the bundle wrapped by its `accountKey`, and publishes its member keys record. (Anything that wraps member keys runs in the vault.)
+3. An owner approves the join with a grant of the current version to those keys. The overview shows whether the invite proof holds; by default an owner approves by hand (checking the request is genuine, AS-06), and `reconcile` approves it only if the integration enabled `autoApproveInvites`.
+4. The new member opens the current version from the grant, and every earlier version by walking the chain (D-07).
 
 Until the grant exists, the member is *pending*.
 
 ### Removing a member
 
-1. The integration removes the member's access on its server.
-2. An owner rotates the team key, now or later as the integration decides.
+1. The integration removes the member's access on its server, and from the active list it gives owners.
+2. At the next owner session, `reconcile` rotates the team key without them (D-31).
 
 The removed member keeps every key they had (AS-07): every version up to the rotation, and their items and inboxes. They can't open the new version, or items and inboxes created with it (SP-06), unless they are granted a later version again; the chain then opens the gap too. Inboxes created earlier stay open to them, if they obtain the ciphertexts, until replaced (TH-30).
 
 ### Rotating the team key
 
 1. An owner of the current version n opens it.
-2. Recipients: the accounts the owner keeps (an explicit list, normally the active members) that hold a valid grant for version n. Anyone left off the list gets nothing, so forgetting someone costs access instead of leaking it.
-3. Generate version n+1. Its record lists the owners (unchanged, unless this rotation changes them), links to version n's record, and wraps version n under the new key.
-4. Store the version record and the owner's own grant in one atomic batch; this makes n+1 current.
-5. Store grants for the other recipients. If interrupted, the owner resumes by granting n+1 to recipients still missing it.
+2. Recipients: the accounts the owner keeps (an explicit list, normally the active members) that hold version n, in its roster or by a grant. Anyone left off the list gets nothing, so forgetting someone costs access instead of leaking it. Each recipient receives one set of keys: its newest keys if this rotation approves them, otherwise the keys it holds.
+3. Generate version n+1. Its record lists the owners (unchanged, unless this rotation changes them), the roster (each recipient's keys, as a hash, and version n+1 sealed to them), links to version n's record, and wraps version n under the new key.
+4. Store the record. One write: a rotation can't be half done (D-34).
 
 ### Changing the owners: add, remove, replace a key (D-13)
 
-Every owner change is a rotation whose new version carries the new owner list. The version record and the signer's grant are written in one atomic batch, so the change is never half applied.
+Every owner change is a rotation whose new version carries the new owner list. The version record carries the owner list and the roster in one write, so the change is never half applied.
 
-- **Adding an owner:** the new owner must already be a member with a grant for the current version.
-- **Removing an owner:** members whose newest grant was signed by the removed owner are shown to the rotating owner as a warning before they receive the new version. It's a warning, not a guarantee: a later grant by another owner hides that origin.
+- **Adding an owner:** the new owner must already be a member holding the current version.
+- **Removing an owner:** members whose current access was given by the removed owner are shown to the rotating owner as a warning before they receive the new version. It's a warning, not a guarantee: a later rotation by another owner hides that origin.
 - After removal, the removed owner's signatures are refused for every later version.
 
 ### An owner loses their credentials
@@ -369,15 +411,18 @@ A team with a single owner can't do this. Nobody can manage the team any more (T
 
 ### Re-keying after a suspected leak of member keys
 
-1. The member's vault generates new member keys for the team and publishes them. Until step 2, the member keeps reading with the old keys.
-2. An owner checks the request is genuine and rotates the team key, approving the new keys: the new version is sealed to them, and the old keys receive nothing. A signature by the old keys is never enough, since the attacker may hold them (SP-12). If the member is an owner, the same rotation replaces their signing key in the owner list.
+1. The member's vault generates new member keys for the team and publishes them, signed by the recovery key if the user enters the phrase. Until step 2, the member keeps reading with the old keys.
+2. An owner approves the new keys by rotating the team key: the new version is sealed to them, and the old keys receive nothing. The approval names the keys the owner reviewed (SP-12).
+   - Proven by the recovery key, for a member who isn't an owner: owners' `reconcile` approves it (SP-23).
+   - Otherwise: an owner checks the request is genuine first. A signature by the old keys is only a hint, since the attacker may hold them.
+3. If the member is an owner, the same rotation replaces their signing key in the owner list.
 
-One rotation does it all: the chain gives the new keys every earlier version, and a rotation only ever carries one set of keys per account, the newest approved one.
+One rotation does it all: the chain gives the new keys every earlier version, and a rotation only ever carries one set of keys per account.
 
 ### Leaving a team
 
 1. The member's vault deletes its wrapped member keys and its team state for the team.
-2. The remaining owners rotate the team key without the member in the keep list, when the integration decides (as for a removal).
+2. The remaining owners' `reconcile` rotates the team key without the member, once the integration drops them from the active list.
 
 The only owner can't leave: the library refuses (`LAST_OWNER`) until another owner is added. Otherwise the team would freeze (TH-18).
 

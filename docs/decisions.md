@@ -113,7 +113,7 @@ Status: Accepted.
 
 Problem: rotating the account key must re-wrap it for every unlock method. With public-key wraps (seal the new key to each method's public key), rotation would need no PIN or phrase. But anyone can seal to a public key, including the server: it could hand a device or a recovering user a forged account key, and then read every key the user wraps under it.
 
-Decision: the PIN, the recovery phrase and each device wrap the account key with a symmetric key that only that method's holder can compute. Rotation needs the user present: they enter the PIN, and either enter the recovery phrase or receive a new one. Other registered devices stop working and ask for the PIN once to register again.
+Decision: the PIN, the recovery phrase and each device wrap the account key with a symmetric key that only that method's holder can compute. Rotation needs the user present: they enter the PIN, and either enter the recovery phrase or set up a new one afterwards (D-35). Other registered devices stop working and ask for the PIN once to register again.
 
 Rejected: public-key wraps for unlock methods, for the forgery reason above.
 
@@ -143,7 +143,7 @@ Status: Accepted.
 
 Problem: a removed owner keeps every team key up to the removal and could keep signing grants for the current version. If removing the owner and rotating the key were two separate writes, a removal that landed without its rotation would leave the current key grantable by the removed owner.
 
-Decision: adding, removing or replacing an owner is a rotation whose new version carries the new owner list (D-19). The version record and the signer's grant are written in one atomic batch, so an owner change is never half applied. A removed owner isn't in the owner list of any later version, so their signatures are refused for all of them. Members whose newest grant came from the removed owner are listed as a warning for the rotating owner; it isn't a guarantee, since a later grant by another owner hides the origin.
+Decision: adding, removing or replacing an owner is a rotation whose new version carries the new owner list (D-19). The version record carries the new owner list and the roster of members receiving it (D-34), in one write, so an owner change is never half applied. A removed owner isn't in the owner list of any later version, so their signatures are refused for all of them. Members whose current access the removed owner signed are listed as a warning for the rotating owner; it isn't a guarantee, since access re-signed later by another owner hides the origin.
 
 Consequence: one rotation per owner change. Owner changes are rare, so the cost is small. Removal of a regular member doesn't force a rotation; the integration decides when.
 
@@ -193,7 +193,7 @@ Status: Accepted.
 
 Problem: the server is untrusted, so a record could claim millions of parts or megabytes of metadata to crash or freeze a client. Readers need fixed limits to validate records before any crypto (SP-18). The limits must be part of the protocol, not per-integration settings, or one client could write data another refuses to read.
 
-Decision: at most 128 parts per item or submission, 4096 bytes of `meta` per part, 64 owners per team key version, and 128 bytes per id. An integration may enforce lower limits in its own interface.
+Decision: at most 128 parts per item or submission, 4096 bytes of `meta` per part, 64 owners per team key version, 1,000 accounts in a team key version's roster (D-34), and 128 bytes per id. An integration may enforce lower limits in its own interface.
 
 Consequence: raising a limit later means a new record version.
 
@@ -239,7 +239,7 @@ Decision: the guarantee of revocation is that the device can't unlock the accoun
 
 Rejected: making the full remedy part of revocation. It's heavy (an owner approval per team), and it's only needed in the serious case.
 
-Consequence: revocation is cheap and immediate. The protocol's claims stay true: revocation alone doesn't evict someone who already copied keys (TH-10).
+Consequence: revocation is cheap and immediate. The protocol's claims stay true: revocation alone doesn't evict someone who already copied keys (TH-10). The full remedy is one vault operation, `secureAccount` (D-36), whose team re-keys owners approve without an out-of-band check (D-33).
 
 ## D-22: A share link carries the item key; protecting the link is the integration's job
 
@@ -349,3 +349,84 @@ Problem: products have their own roles (owner, admin) with their own meaning. Ty
 Decision: the owners of each team key version are an explicit list in the chain (D-19). The integration decides which accounts hold the cryptographic owner role, and applies changes with an owner change (§6.7). A server may check, as defence in depth, that listed owners hold the product capability the integration maps to it (server contract, rule 8).
 
 Consequence: a change of product owner needs an owner change in the chain only if the cryptographic owners change.
+
+## D-31: Owners run an autopilot that only narrows access
+
+Status: Accepted.
+
+Problem: owners must turn warnings into the right operation themselves: rotate after a removal, approve re-keys, admit members. Integrations get this wrong or skip it, and every step waits for an owner to act by hand.
+
+Decision: an owner's session offers `reconcile(activeAccountIds)`, meant to run at every owner session. It does what needs no human judgement and reports the rest:
+- rotates the team key without accounts that hold the current version but are no longer active;
+- approves re-keys proven by the member's recovery key (D-33), for members who aren't owners;
+- admits joiners proven by an invite, only if the integration opts in (D-32).
+
+Everything else (first joins without an accepted proof, members granted only an older version, unproven re-keys, owners' re-keys) is returned as needing a human. **Automatic actions only reduce access; widening it needs a cryptographic proof or a human.** Owner operations live on a separate owner object, so code paths that aren't an owner's can't reach them. A dry run returns the plan without writing.
+
+Rejected: re-granting accounts whose keys an owner approved in the past (`outdated`). The active list comes from the integration's server; a server listing a removed member as active would undo the removal.
+
+Consequence: one call keeps a team in order. A server that lies about the active list can only cut access (denial of service), never add a reader. Removed members stop receiving new versions at the next owner session, not at an integration's discretion.
+
+## D-32: Invite links carry a join proof
+
+Status: Accepted.
+
+Problem: an owner confirming a join must check, out of band, that the published keys are the invitee's (AS-06). In practice owners click approve, so a session thief who publishes keys under the invitee's account first (TH-37) is admitted.
+
+Decision: an owner creates an `invite` record holding a random join secret, wrapped under the current team key and signed by the owner. The invite link carries the anchor and the secret. The joiner's `member-keys` record carries a MAC (a keyed hash) of its keys under the secret. Owners see "joined with the invite" or "no proof". By default this is a hint and approval stays human; the integration may set `autoApproveInvites` for `reconcile` to admit proven joiners. Auto-approval holds once per invite and only for invites of the current team key version.
+
+Rejected: always auto-approving. Invites are usually emailed by the integration's server, which then knows the secret and could admit keys of its own.
+
+Consequence: a session thief without the invite link can't produce a proof. With `autoApproveInvites`, the integration trusts its server and its mail delivery for joins (TH-02, TH-04, TH-43).
+
+## D-33: The recovery phrase is the account's offline root of trust
+
+Status: Accepted.
+
+Problem: replacing compromised member keys needs an owner to verify the request out of band in every team, because the old keys can't vouch for their replacement: the attacker may hold them (SP-12). After a misused device, that's one human check per team.
+
+Decision: the recovery phrase also derives an Ed25519 **recovery signing key**. Its public key is in every `member-keys` record, so an owner's approval pins it with the keys. A re-key signed by the recovery key of the keys an account currently holds is **proven**: the phrase isn't stored anywhere, so a stolen device or session doesn't have it. `reconcile` approves proven re-keys of members automatically. An owner's re-key still needs another owner's (human) approval, so a leaked phrase can't silently change the owner list. Replacing the phrase re-keys every team with the new recovery key: proven when the user still has the old phrase, a human approval otherwise.
+
+Rejected:
+- Continuity signatures by the old member keys as proof: the attacker holds them.
+- Auto-approving owners' proven re-keys: a leaked owner phrase would become a silent takeover of the owner list.
+- A separate per-account chain of identity keys: more records for the same effect in v1.
+
+Consequence: the phrase becomes more powerful. A thief holding it can already open the account key; now they can also replace a member's keys in every team, racing the real user, and only a human ends the race (TH-41). Recovery must be set up before any team work (D-35).
+
+## D-34: A team key version carries its roster
+
+Status: Accepted.
+
+Problem: a rotation wrote the version record with the signer's grant, then one grant per other member. Interrupted, it left members without the new version (`completeRotation`). Large teams didn't fit one database transaction. And what members held a version was only what the server chose to list, so hidden grants could suppress the "rotation needed" signal (TH-42).
+
+Decision: each team key version record carries its **roster**: for every account that receives the version, its keys (as a hash) and the version sealed to them. The owner signs it with the record. A rotation is one record; grants remain only for members admitted between rotations. At most 1,000 accounts per roster (D-18).
+
+Rejected: keeping the roster in a separate record committed with its hash. Smaller chain records, but one more record type and batch rule. Clients fetch the chain from their anchor (§6.1), so old rosters are downloaded only at first contact.
+
+Consequence: no interrupted rotations and no resume operation; the server's "version with its signer's grant" batch rule goes. A record grows to about 240 bytes per member (about 240 KB at 1,000 members with short ids). Who held each version is signed chain data.
+
+## D-35: Recovery is confirmed before team work
+
+Status: Accepted.
+
+Problem: a phrase shown once and never checked is the usual way an end-to-end encrypted account is lost. With D-33 it is also the only way to prove a re-key.
+
+Decision: setting up recovery is two steps: the vault generates a phrase and keeps it in memory; the user enters it back, and only then is the recovery wrap stored. No recovery wrap at the current account key version means recovery isn't set up. Creating or joining a team requires it (`RECOVERY_NOT_SET_UP`). An account key rotation without the phrase drops the recovery wrap, so the user sets up a new phrase next.
+
+Rejected: a "confirmed" flag on a stored wrap: a flag the server can't verify, and a phrase that already works before anyone saved it.
+
+Consequence: an account is never in a team without a working phrase. The integration shows one more step at setup.
+
+## D-36: Securing an account is one operation
+
+Status: Accepted.
+
+Problem: the remedy after a misused device or a leaked credential was a procedure of four steps across the vault and every team (D-21). Integrations would stop at revocation.
+
+Decision: `vault.secureAccount({ phrase, newPin })` rotates the account key with a new PIN (which cuts every other device, D-10), then re-keys every team with a recovery signature (D-33), one team per write. It reports the teams re-keyed and those that failed, which the integration retries with `rekey(teamId, { phrase })`. Each team's owners approve the new keys at their next `reconcile` (D-31).
+
+Rejected: one atomic batch for everything: it doesn't fit common database transaction limits. A stored resume marker: a retry per failed team is enough.
+
+Consequence: the full remedy is one call plus the owners' routine `reconcile`. Until an owner of a team runs it, the copied keys still open what that team writes.
+

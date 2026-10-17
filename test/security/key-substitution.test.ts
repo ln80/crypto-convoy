@@ -1,5 +1,6 @@
 /**
  * SP-04: Team keys go only to owner-approved member keys.
+ * SP-12: Compromised member keys can be replaced (replaced keys are never granted).
  * Threats: TH-02, TH-37.
  */
 import { describe, expect, it } from "vitest";

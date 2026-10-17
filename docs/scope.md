@@ -48,14 +48,14 @@ These terms are used the same way in every document.
 
 ## What the library does
 
-1. **Account keys.** Creates the account key and wraps it for each unlock method: PIN, recovery phrase, registered devices. Supports changing the PIN, replacing the recovery phrase, registering and revoking devices, and rotating the account key.
+1. **Account keys.** Creates the account key and wraps it for each unlock method: PIN, recovery phrase (confirmed by the user before any team work, D-35), registered devices. Supports changing the PIN, replacing the recovery phrase, registering and revoking devices, rotating the account key, and securing a compromised account in one operation (D-36).
 2. **PIN hardening.** Turns a short PIN into a strong key with a server-assisted OPRF (oblivious pseudorandom function), so a stolen backup can't be brute-forced offline. The library implements the client side and specifies what the server must do.
 3. **Team trust.** Verifies each team's key chain, including who the owners are at each version, and remembers the last record it verified (its anchor), so it detects a forged or rolled-back chain.
-4. **Team key distribution.** Seals each team key version only to member keys an owner approved, and opens a team key only from a grant an owner signed for this member's own keys.
-5. **Team key lifecycle.** Creates, rotates and grants team key versions, and opens earlier versions through the chain of versions.
+4. **Team key distribution.** Seals each team key version only to member keys an owner approved, and opens a team key only from a record an owner signed for this member's own keys. Invite links carry a join proof (D-32), and the recovery phrase proves a member's re-key (D-33), so owners can approve without an out-of-band check where the proof allows.
+5. **Team key lifecycle.** Creates, rotates (one signed record listing who receives the version, D-34) and grants team key versions, and opens earlier versions through the chain of versions. An owner autopilot, `reconcile`, does what needs no human judgement and only ever narrows access by itself (D-31).
 6. **Item encryption.** Encrypts items part by part, as drafts sealed last (D-27), including large files as a stream of chunks. Each item's key record lists its parts, so the server can't modify, swap, drop or reorder them undetected (D-16). Opens an item's parts one at a time, on demand. The application gets ciphertext to store and plaintext back; it never handles content keys (D-15). It can get a keyed reference for each part, safe to send to its server (D-28).
 7. **Inboxes and link shares.** Creates inboxes, seals outside submissions to them, opens them for members, and encodes and decodes the keys carried in links.
-8. **Status and warnings.** Reports whether the account is set up and unlocked, each team's access state, and, for owners, each member's access and what needs attention: members awaiting approval, a rotation needed or interrupted, a team with a single owner (§12, SP-15).
+8. **Status and warnings.** Reports whether the account is set up, unlocked and has recovery, each team's access state, and, for owners, an overview of each member's access, its proof, and what needs a human: members awaiting approval, unproven re-keys, a team with a single owner (§12, SP-15).
 9. **Formats.** Defines versioned record formats and canonical encodings, and refuses unknown versions and algorithms. Ships frozen test vectors so other implementations can check their compatibility.
 
 Not in v1: author signatures on items (D-09) and key fingerprints for out-of-band verification (D-11).
@@ -68,9 +68,9 @@ The library doesn't do any of the following. The integration owns them:
 - **Network and sign-in:** HTTP, tokens, sessions, retries. The library never sees an auth token.
 - **Who belongs to the team, and who should be an owner:** invitations, roles, removal, and which accounts hold the cryptographic owner role, which needn't match a product role (D-30). The library enforces only the cryptographic rules: who signed what.
 - **Content storage and its pipeline** (D-25): storing and serving item parts, submission envelopes and submission parts; upload sessions, retries and quotas; not presenting an item until its key record is stored; cleaning up parts of drafts never sealed (D-27). Checks on files before encryption (type, size, content sniffing) and deduplication are the integration's too, with `partRef` as the reference it may send (D-28).
-- **Policy:** PIN length and strength rules, PIN hashing cost (above the library's floor, D-17), rate-limit numbers, when to rotate after a member leaves, inbox lifetimes and when to replace an inbox, the largest part the buffered API accepts (`maxBufferedSize`), device inactivity period, the restore window for removed wraps, and whether to guide users through the full remedy after a misused device (D-21). The library takes these as parameters or exposes the operation; the integration decides when to call it.
+- **Policy:** PIN length and strength rules, PIN hashing cost (above the library's floor, D-17), rate-limit numbers, the list of active accounts it gives `reconcile` at each owner session (D-31), whether invite proofs admit joiners without a human (`autoApproveInvites`, D-32), inbox lifetimes and when to replace an inbox, the largest part the buffered API accepts (`maxBufferedSize`), device inactivity period, the restore window for removed wraps, and when to offer `secureAccount` after a lost device or leaked credential (D-36). The library takes these as parameters or exposes the operation; the integration decides when to call it.
 - **Isolating key custody:** where the account key lives (iframe, web worker, separate origin, native process), the channel between contexts, and which context may receive which team's keys. See [Key custody](#key-custody).
-- **Delivering links:** carrying link-share keys and inbox public keys to the people who use them.
+- **Delivering links:** carrying link-share keys, inbox public keys and invite links to the people who use them. An invite link is a join proof: keep it out of the integration's own UI, logs and stored outbox (TH-43).
 - **Protecting share links** (D-22). A share link is the key to its item. On the page that opens it:
   - read the key from the fragment and remove it at once (`takeLinkKey()` does both in a browser);
   - load no third-party scripts, analytics or error tracking, and never log the page address;
@@ -123,7 +123,7 @@ The library verifies everything it can on its own: signatures, the team key chai
 2. **Keep the OPRF key secret, use a separate OPRF key per account, and rate-limit PIN evaluations** with **one total budget per account**, whatever purpose a call declares: every evaluation is a usable PIN guess. This is the only thing standing between a stolen backup and a short PIN.
 3. **Never overwrite write-once records:** team key versions, grants, member key records, `item` and `inbox` records.
 4. **Use compare-and-set** for records that change in place (team state), so concurrent writers can't silently undo each other.
-5. **Apply atomic batches** where the protocol requires them: team creation, a new team key version with its signer's grant (this includes every owner change), the switch to a new account key version.
+5. **Apply atomic batches** where the protocol requires them: team creation, the switch to a new account key version.
 6. **Accept new `item` and `inbox` records and grants only at the current team key version**, and a new team key version only as current + 1.
 7. **Stop serving what revocation removes, but keep it for a while:** a revoked device's account key wrap, wraps of a replaced PIN or recovery phrase, and wraps of a retired account key version.
    - The server stops serving them after a short delay at most; until then, the old credential still works.
