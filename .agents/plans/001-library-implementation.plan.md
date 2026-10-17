@@ -477,3 +477,12 @@ _Appended per phase: what changed, deviations, spec changes made through protoco
   - Removing the explicit X25519 list check makes the 14 low-order seal cases fail. libsodium throws an untyped error instead of `MALFORMED_RECORD`.
   - Non-canonical `S` and small-order `R` are also refused by libsodium 1.0.22 itself. Our explicit checks are defence in depth, and `isCanonicalScalar` is tested on its own.
 - Follow-up: there is no streaming *encryption* in v1. A record must be stored before or with its parts (§7.1), and the manifest needs each part's hash first.
+
+### Phase 2 (done)
+- §8 clarified: the envelope (`v`, `suite`, `type`) is checked first, then version dispatch, then the shape for that version.
+- Spec choices made while coding:
+  - Optional fields described as "present only for" (`deviceId`, `kdf`) or "optional" (`continuitySignature`) are **absent** when unset, never `null`. `wrappedPreviousKey` is `null` for version 1, as written.
+  - A record's `type` that differs from the one asked for is `MALFORMED_RECORD`.
+  - A manifest that decrypts but breaks the §4.7 rules is `MALFORMED_RECORD`, since only a member could have written it.
+- `team-key.v1.json` already holds the chain, owner-rule and grant-opening cases, frozen now; their replay arrives with the team session (Phase 5).
+- Proved the guards: removing `checkOwners` makes the unsorted and duplicate owner cases fail; removing the item context check makes the three context cases fail.
