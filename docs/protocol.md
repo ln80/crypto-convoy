@@ -205,7 +205,7 @@ Encrypts content of any size in chunks, bound to its context.
 
 1. `ad` = `enc(string label(name), context…)`.
 2. Initialise secretstream with `key`; it outputs a 24-byte `header`.
-3. Split `plaintext` into chunks of 4 MiB. Every chunk except the last is exactly 4 MiB and is pushed with tag `MESSAGE`; the last chunk (0 to 4 MiB) is pushed with tag `FINAL`. An empty plaintext is one empty `FINAL` chunk.
+3. Split `plaintext` into chunks of 4 MiB. Every chunk except the last is exactly 4 MiB and is pushed with tag `MESSAGE`; the last chunk (0 to 4 MiB) is pushed with tag `FINAL`. The number of chunks is ⌈length / 4 MiB⌉, at least 1: an empty plaintext is one empty `FINAL` chunk, and a plaintext of exactly k × 4 MiB is k full chunks, the last one `FINAL` (no empty chunk after it).
 4. Every chunk is pushed with the same `ad`.
 5. Output `header ‖ chunk₀ ‖ chunk₁ ‖ …`.
 
