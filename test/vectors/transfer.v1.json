@@ -1,0 +1,82 @@
+{
+  "file": "transfer.v1",
+  "covers": "Protocol §3.8 team key transfer between contexts",
+  "receiver": {
+    "secretKey": "e64c8854aae791eed0370176ef7d3d70412150cd4a79251bd3a9798f120d0253",
+    "publicKey": "e31502c2cf7a9e94991f5467199577633d3a9013f9829963bd64015c0bf16b43",
+    "request": "14xUCws96npSZH1RnGZV3Yz06kBP5gpljvWQBXAvxa0M"
+  },
+  "context": {
+    "accountId": "alice",
+    "teamId": "team-1"
+  },
+  "valid": [
+    {
+      "name": "two bundles, newest first",
+      "transfer": "1nmScYuy2bPA0eiro63IP_tt0leMOIgMZPLMQt3LWqxZGwB8hqAR9l_arF6djf64ufNW9OIPCL4rUgul9tJWDCCBW8Hjd5LGnPhyYzqJ5_21db25FO9AnaZQPs32GgrL_NPIfGsm74WrT1qBpUBO0YCFKmHleFnEYOSyVIk_23CDdNB1QOJHKXgC0bOM_-6lafpcwuMLTTaZMWv0l7F_RKmMDkRi3bwz1djoDP-bpvHXEtAcgC2yZHbsAUnDTS6-pOQCxGg4tZOVYAuV7ZnYe4HC5CfqZCK2qW2N-x5lihkz3tRUwfk5LZXfMdiU-4cPwho4_Fo22wWUVpZo4UAk6xKtN6A-mDdhpiwMK-Zc_qHnMuJSzDJCzSFfM4KyJkoGGTtwQg9yadsE-02zgTC9Z6-Q_cNCf7v4TGNvD6WYlsiyCzRXuZA6ooENHZnWxsdCL4yA",
+      "bundles": [
+        {
+          "memberKeysVersion": 2,
+          "signingSeed": "36dd93eaf6c45790745bb977e6085555c7c40bf4290a0258941dcde21c376a67",
+          "encryptionSecretKey": "785ac8d9b2160e19304b56352994fc565adcafed7b753f57156757362edca39d",
+          "teamStateKey": "dcf2bf82832ed6c368b6fc78bb6dee388d1e8bb87b08632afba157b50aabed60"
+        },
+        {
+          "memberKeysVersion": 1,
+          "signingSeed": "7f2f43843d27b87b9bda475982864d6a68fde412827f66fbcce487a7b81bf908",
+          "encryptionSecretKey": "39e9d70e85f9a6e347362a8397c4f8fb9504fb6b331256b05bdfd6a0b4e4fbf4",
+          "teamStateKey": "2afd3473fb5afa9460335499b8394e31a3a1efc9d2c16fbb8b9db171802ebb88"
+        }
+      ]
+    }
+  ],
+  "refused": [
+    {
+      "name": "for another team",
+      "transfer": "1CqGHJv_KCRGgsSkyEN5XBtU2nVuUvjUR_RbHR7loijGw7A2VN14Qrgy90AwA7VqLsI15pmYsAgpUSxr3XHGPeDFyD9uDvvtqFc_yypT70gWnmGf7VD70cb881_McFEx41RwPW_c9qubAu_-7n9PfcEoGUu1bfXq2WC6ikgvCwrQKMtPK-ZTDJ2BgnUWtQ_CWP2sm1s5h8uT2lqnC1ly2Ekfyg76FA3bLRk_VAk1QC58X-litWH25zgFnfdJzvEox8Sj5T7ZxJO6gbFmSJOCYeG-N3TQM5WeZDSD6QrZYlMpaIdHBAS2AmyUeEHUWgZli5KegGvxKFm00SEYWixpJ5CAWsuzq54xlHdNBIOhFWHDxvElDZPqv8v66w9kYS33y-fGkq4bAelEbE2iIN79r6ZAeBDvk6rjiQvGmquyMJuMrMK4Sc2jWvqfm1-APwH0KAIc",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "for another account",
+      "transfer": "1BVejriLjZRdx0IBwxxOMLemMHBaflLnHKSzTiiO8oQBaRgMJz8GDcWxN-MGWW_5_lKTiNa-xkT-V2d1ENZ-z6oplQxRuKU-wajdlBG6038M9mhhMU0rW0Aj7wg91UhrMkhYKrtMXcUTdpLq7uDv2DA_PgppZeyxyHU9zgG4icASV_0-RUaixGJkIbyk7H9S8COYnyK2h6dR2-pHhjux_g8bvknJmjDAAwJOZQHTufd0zcf4aoUpCbtjaZwG4kpFHgOhje1loZGSeNdQiYN62jl84Y8n01KIwegDIz_nEnrglD01TxqVoHzwaTzM_8QEtNjcxd53gdFi5ywq2n5w6D4pXJq1oIZjNyshgCMriEeM7nrMCSVeEqvmh70kApiUk5JxevO-TdHMeSEUK_nnAEAqw9X2iBIjfVD11ksKFo-3T906VgKx02iKipTgkyFLlhqaSRQ",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "sealed to another receiver",
+      "transfer": "1nWwT905g7BxaplP2sScNm80mxNv2eq4nZcBTismw-ie-XOGNSUnflPuUrIOEJgMlvVGZOw6ujgDITA",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "bundles oldest first",
+      "transfer": "1dwPErxZ3f7BmseIdD29huArOP54uCQLtj2kQUWFo4FBA01Rx8Q7o9MvYhptA27hWoNZcjicBp8GL7qSgPDmD_ihAje1lnInSpHx2rfvj0SsYUu-0_TOyqmy6jBJjUQCyfbyJypBGrEUNOVY2F9XSEbyqOKrS-JsPIl_BL9dZsqf4wNdKQ4BBlkE9tubdKb8WpLPC69_K1yltl8ydnDNmkuDJxaagwCJMaU1mj4_pDgTSc9upEOaTBj125wtADPXTzBKAO412pi1TUWfJlhrtu2wblMIs2bFXY0ovpui2B_kVBDEoa5diQuYsMF0zogMGg83xIC33D5w2EvUi6ordaMaV37L6jUACP4PM5tCZyDDwlO1UwpqDbUSDBqIGB7f88v8BUZf0rWa0mW5Ia8sn2WaYnFNxx_le6yfbgOkeWvLsU4egWGMEBZcdcgKrNaxg4tI",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "no bundle",
+      "transfer": "16e8kc1yAFx2s9PdWseGRcfM6gQpHELmcStgdo8pE5mRNBe26qrfshdhzfUG9Ngc7FvB_ODLHG1LdxP6WjHOkIqB0DJmg8nuZD2okvp3BhO8ny2PMXF38GXI7vETYLWkNADtQfgWgsc7eU4KRJasVYcA-",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "prefix 2",
+      "transfer": "20UrpfmOi2fNIejVwam-UVOd6vtAMoWk3M3LxFk5t-BfFBndu3pIxUNHxJghlA4PeBX_Fu_CwfRAu7l0zE3orkfxA0ytrvZs1Vd278WJl1F13aOAxNwnCwIcO73gxJbVWlqtGt4IZ3i7KPgVB2mZo0UeK93gqrYMajiVK3QDZ_8is5OBhw4CIYbDPl7BwMPy-fKxPJ4OptdQkpgEYEQQ0JDgzxvNSWheMcuJt2pTIp0J5MjQmYbZolZVoy66T80qbBfCSOvghC0lrrTrfrE7Mse9DIRB2yAuSMcyiFu5A9-qwVqu2T6i8d335_5LBhdSnB-1nRHeJNc61G0DLcIqDkG1y_5NtTrRjqzfNihRZGzhaypd0n61tLy2MyA2BbOIIzT6G9gpmvbqCsNc4GfI1gZGy-JtxchaK9WBHywKr04zgl1M1yKRjbIdQs5oCLKQsPM4",
+      "error": "UNSUPPORTED_VERSION"
+    }
+  ],
+  "refusedRequests": [
+    {
+      "name": "low-order key",
+      "request": "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "short key",
+      "request": "14xUCws96npSZH1RnGZV3Yz06kBP5gpljvWQBXAvxaw",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "prefix 2",
+      "request": "24xUCws96npSZH1RnGZV3Yz06kBP5gpljvWQBXAvxa0M",
+      "error": "UNSUPPORTED_VERSION"
+    }
+  ]
+}

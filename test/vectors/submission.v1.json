@@ -13,16 +13,16 @@
     "type": "submission",
     "teamId": "team-1",
     "inboxId": "inbox-1",
-    "submissionId": "8H240eAMDb91YCGMVpax1A",
-    "sealedEnvelope": "wbN3B7Ws3posuDPGF0lC5gmKiJ93Ms2u2056XfmV1i-Mu3URzTG93HDOwtDhVogFNohlgq_iv9I7XNYL2qx3uT2pp6ZBK7XBF6X6cO5vWWMBTgZ8MJ2Z1vVnB0ic4B2ly0WzadcBMy1n5tBRF8cpFZlDaDsD-EgC2ztPOjeBl536dScVQ537vhuhiBuGeE5uhQ-9k0Dqjz8MwnXhIud7JNnd1uuDzzL36M-kskorCDeWDwtCyftpy8t3b-1NDlWKbf9UWPmLgDLLvsLfeKgRsP0DX2zBCHv9hJiOqWsDU0RvafOI9zevFvsGYuzqpXrBWCQXM4judr2Uy2Sl-1oYmhZMJQlTWm0-xFF6uRBBe-OV6ycCYRxBK0sK"
+    "submissionId": "submission-42",
+    "sealedEnvelope": "dWnXyNRbQGErubz-LmliOQuzKMnl0UMTihJywQPRk0Tc0i-2ZALAREjS2HWh9hi0dPIANtkNX-sUurryWvWF4cKmm324WlfuLmcrP8gopMGUlg-af4eWnVQyaxrN3oGn3eUsaBZWFyE0P74UGOX5djBGpAE27yRPdYFHFdq_o3SELcsTLtDMu0byBsxS1mo6WIrYUftAfo3zWcRr8GEdmrxsga__sH9kat2iiSvtk-b4LDj2S7986wjpqH0hVV61pg7olVeoNz1-3nAjKgSr1qdRQE-Mr3BVvYPTzDwa-0TB-J-rKwmvxiyVYMts1f2ur8njRw3aSJ0p510ZqCLge6YG-Lz8pLVNM7c9P7AE8rsY"
   },
   "parts": [
     {
-      "ciphertext": "f22d93b66894d51af72d5798e3da1a32008f72c55e8667b3eb7f15b54556cde357f34733b79ce43b4010c9739dd2514be9fbd4f678557c46950a925e50f754",
+      "ciphertext": "34da69b389904438b20b18b6d762ce22bc8e4f1c4cc44a33df18afb256fb3612b04d43308b0bd16c7bfcb716084d9507d4d8a0cd886934a06e1606e424aea6",
       "plaintext": "61206d6573736167652066726f6d206f757473696465"
     },
     {
-      "ciphertext": "163d8a56d59cd3cc64aa1452da5fb99e3fc8b500ac6f3f34c3e149479f0add3b39bfb0402f89154efbf5755e8d21d2c6c93dacb7ccc4802a66382925bc534c0dca1949ccf483550615a54f25f46da0401ad8688ffc21af3b3f4692de969159e9130e37f2f43aa2ff6a",
+      "ciphertext": "c2210a5a578689c7031b567abad5b130330a6c8ec7a98dbf5ffbfb55c6bf0eea4dab6c3fc04df0af486b68c5e5705900cfef2a972fd669a3aa45db4891036afcb8f7a3364bdc03df9998fc57383cf8f39d8910391d548db853e38b4ce8e4ba74f2e0493088f1848b8d",
       "plaintext": "d72da50652fee2b91df5a7b6ed0494895b2e45dbcc962bca3d6c40728f4f6757cab3b26e2ff5ba51eb0a39960f9e3b544e5d20b7b733fb53d299f083d28c4e8c"
     }
   ],
@@ -35,21 +35,34 @@
         "type": "submission",
         "teamId": "team-1",
         "inboxId": "inbox-1",
-        "submissionId": "8H240eAMDb91YCGMVpax1A",
-        "sealedEnvelope": "-aqW5d91LvQiBHjMMfOngyijuzpLt6vtZMsnRl4jJTppzzds0enzqIgjJKMktZEOzaCMP_pDbzSbrkm7vb-ULDa81Xrk0xWHYwq5BgxpkxIkeZ9XuM5EpnRdh6_O7FOS8hKIMirsuC4gmEwNxPNomGmguNpFWTb6_2KeWuKnLGeON4TgxdseSQM0Znnz4OkN7DAjoo7IcCRvFC2MtBIWTyqhuH8EgYmYZbTYcyKtyL8QOHYRucVVbjm5iwIk9QN57PGih5Q5JahjyrNfr7Dw4h3GJ6QMq9duHJrpEJ4IVAoU_5_nGqKIzy5ajyaclJ_8p2hKcRKL3B0EjJmc76w_o-1t2bL39gWhXBdaToxhFpKIK7Q_Ku2_r3i9"
+        "submissionId": "submission-42",
+        "sealedEnvelope": "AmKdURTcAJrNKk_lB_KD4ziB3IrpFvZ-8W2QYNhocgGv1dLYPnID6j9QtlovMYhijTE_qlHwLBqEqj13fKYl5E78zhyRoXvljuOPddidrfcmcRZ-X7W6ktVZ-9q3ix8cMaODzcFEwlYfZUsZdKkQKdFh3N_RmSUCiaRXzBmOGDlQZUMYvvx460Zh-cBsU2m3RkkAMI0VPM0QRVE7UBEy_gYN_RiVTh5lqBnymUZkrl1Epg8k6ZdgPvw0eKsIJF_LPQWkFisMEpEmu7tz0OG-Ix85pW4fTw6jHPPbols9W2dNI2qYAoFLUye7VPdvjbk-DMQ2jFuqVuqdR7yTuyVeGoeYP1eEgC2UjR-JPYArA6G0"
       },
       "error": "DECRYPTION_FAILED"
     },
     {
-      "name": "submission id that is not 16 bytes",
+      "name": "envelope served under another submission id",
       "record": {
         "v": 1,
         "suite": "cc1",
         "type": "submission",
         "teamId": "team-1",
         "inboxId": "inbox-1",
-        "submissionId": "abc",
-        "sealedEnvelope": "wbN3B7Ws3posuDPGF0lC5gmKiJ93Ms2u2056XfmV1i-Mu3URzTG93HDOwtDhVogFNohlgq_iv9I7XNYL2qx3uT2pp6ZBK7XBF6X6cO5vWWMBTgZ8MJ2Z1vVnB0ic4B2ly0WzadcBMy1n5tBRF8cpFZlDaDsD-EgC2ztPOjeBl536dScVQ537vhuhiBuGeE5uhQ-9k0Dqjz8MwnXhIud7JNnd1uuDzzL36M-kskorCDeWDwtCyftpy8t3b-1NDlWKbf9UWPmLgDLLvsLfeKgRsP0DX2zBCHv9hJiOqWsDU0RvafOI9zevFvsGYuzqpXrBWCQXM4judr2Uy2Sl-1oYmhZMJQlTWm0-xFF6uRBBe-OV6ycCYRxBK0sK"
+        "submissionId": "submission-43",
+        "sealedEnvelope": "dWnXyNRbQGErubz-LmliOQuzKMnl0UMTihJywQPRk0Tc0i-2ZALAREjS2HWh9hi0dPIANtkNX-sUurryWvWF4cKmm324WlfuLmcrP8gopMGUlg-af4eWnVQyaxrN3oGn3eUsaBZWFyE0P74UGOX5djBGpAE27yRPdYFHFdq_o3SELcsTLtDMu0byBsxS1mo6WIrYUftAfo3zWcRr8GEdmrxsga__sH9kat2iiSvtk-b4LDj2S7986wjpqH0hVV61pg7olVeoNz1-3nAjKgSr1qdRQE-Mr3BVvYPTzDwa-0TB-J-rKwmvxiyVYMts1f2ur8njRw3aSJ0p510ZqCLge6YG-Lz8pLVNM7c9P7AE8rsY"
+      },
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "empty submission id",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "submission",
+        "teamId": "team-1",
+        "inboxId": "inbox-1",
+        "submissionId": "",
+        "sealedEnvelope": "dWnXyNRbQGErubz-LmliOQuzKMnl0UMTihJywQPRk0Tc0i-2ZALAREjS2HWh9hi0dPIANtkNX-sUurryWvWF4cKmm324WlfuLmcrP8gopMGUlg-af4eWnVQyaxrN3oGn3eUsaBZWFyE0P74UGOX5djBGpAE27yRPdYFHFdq_o3SELcsTLtDMu0byBsxS1mo6WIrYUftAfo3zWcRr8GEdmrxsga__sH9kat2iiSvtk-b4LDj2S7986wjpqH0hVV61pg7olVeoNz1-3nAjKgSr1qdRQE-Mr3BVvYPTzDwa-0TB-J-rKwmvxiyVYMts1f2ur8njRw3aSJ0p510ZqCLge6YG-Lz8pLVNM7c9P7AE8rsY"
       },
       "error": "MALFORMED_RECORD"
     }

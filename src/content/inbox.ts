@@ -1,4 +1,5 @@
 // Inboxes (§7.4) and submissions to them (§7.5, §7.6).
+import { toBase64url } from "../encoding/base64url.js";
 import { decodeLinkKey, encodeLinkKey } from "../encoding/link.js";
 import { ConvoyError, decryptionFailed, malformed } from "../errors.js";
 import type { PartKey } from "../ports.js";
@@ -46,8 +47,9 @@ export async function submit(
   const publicKey = decodeLinkKey(linkKey);
   if (ports.suite.isLowOrder(publicKey)) throw malformed();
   checkPartCount(parts.length);
-  const { record, parts: ciphertexts } = createSubmission(ports.suite, { teamId, inboxId }, publicKey, ports.clock.now(), parts);
-  const { submissionId } = record;
+  // Interim until the draft API (plan 003 phase D): the integration will choose the id.
+  const submissionId = toBase64url(ports.suite.randomBytes(16));
+  const { record, parts: ciphertexts } = createSubmission(ports.suite, { teamId, inboxId, submissionId }, publicKey, ports.clock.now(), parts);
   await commitContent(ports.store, [
     { op: "create", key: { type: "submission", teamId, inboxId, submissionId }, record: submissionToJson(record) },
     ...ciphertexts.map((bytes, index) => ({ op: "create-part" as const, key: submissionPartKey(record, index), bytes })),

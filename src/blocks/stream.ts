@@ -38,6 +38,40 @@ export function streamEncrypt(
   return { ciphertext, hash: suite.hash(ciphertext) };
 }
 
+/**
+ * Streaming encryption (§3.4, D-27): yields the header, then each encrypted chunk, holding one
+ * plaintext chunk back so the last one gets `FINAL`. Memory stays at about one chunk.
+ * `onComplete` receives the ciphertext size and hash once the last chunk is out.
+ */
+export async function* streamEncryptChunks(
+  suite: Suite,
+  key: Uint8Array,
+  name: Label,
+  context: readonly Field[],
+  source: AsyncIterable<Uint8Array>,
+  onComplete: (result: { size: number; hash: Uint8Array }) => void,
+): AsyncGenerator<Uint8Array, void, undefined> {
+  const ad = labelled(name, ...context);
+  const { streamChunk } = suite.sizes;
+  const push = suite.streamPush(key);
+  const hasher = suite.hasher();
+  let size = 0;
+  const emit = (bytes: Uint8Array) => {
+    hasher.update(bytes);
+    size += bytes.length;
+    return bytes;
+  };
+  yield emit(push.header);
+  const queue = new ByteQueue();
+  for await (const data of source) {
+    queue.push(data);
+    // Only a chunk followed by more data is known not to be the last.
+    while (queue.length > streamChunk) yield emit(push.push(queue.take(streamChunk), ad, false));
+  }
+  yield emit(push.push(queue.take(queue.length), ad, true));
+  onComplete({ size, hash: hasher.digest() });
+}
+
 /** Pulls chunks in order and enforces the chunk rules of §3.4. */
 class ChunkReader {
   readonly #ad: Uint8Array;

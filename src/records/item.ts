@@ -1,5 +1,5 @@
 // item (§4.7) and item parts (§4.8).
-import { streamDecrypt, streamDecryptChunks, streamEncrypt } from "../blocks/stream.js";
+import { streamDecrypt, streamDecryptChunks, streamEncrypt, streamEncryptChunks, type EncryptedStream } from "../blocks/stream.js";
 import { unwrap, wrap, wrappedHash, type Wrapped } from "../blocks/wrap.js";
 import { Reader, bytes, string, u32, u64, type Field } from "../encoding/canonical.js";
 import { LIMITS, type JsonRecord } from "../encoding/json.js";
@@ -33,7 +33,8 @@ const KEY = 32;
 const MANIFEST_MAX = 4 + LIMITS.parts * (4 + 8 + 4 + 32 + 4 + LIMITS.meta);
 
 const manifestContext = (c: ItemContext): Field[] => [string(c.teamId), string(c.itemId)];
-const partContext = (c: ItemContext, index: number): Field[] => [string(c.teamId), string(c.itemId), u32(index)];
+// A part binds only its index: its item's own key and the manifest tie it to the item (D-26).
+const partContext = (index: number): Field[] => [u32(index)];
 const itemKeyContext = (suite: Suite, r: Omit<Item, "v" | "suite" | "wrappedItemKey">): Field[] => [
   string(r.teamId),
   string(r.itemId),
@@ -49,7 +50,34 @@ export interface NewItem extends ItemContext {
   readonly createdAt: number;
 }
 
-/** §7.1 steps 2–4: a fresh item key, every part streamed, the manifest and both wraps. */
+export function encryptItemPart(suite: Suite, itemKey: Uint8Array, index: number, content: Uint8Array): EncryptedStream {
+  return streamEncrypt(suite, itemKey, "item-part", partContext(index), content);
+}
+
+export function encryptItemPartStream(
+  suite: Suite,
+  itemKey: Uint8Array,
+  index: number,
+  source: AsyncIterable<Uint8Array>,
+  onComplete: (result: { size: number; hash: Uint8Array }) => void,
+): AsyncGenerator<Uint8Array, void, undefined> {
+  return streamEncryptChunks(suite, itemKey, "item-part", partContext(index), source, onComplete);
+}
+
+/** Seals a draft (§7.1 step 4): the manifest under the item key, the item key under `teamKey`. */
+export function sealItem(
+  suite: Suite,
+  input: NewItem,
+  teamKey: Uint8Array,
+  itemKey: Uint8Array,
+  manifest: readonly ManifestEntry[],
+): Item {
+  const wrappedManifest = wrap(suite, itemKey, "item-manifest", manifestContext(input), encodeManifest(manifest));
+  const unkeyed = { ...input, wrappedManifest };
+  return { v: 1, suite, ...unkeyed, wrappedItemKey: wrap(suite, teamKey, "item-key", itemKeyContext(suite, unkeyed), itemKey) };
+}
+
+/** Everything at once, for small items and tests. */
 export function createItem(
   suite: Suite,
   input: NewItem,
@@ -58,19 +86,14 @@ export function createItem(
 ): { record: Item; parts: Uint8Array[] } {
   const itemKey = suite.randomBytes(KEY);
   try {
-    const encrypted = parts.map((part, index) =>
-      streamEncrypt(suite, itemKey, "item-part", partContext(input, index), part.content),
-    );
-    const manifest: ManifestEntry[] = encrypted.map((part, index) => ({
+    const encrypted = parts.map((part, index) => encryptItemPart(suite, itemKey, index, part.content));
+    const manifest = encrypted.map((part, index) => ({
       index,
       ciphertextSize: part.ciphertext.length,
       ciphertextHash: part.hash,
       meta: parts[index]!.meta ?? new Uint8Array(0),
     }));
-    const wrappedManifest = wrap(suite, itemKey, "item-manifest", manifestContext(input), encodeManifest(manifest));
-    const unkeyed = { ...input, wrappedManifest };
-    const wrappedItemKey = wrap(suite, teamKey, "item-key", itemKeyContext(suite, unkeyed), itemKey);
-    return { record: { v: 1, suite, ...unkeyed, wrappedItemKey }, parts: encrypted.map((p) => p.ciphertext) };
+    return { record: sealItem(suite, input, teamKey, itemKey, manifest), parts: encrypted.map((p) => p.ciphertext) };
   } finally {
     suite.wipe(itemKey);
   }
@@ -120,7 +143,7 @@ export function openManifest(record: Item, itemKey: Uint8Array): ManifestEntry[]
 /** §4.8: size and hash against the manifest, then the stream. Throws `DECRYPTION_FAILED`. */
 export function openPart(record: Item, itemKey: Uint8Array, entry: ManifestEntry, ciphertext: Uint8Array): Uint8Array {
   checkPart(record.suite, entry, ciphertext);
-  return streamDecrypt(record.suite, itemKey, "item-part", partContext(record, entry.index), ciphertext);
+  return streamDecrypt(record.suite, itemKey, "item-part", partContext(entry.index), ciphertext);
 }
 
 export function openPartStream(
@@ -129,7 +152,7 @@ export function openPartStream(
   entry: ManifestEntry,
   source: AsyncIterable<Uint8Array>,
 ): AsyncGenerator<Uint8Array, void, undefined> {
-  return streamDecryptChunks(record.suite, itemKey, "item-part", partContext(record, entry.index), source, {
+  return streamDecryptChunks(record.suite, itemKey, "item-part", partContext(entry.index), source, {
     size: entry.ciphertextSize,
     hash: entry.ciphertextHash,
   });

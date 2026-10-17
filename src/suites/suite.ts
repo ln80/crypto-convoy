@@ -42,7 +42,8 @@ export interface Suite {
 
   hash(message: Uint8Array): Uint8Array;
   keyedHash(key: Uint8Array, message: Uint8Array): Uint8Array;
-  hasher(): Hasher;
+  /** Incremental BLAKE2b-256, keyed when `key` is given (16–64 bytes). */
+  hasher(key?: Uint8Array): Hasher;
 
   streamPush(key: Uint8Array): StreamPush;
   /** Throws `DECRYPTION_FAILED` for a malformed header. */

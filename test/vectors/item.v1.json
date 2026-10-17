@@ -14,22 +14,22 @@
     "createdAt": 1700000500,
     "wrappedManifest": {
       "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
-      "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+      "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEwfD1kZNDdgbJ-Kiw7Eav3B97K-enCRFICOeeX1s6WWV2lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0O2BiGDU0zUDaAcdt6-Nj86sAO5dr2OIosK6VWwWRdXt2tMCjPrp16nCTtj0nnVdoNubblew"
     },
     "wrappedItemKey": {
       "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
-      "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+      "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToSng0UsAYw0IYffQjYtg9S"
     }
   },
-  "manifest": "0000000200000000000000000000003400000020dfd34c5b031e939035e9631c1df865ccf617dd9bbd3349d57c66bba643867f3b0000000f7b226b696e64223a2274657874227d000000010000000000000069000000207dc8488f342a2d8dc94a15e799c084d8c1421c918b569eecbc5009c22d1eaf7200000000",
+  "manifest": "000000020000000000000000000000340000002017950ed13eb5f2ce2cfdfbf4ca22c481987b0fe7e9f2d131c0ac31b206cec1830000000f7b226b696e64223a2274657874227d00000001000000000000006900000020b52f508db68752ce7b02ab064bd9614e2b67e0f1eb4fbcb229d8e5326a6abfdf00000000",
   "parts": [
     {
-      "ciphertext": "e2eac86c1a00124e20a26d95dd9bb325d0da9a4dcfda75ceb812b50a1373a814e38645f7335da76aada62fcf7c0d85c8b8510c18",
+      "ciphertext": "93291f52e0ccfddde59767af2c63477f9f689531dc5b1a09aaa72f6b4e41f0780eee3340284f0a576e14273ae63d0cee9f46db8e",
       "plaintext": "68656c6c6f2c207465616d",
       "meta": "7b226b696e64223a2274657874227d"
     },
     {
-      "ciphertext": "ae33d3e146f6dabf3d7f10170f4cdccfb92aa2430ac0ac1096733b8e1ec5b37cdb6418abb3af8934056d41a571a13cdddce5c3a8fd4da6541ae4ed51fa1fc257a8294eae497915e37bc08fe83420ed8ab209cba593113fe93a9429d0160ffc079d8535647af1d8c1d4",
+      "ciphertext": "ba7797550b5be91beb1f9790f46184a91f2b6140e44fd9ff619e1f290a3be85f04b92c9fc9f14e9bc6fb6752302eda5ce525ccc6cc077df0e2b3007ef40e924ca8df49a46a191adace5c85b6acedcd5387b2f532a8a5f2f7b41ea1164d232c832d13ddf6a0ce8b9fbf",
       "plaintext": "000d94830f00e4100c81d432f7989fd0b2edc4e245d4815dc23e5340b1feea3e582d27f971b04517ed1502d82f6805e77d6cb075bd60186ccbca89cf59406261",
       "meta": ""
     }
@@ -48,11 +48,11 @@
         "createdAt": 1700000500,
         "wrappedManifest": {
           "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
-          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEwfD1kZNDdgbJ-Kiw7Eav3B97K-enCRFICOeeX1s6WWV2lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0O2BiGDU0zUDaAcdt6-Nj86sAO5dr2OIosK6VWwWRdXt2tMCjPrp16nCTtj0nnVdoNubblew"
         },
         "wrappedItemKey": {
           "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
-          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToSng0UsAYw0IYffQjYtg9S"
         }
       },
       "error": "DECRYPTION_FAILED"
@@ -70,11 +70,11 @@
         "createdAt": 1700000500,
         "wrappedManifest": {
           "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
-          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEwfD1kZNDdgbJ-Kiw7Eav3B97K-enCRFICOeeX1s6WWV2lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0O2BiGDU0zUDaAcdt6-Nj86sAO5dr2OIosK6VWwWRdXt2tMCjPrp16nCTtj0nnVdoNubblew"
         },
         "wrappedItemKey": {
           "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
-          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToSng0UsAYw0IYffQjYtg9S"
         }
       },
       "error": "DECRYPTION_FAILED"
@@ -92,11 +92,11 @@
         "createdAt": 1700000500,
         "wrappedManifest": {
           "nonce": "FtBFkue7BIQwGLGabd8LL6lp6tL_0tUt",
-          "ciphertext": "KFvEVAwU88kpIly4-uRGMNUbCyMqnJCv48VxvD7QIkCh8OFVtMRrRmk08Dz0JUC3fFam8vDpSfU9W9pNht52CmB3C2kVURMDNUNkvqq7uMtTyamfzJLDOBppXEwgK1JjP4nNzFq5IqCTmfgU4x2qUGJTQBISkJsCSI8QaV1E9-J_pAjLyzNpZKEtGg"
+          "ciphertext": "KFvEVAwU88kpIly4-uRGMNUbCyPi2tIl3m4Q4ifEuqh2KkAY2qi5Oj31aNhI78qjOR4YSvDpSfU9W9pNht52CmB3C2kVURMDNUNkvqq7uMtTyamfzJLD8P1xXs6NVBHRdzcsHkNctEq2ZZh0-j_0xeq_sFVmgDYCSI8QmhZVVGbBNoKBzPZVmaZAYA"
         },
         "wrappedItemKey": {
           "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
-          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToSng0UsAYw0IYffQjYtg9S"
         }
       },
       "error": "DECRYPTION_FAILED"
@@ -114,11 +114,11 @@
         "createdAt": 1700000500,
         "wrappedManifest": {
           "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
-          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEwfD1kZNDdgbJ-Kiw7Eav3B97K-enCRFICOeeX1s6WWV2lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0O2BiGDU0zUDaAcdt6-Nj86sAO5dr2OIosK6VWwWRdXt2tMCjPrp16nCTtj0nnVdoNubblew"
         },
         "wrappedItemKey": {
           "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
-          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToSng0UsAYw0IYffQjYtg9S"
         }
       },
       "expectedItemId": "item-1",
@@ -126,6 +126,7 @@
       "reason": "context_mismatch"
     }
   ],
+  "foreignPart": "19df85514fba5231cc09b99880b17cf0db8cc99d8f2addc0bc81547dfbabb2be36f8aa6366cb5741ede03880e474beb45feaffa2",
   "swappedParts": [
     {
       "name": "parts swapped",

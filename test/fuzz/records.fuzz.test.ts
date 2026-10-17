@@ -8,6 +8,8 @@ import { fromBase64url } from "../../src/encoding/base64url.js";
 import { Reader } from "../../src/encoding/canonical.js";
 import { decodeAnchor, decodeLinkKey } from "../../src/encoding/link.js";
 import { ConvoyError } from "../../src/errors.js";
+import { decodeRequest, openTransfer } from "../../src/records/transfer.js";
+import { cc1 } from "../../src/suites/cc1/index.js";
 import { parsers } from "../support/parsers.js";
 import { sampleRecords } from "../support/records.js";
 
@@ -32,6 +34,13 @@ describe("SP-18: decoders", () => {
   });
   test.prop([text], RUNS)("anchor", (value) => {
     onlyTypedErrors(() => decodeAnchor(value));
+  });
+  const receiver = cc1.generateEncryptionKeyPair();
+  test.prop([text], RUNS)("transfer request", (value) => {
+    onlyTypedErrors(() => decodeRequest(cc1, value));
+  });
+  test.prop([text], RUNS)("transfer", (value) => {
+    onlyTypedErrors(() => openTransfer(cc1, receiver, { accountId: "a", teamId: "t" }, value));
   });
   test.prop([fc.uint8Array({ maxLength: 64 })], RUNS)("canonical reader", (bytes) => {
     onlyTypedErrors(() => {

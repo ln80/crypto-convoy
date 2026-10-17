@@ -1,0 +1,30 @@
+{
+  "file": "part-ref.v1",
+  "covers": "Protocol §3.9 part references",
+  "cases": [
+    {
+      "name": "item key, short text",
+      "contentKey": "cde6342f2cd35294a4fcf695c0c99b703ecad50c35f48183124d247bb40475a8",
+      "content": "68656c6c6f2c207465616d",
+      "refKey": "15fc964fcab43538a8db29e3692dddb2c06cfb415554a68bfe0e08bd266f0c1f",
+      "partRef": "Y25ofKzQmvwj89v-I1ccEkf3gqF3QXT3o0K73uSUOB4"
+    },
+    {
+      "name": "item key, empty content",
+      "contentKey": "cde6342f2cd35294a4fcf695c0c99b703ecad50c35f48183124d247bb40475a8",
+      "content": "",
+      "refKey": "15fc964fcab43538a8db29e3692dddb2c06cfb415554a68bfe0e08bd266f0c1f",
+      "partRef": "TI9WR_NA8ThEMxO3LPYlGKVDOOsYurcpjr4_iI4aqTE"
+    },
+    {
+      "name": "submission content key, 5 MiB",
+      "contentKey": "afc52331bef2a27afac237b4c34f563519ca8568bcee13e58b38083f70981558",
+      "content": {
+        "pattern": "byte i = i mod 251",
+        "length": 5242880
+      },
+      "refKey": "2c5b815b09078efee467a25322606d68c4055da755d3945212dbaf807602fdc2",
+      "partRef": "phnCDOHfrADjOe1ie0XwcVMxkrv9zXaPT-MzYwgpAC0"
+    }
+  ]
+}

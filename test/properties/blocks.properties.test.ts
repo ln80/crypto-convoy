@@ -5,7 +5,7 @@
 import { fc, test } from "@fast-check/vitest";
 import { describe, expect } from "vitest";
 import { open, seal } from "../../src/blocks/seal.js";
-import { streamDecrypt, streamEncrypt } from "../../src/blocks/stream.js";
+import { streamDecrypt, streamEncrypt, streamEncryptChunks } from "../../src/blocks/stream.js";
 import { unwrap, wrap } from "../../src/blocks/wrap.js";
 import { fromBase64url, toBase64url } from "../../src/encoding/base64url.js";
 import { Reader, bytes, enc, string, u32, u64 } from "../../src/encoding/canonical.js";
@@ -91,4 +91,27 @@ describe("SP-03: stream", () => {
     const { ciphertext } = streamEncrypt(cc1, key, "item-part", [u32(0)], plaintext);
     expect(() => streamDecrypt(cc1, key, "item-part", [u32(index)], ciphertext)).toThrow(fails("DECRYPTION_FAILED"));
   });
+});
+
+describe("streaming encryption (§3.4, D-27)", () => {
+  const CHUNK = cc1.sizes.streamChunk;
+  const sizes = fc.oneof(fc.nat(300), fc.constantFrom(CHUNK - 1, CHUNK, CHUNK + 1, 2 * CHUNK));
+
+  test.prop([sizes, fc.integer({ min: 50_000, max: 3_000_000 })], { numRuns: 12 })(
+    "gives the buffered layout, any slicing of the input, and decrypts",
+    async (length, slice) => {
+      const plaintext = Uint8Array.from({ length }, (_, i) => i % 253);
+      async function* source() {
+        for (let i = 0; i < plaintext.length; i += slice) yield plaintext.subarray(i, i + slice);
+      }
+      let result: { size: number; hash: Uint8Array } | undefined;
+      const out: Uint8Array[] = [];
+      for await (const chunk of streamEncryptChunks(cc1, key, "item-part", [u32(0)], source(), (r) => (result = r))) out.push(chunk);
+      const ciphertext = Buffer.concat(out);
+      expect(ciphertext.length).toBe(streamEncrypt(cc1, key, "item-part", [u32(0)], plaintext).ciphertext.length);
+      expect(result!.size).toBe(ciphertext.length);
+      expect([...result!.hash]).toEqual([...cc1.hash(ciphertext)]);
+      expect(Buffer.from(streamDecrypt(cc1, key, "item-part", [u32(0)], ciphertext)).equals(Buffer.from(plaintext))).toBe(true);
+    },
+  );
 });

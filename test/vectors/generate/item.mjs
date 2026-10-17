@@ -7,9 +7,9 @@ const teamKey = fixed("item team key", 32);
 const itemKey = fixed("item key", 32);
 const createdAt = 1_700_000_500;
 
-function streamOf(plaintext, context) {
+function streamOf(plaintext, context, key = itemKey) {
   const ad = encode([label("item-part"), ...context]);
-  const { state, header } = sodium.crypto_secretstream_xchacha20poly1305_init_push(itemKey);
+  const { state, header } = sodium.crypto_secretstream_xchacha20poly1305_init_push(key);
   const chunk = sodium.crypto_secretstream_xchacha20poly1305_push(state, plaintext, ad, sodium.crypto_secretstream_xchacha20poly1305_TAG_FINAL);
   return new Uint8Array(Buffer.concat([header, chunk]));
 }
@@ -18,7 +18,8 @@ const contents = [
   { content: new TextEncoder().encode("hello, team"), meta: new TextEncoder().encode('{"kind":"text"}') },
   { content: fixed("file bytes", 64), meta: new Uint8Array(0) },
 ];
-const parts = contents.map((p, index) => streamOf(p.content, [["string", TEAM], ["string", ITEM], ["u32", index]]));
+// A part binds only its index (D-26).
+const parts = contents.map((p, index) => streamOf(p.content, [["u32", index]]));
 const manifest = encode([listOf(parts.map((ct, index) => [
   ["u32", index], ["u64", ct.length], ["bytes", hex(blake(ct))], ["bytes", hex(contents[index].meta)],
 ]))]);
@@ -50,6 +51,8 @@ writeVectors("item.v1.json", {
     { name: "manifest of another item", record: { ...record, wrappedManifest: wrappedJson(otherManifest) }, error: "DECRYPTION_FAILED" },
     { name: "record of another item id", record: { ...record, itemId: "item-2" }, expectedItemId: "item-1", error: "TRUST_FAILURE", reason: "context_mismatch" },
   ],
+  // Part 0 of another item, same index, under that item's own key.
+  foreignPart: hex(streamOf(new TextEncoder().encode("hello, team"), [["u32", 0]], fixed("another item key", 32))),
   swappedParts: [
     { name: "parts swapped", order: [1, 0], error: "DECRYPTION_FAILED" },
     { name: "part dropped", order: [0], error: "DECRYPTION_FAILED" },

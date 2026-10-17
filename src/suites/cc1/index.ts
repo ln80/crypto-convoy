@@ -195,9 +195,10 @@ export const cc1: Suite = {
     return lib().crypto_generichash(SIZES.hash, message, key);
   },
 
-  hasher(): Hasher {
+  hasher(key?: Uint8Array): Hasher {
+    if (key !== undefined && (key.length < 16 || key.length > 64)) throw malformed();
     const sodium = lib();
-    const state = sodium.crypto_generichash_init(null, SIZES.hash);
+    const state = sodium.crypto_generichash_init(key ?? null, SIZES.hash);
     return {
       update: (data) => sodium.crypto_generichash_update(state, data),
       digest: () => sodium.crypto_generichash_final(state, SIZES.hash),

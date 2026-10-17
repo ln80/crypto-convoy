@@ -30,6 +30,7 @@ interface Items {
   parts: { ciphertext: string; plaintext: string; meta: string }[];
   tampered: { name: string; record: Json; expectedItemId?: string; error: string; reason?: string }[];
   swappedParts: { name: string; order: number[]; error: string }[];
+  foreignPart: string;
 }
 interface Submissions {
   inbox: { secretKey: string; publicKey: string };
@@ -89,6 +90,13 @@ describe("item.v1", () => {
       openManifest(parsed, openItemKey(parsed, unhex(items.teamKey)));
     };
     expect(run).toThrow(failure({ error, reason }));
+  });
+
+  it("SP-03: refuses a part of another item, even at the same index", () => {
+    const record = parseItem(items.record, expected);
+    const itemKey = unhex(items.itemKey);
+    const [entry] = openManifest(record, itemKey);
+    expect(() => openPart(record, itemKey, entry!, unhex(items.foreignPart))).toThrow(failure({ error: "DECRYPTION_FAILED" }));
   });
 
   it.each(items.swappedParts.filter((s) => s.order.length === items.parts.length))("SP-03: refuses $name", ({ order, error }) => {

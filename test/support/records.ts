@@ -35,7 +35,7 @@ export function sampleRecords() {
     { content: new TextEncoder().encode("hi"), meta: new Uint8Array([1]) },
   ]);
   const inbox = createInbox(suite, { teamId: "team-1", inboxId: "inbox-1", teamKeyVersion: 1, createdBy: "alice", createdAt: 1 }, teamKey);
-  const submission = createSubmission(suite, { teamId: "team-1", inboxId: "inbox-1" }, inbox.publicKey, 1, [
+  const submission = createSubmission(suite, { teamId: "team-1", inboxId: "inbox-1", submissionId: "submission-1" }, inbox.publicKey, 1, [
     { content: new TextEncoder().encode("hello") },
   ]);
   return {
