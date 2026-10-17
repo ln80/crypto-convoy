@@ -1,0 +1,139 @@
+{
+  "file": "seal.v1",
+  "covers": "Protocol §3.2 seal / open, §2 low-order X25519 keys",
+  "recipient": {
+    "secretKey": "588e8e2f9c369609b4ef52a4a7b1203d9ab85d07448b43da4b01cd1e4e14e344",
+    "publicKey": "796d21650f0749c8fc7a40c708265fb2fddde03c4ad12e64c4f10fefd60c9c12"
+  },
+  "cases": [
+    {
+      "name": "grant-seal",
+      "message": "0000001b63727970746f2d636f6e766f792f76312f6772616e742d7365616c000000067465616d2d3100000006616363742d320000000100000003000000208cfedfe88bc372d557185ea90f18fe2d9e335c3f2d6588d784f9a3a8c9c50ba9",
+      "sealed": "de9c85027c5e48ffaa3dd417d990937e2b86b181af0edcd4dda2cb35fd84d96bd4ac026423d5a046a2487edc2839c2f46cf000fd9947ce7c36acdf74435d1e5d0966874cc984be74023d62244994c3727f5796f25ae19a9c778801f5ff8ea85a59d1c6ad4d9754466418ae09c4c1ae17aa7b8092fddf15f4f12ec88595ee7408ddd8f4ec75bb985534a164989237ee",
+      "label": "grant-seal",
+      "context": [
+        ["string", "team-1"],
+        ["string", "acct-2"],
+        ["u32", 1],
+        ["u32", 3]
+      ],
+      "body": "8cfedfe88bc372d557185ea90f18fe2d9e335c3f2d6588d784f9a3a8c9c50ba9"
+    }
+  ],
+  "refused": [
+    {
+      "name": "trailing byte after body",
+      "message": "0000001b63727970746f2d636f6e766f792f76312f6772616e742d7365616c000000067465616d2d3100000006616363742d320000000100000003000000208cfedfe88bc372d557185ea90f18fe2d9e335c3f2d6588d784f9a3a8c9c50ba900",
+      "sealed": "65513d09f4b8994931fbbef990be3b31e9b70b80930755c80ae8f78155b45b37155c2fd138dbd5469e78dc134ecd01ae2bc17090296c3340dd8e6d9a80a2de1f704a65fc5eed64a9f8073459528afda8fbf07f578ac8d5befec92ba206e9d46e2c3c38c39f371b83d918771e557c69b5f9228417c4b87907bf089bd6ea9f13048ffac5331c5e493f49ea4c860d53db8a",
+      "reason": "bytes after body",
+      "label": "grant-seal",
+      "context": [
+        ["string", "team-1"],
+        ["string", "acct-2"],
+        ["u32", 1],
+        ["u32", 3]
+      ],
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "other label",
+      "message": "0000001b63727970746f2d636f6e766f792f76312f7375626d697373696f6e000000067465616d2d3100000006616363742d320000000100000003000000208cfedfe88bc372d557185ea90f18fe2d9e335c3f2d6588d784f9a3a8c9c50ba9",
+      "sealed": "a8c35f35d76d638338d57ab12075cd5fccc24d5795db20fd0d1b72b4706c7356e7da3d70e370341f03a7e92fadf90ec36305b1ce97133417f1385454b0974b6cf0dddabda91ee2ecd443d6477c59aa0e9966930406c914969849b439f7e7de15b518b94a7f41dcf9c12050c6f6eb4439dd77272b4fa791a21ef5ea28327dac4a990be1270716ef48ef647d6efbfde0",
+      "reason": "label",
+      "label": "grant-seal",
+      "context": [
+        ["string", "team-1"],
+        ["string", "acct-2"],
+        ["u32", 1],
+        ["u32", 3]
+      ],
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "other team key version",
+      "message": "0000001b63727970746f2d636f6e766f792f76312f6772616e742d7365616c000000067465616d2d3100000006616363742d320000000100000004000000208cfedfe88bc372d557185ea90f18fe2d9e335c3f2d6588d784f9a3a8c9c50ba9",
+      "sealed": "079393462c88e879ceea8b767644e84398d6954b0e0e3a69e4a68633d5758332c9e11bb416ed34bcc0d7398e5b8e5dced887ab333e4c2fcbcf53bb61331badcea412e780db0f4a7ad2533992829d179e18a4646fb899c16560ab6e745c493b9f98a04115eeb7431d9f837cf3af0eb71e971b25735e8a10d393989a09263ae0b5f241b0e977d4fce0aaacda7bf35203",
+      "reason": "context",
+      "label": "grant-seal",
+      "context": [
+        ["string", "team-1"],
+        ["string", "acct-2"],
+        ["u32", 1],
+        ["u32", 3]
+      ],
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "body length past the end",
+      "message": "0000001b63727970746f2d636f6e766f792f76312f6772616e742d7365616c000000067465616d2d3100000006616363742d320000000100000003000000218cfedfe88bc372d557185ea90f18fe2d9e335c3f2d6588d784f9a3a8c9c50ba9",
+      "sealed": "b3d6fa2f9fadfdff72e3dcf0df299fdb1d679a7d689524409d86e4354d395763b38932fb125b0992a32886b1ef8b5089a7cf8488bd24d17bee83fb277bc01ae8c30cd2d71ae2b49eaaf32c2c77ed98fb10761d62db90c8873e67bbab245dee471b08f766c9919d2fa7af3c3bf4532e3bc7712fd423ccf78a4f9288368c3e837383f6e9fcaf14c318f64e11152b6e39",
+      "reason": "body length",
+      "label": "grant-seal",
+      "context": [
+        ["string", "team-1"],
+        ["string", "acct-2"],
+        ["u32", 1],
+        ["u32", 3]
+      ],
+      "error": "DECRYPTION_FAILED"
+    }
+  ],
+  "lowOrderPublicKeys": [
+    {
+      "publicKey": "0000000000000000000000000000000000000000000000000000000000000000",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "0000000000000000000000000000000000000000000000000000000000000080",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "0100000000000000000000000000000000000000000000000000000000000000",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "0100000000000000000000000000000000000000000000000000000000000080",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b880",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f11d7",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "publicKey": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "error": "MALFORMED_RECORD"
+    }
+  ]
+}

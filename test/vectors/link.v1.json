@@ -1,0 +1,117 @@
+{
+  "file": "link.v1",
+  "covers": "Protocol §3.5 link values, §2 low-order inbox keys",
+  "valid": [
+    {
+      "name": "item key",
+      "kind": "key",
+      "value": "1f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbKM",
+      "bytes": "7f8beafd7965d8aab3bee2620c6a1461f8312275f6a3f0f925db025f2a526ca3"
+    },
+    {
+      "name": "inbox public key",
+      "kind": "inbox-key",
+      "value": "1w4LlPidfrieugL9n64GzlfPBl1vqpKDGhm5VxB3hzTI",
+      "bytes": "c382e53e275fae27ae80bf67eb81b395f3c1975beaa4a0c6866e55c41de1cd32"
+    },
+    {
+      "name": "invite anchor",
+      "kind": "anchor",
+      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3Gg",
+      "version": 7,
+      "hash": "f9f1651d20ea10d06ec5473bf6c00b3098aa440544d3fcb96a2cc21badc1371a"
+    }
+  ],
+  "refused": [
+    {
+      "name": "empty",
+      "kind": "key",
+      "value": "",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "prefix 2",
+      "kind": "key",
+      "value": "2f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbKM",
+      "error": "UNSUPPORTED_VERSION"
+    },
+    {
+      "name": "prefix 0",
+      "kind": "key",
+      "value": "0f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbKM",
+      "error": "UNSUPPORTED_VERSION"
+    },
+    {
+      "name": "no prefix",
+      "kind": "key",
+      "value": "f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbKM",
+      "error": "UNSUPPORTED_VERSION"
+    },
+    {
+      "name": "31 bytes",
+      "kind": "key",
+      "value": "1f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbA",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "33 bytes",
+      "kind": "key",
+      "value": "1f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbKMA",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "padding",
+      "kind": "key",
+      "value": "1f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbKM=",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "standard base64 alphabet",
+      "kind": "key",
+      "value": "1f4vq/Xll2KqzvuJiDGoUYfgxInX2o/D5JdsCXypSbKM",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "non-canonical trailing bits",
+      "kind": "key",
+      "value": "1f4vq_Xll2KqzvuJiDGoUYfgxInX2o_D5JdsCXypSbKN",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "low-order inbox key",
+      "kind": "inbox-key",
+      "value": "1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "low-order inbox key, top bit set",
+      "kind": "inbox-key",
+      "value": "14Ot6fDtBuK4WVuP68Z_EatoJjeucMrH9hmIFFl9JuIA",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "anchor version 0",
+      "kind": "anchor",
+      "value": "1AAAAAAAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3Gg",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "anchor with trailing byte",
+      "kind": "anchor",
+      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3GgA",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "anchor hash of 31 bytes",
+      "kind": "anchor",
+      "value": "1AAAABwAAAB_58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "anchor prefix 2",
+      "kind": "anchor",
+      "value": "2AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3Gg",
+      "error": "UNSUPPORTED_VERSION"
+    }
+  ]
+}

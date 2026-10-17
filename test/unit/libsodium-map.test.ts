@@ -4,7 +4,7 @@ import { codeOnly, read, tsFiles } from "../support/source.js";
 
 const used = new Set(
   tsFiles("src/suites").flatMap((file) =>
-    [...codeOnly(read(file)).matchAll(/\bsodium\.([a-zA-Z0-9_]+)/g)].map((m) => m[1]!),
+    [...codeOnly(read(file)).matchAll(/\b(?:sodium|libsodium|lib\(\))\.([a-zA-Z0-9_]+)/g)].map((m) => m[1]!),
   ),
 );
 

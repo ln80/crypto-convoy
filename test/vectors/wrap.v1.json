@@ -1,0 +1,215 @@
+{
+  "file": "wrap.v1",
+  "covers": "Protocol §3.1 wrap / unwrap",
+  "cases": [
+    {
+      "name": "wrap account-key-wrap",
+      "label": "account-key-wrap",
+      "context": [
+        ["string", "acct-1"],
+        ["u32", 1],
+        ["string", "pin"],
+        ["optional", null],
+        ["bytes", "83f4bee4773cbe92ed9b8af8d7495f02"],
+        ["u64", 3],
+        ["u64", 268435456],
+        ["u32", 1]
+      ],
+      "inputs": {
+        "key": "6bb745cd46c36863cdafb0708eb051c8e0678756bc62b9de302acdad42000c8d",
+        "nonce": "29628253042d34609e6ca910a71bef4ea78305e4583a4e6d",
+        "plaintext": "398b46e47ac02544c5caf46aea319610109d690818c11d9b3349a1423702af58"
+      },
+      "intermediate": {
+        "ad": "0000002163727970746f2d636f6e766f792f76312f6163636f756e742d6b65792d7772617000000006616363742d31000000010000000370696e000000001083f4bee4773cbe92ed9b8af8d7495f020000000000000003000000001000000000000001"
+      },
+      "outputs": {
+        "ciphertext": "d7e649625d85e8af3271a42f95c2f37826e3aa2e9c70c59e849ac99ae78e7ade668b2a70c7cc587fd82f88f940848a57"
+      }
+    },
+    {
+      "name": "wrap member-keys-wrap",
+      "label": "member-keys-wrap",
+      "context": [
+        ["string", "acct-1"],
+        ["string", "team-1"],
+        ["u32", 1],
+        ["u32", 1]
+      ],
+      "inputs": {
+        "key": "fad7e0c8524784ff758505ef6b51476d29fd92f1b5b9833ca6f8b4a7a9494fb7",
+        "nonce": "e49b15c2d39be6a0a9e3da577a0bb02e01e8c836acf97240",
+        "plaintext": "c6e2c9a0f044fb019372e638f4de169a82c734f63c49fc021c5ba564394efbe0"
+      },
+      "intermediate": {
+        "ad": "0000002163727970746f2d636f6e766f792f76312f6d656d6265722d6b6579732d7772617000000006616363742d31000000067465616d2d310000000100000001"
+      },
+      "outputs": {
+        "ciphertext": "d868b68ab8359b336fd0add0fddc029e521820d60a63fdd732649720109a7549db72d6ae7ebc9b3fcd2c4a18826a3106"
+      }
+    },
+    {
+      "name": "wrap team-state",
+      "label": "team-state",
+      "context": [
+        ["string", "acct-1"],
+        ["string", "team-1"],
+        ["u64", 1]
+      ],
+      "inputs": {
+        "key": "f45e245e3d04db39e9a8e4226385d53876a5f7d1f27db0aaa0f9e4489189f310",
+        "nonce": "02d7e35bfaf646cc733321098eb2eb33c332de851460db27",
+        "plaintext": "b68020fdafd903abc7504eddcf16556d2fea7004f354cd3aaa3b4a7d18ea8c00"
+      },
+      "intermediate": {
+        "ad": "0000001b63727970746f2d636f6e766f792f76312f7465616d2d737461746500000006616363742d31000000067465616d2d310000000000000001"
+      },
+      "outputs": {
+        "ciphertext": "d754ee276ef6538805e6da80e4024f0478af620c3980372e8d52af340256c537f4e7cb2c95a332db156cf3000acafbdb"
+      }
+    },
+    {
+      "name": "wrap team-key-link",
+      "label": "team-key-link",
+      "context": [
+        ["string", "team-1"],
+        ["u32", 2]
+      ],
+      "inputs": {
+        "key": "a699dc839fac3acef5e8ee8084ab2a44b6961648511c9372047ddf2634369d8f",
+        "nonce": "39eb5baa3b9e4ac0fca9d552711b3a6953222b260ae5a728",
+        "plaintext": "40db7c9b157a13fd00fb06eaec9059cba64448a7cf7b7d3a4664eac06dad4a12"
+      },
+      "intermediate": {
+        "ad": "0000001e63727970746f2d636f6e766f792f76312f7465616d2d6b65792d6c696e6b000000067465616d2d3100000002"
+      },
+      "outputs": {
+        "ciphertext": "f73fd597cbda48ed80220b94004f378a8ecfa9c0a38c6465d6c11875c87bf9ca82ec864c4ce0ef89eb83deb8ed2b3e3d"
+      }
+    },
+    {
+      "name": "wrap item-key",
+      "label": "item-key",
+      "context": [
+        ["string", "team-1"],
+        ["string", "item-1"],
+        ["u32", 1],
+        ["string", "acct-1"],
+        ["u64", 1700000000],
+        ["bytes", "c523ac30f47d3d8be76664f19b1e8a7c557dd8248f7e38073b4b36aa8bf1ced3"]
+      ],
+      "inputs": {
+        "key": "713528945a3b16fd3d6236435b0f16890bfbecefb2b6764698590cc9a219ed55",
+        "nonce": "792ef65633ad494e705db2330ac9f828be3b2e65eff79f94",
+        "plaintext": "d8fb17b16388aa3a7c4249e647ef5226a5a9a665d5cf5ca083998bd0e4581183"
+      },
+      "intermediate": {
+        "ad": "0000001963727970746f2d636f6e766f792f76312f6974656d2d6b6579000000067465616d2d31000000066974656d2d310000000100000006616363742d31000000006553f10000000020c523ac30f47d3d8be76664f19b1e8a7c557dd8248f7e38073b4b36aa8bf1ced3"
+      },
+      "outputs": {
+        "ciphertext": "f4773ada8776cf940b8a9f1635143ef8b67e1eaceabcc35c24a08903d7e65253105210686c1a6fd661ba92ba4852e2a8"
+      }
+    },
+    {
+      "name": "wrap item-manifest",
+      "label": "item-manifest",
+      "context": [
+        ["string", "team-1"],
+        ["string", "item-1"]
+      ],
+      "inputs": {
+        "key": "ba213cf8c1b99771cc69e8713542f82b4a3714d5f7a1e64046c6fc1c69b835df",
+        "nonce": "342eda3ba4ba8f075d9409d8bbd7d8eb959a33ed10f60be0",
+        "plaintext": "119f7984c687b20a1b010942a99c99a21a942322084bb8d684cafd8fc0302975"
+      },
+      "intermediate": {
+        "ad": "0000001e63727970746f2d636f6e766f792f76312f6974656d2d6d616e6966657374000000067465616d2d31000000066974656d2d31"
+      },
+      "outputs": {
+        "ciphertext": "bfc3653de1bef3b20633887c50bc743d363fb5e535d7d6f6e16582e1e7bce3eba17f293a5d1869e00d23c35214792ada"
+      }
+    },
+    {
+      "name": "wrap inbox-key",
+      "label": "inbox-key",
+      "context": [
+        ["string", "team-1"],
+        ["string", "inbox-1"],
+        ["u32", 1],
+        ["bytes", "21663d7c096432318bade84a2d53d464dc39f5e529120a1fd8b2c8c0ec4baf32"],
+        ["string", "acct-1"],
+        ["u64", 1700000000]
+      ],
+      "inputs": {
+        "key": "e9cc34bfa5da49f10917cd96da87169ed452f6e162b2b3ca6d25da4738cd77b1",
+        "nonce": "e2cb720fd27f8da96f2d00b51c5007e08aba83e299361023",
+        "plaintext": "6efef59100ebfa5f9ca8d2c87ca9e2297fd82ee5d2a54b582d7dff159a472fa0"
+      },
+      "intermediate": {
+        "ad": "0000001a63727970746f2d636f6e766f792f76312f696e626f782d6b6579000000067465616d2d3100000007696e626f782d31000000010000002021663d7c096432318bade84a2d53d464dc39f5e529120a1fd8b2c8c0ec4baf3200000006616363742d31000000006553f100"
+      },
+      "outputs": {
+        "ciphertext": "6507531a16d4a5f5da7e403cae13bdc25714035d9fc7d430ac9b8e666afc218ee2d01a986b7ded4d6a0dd16fe1d816a7"
+      }
+    }
+  ],
+  "tampered": [
+    {
+      "name": "ciphertext bit flipped",
+      "from": "wrap account-key-wrap",
+      "ciphertext": "d6e649625d85e8af3271a42f95c2f37826e3aa2e9c70c59e849ac99ae78e7ade668b2a70c7cc587fd82f88f940848a57",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "tag bit flipped",
+      "from": "wrap account-key-wrap",
+      "ciphertext": "d7e649625d85e8af3271a42f95c2f37826e3aa2e9c70c59e849ac99ae78e7ade668b2a70c7cc587fd82f88f940848a56",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "nonce bit flipped",
+      "from": "wrap account-key-wrap",
+      "nonce": "29628252042d34609e6ca910a71bef4ea78305e4583a4e6d",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "wrong key",
+      "from": "wrap account-key-wrap",
+      "key": "a896d1abb65a516f85cd198e250b9b10de8f1dd58d3173fc947ed59e768b7bf3",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "other context: account key version 2",
+      "from": "wrap account-key-wrap",
+      "context": [
+        ["string", "acct-1"],
+        ["u32", 2],
+        ["string", "pin"],
+        ["optional", null],
+        ["bytes", "83f4bee4773cbe92ed9b8af8d7495f02"],
+        ["u64", 3],
+        ["u64", 268435456],
+        ["u32", 1]
+      ],
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "other label",
+      "from": "wrap account-key-wrap",
+      "label": "member-keys-wrap",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "truncated to 15 bytes",
+      "from": "wrap account-key-wrap",
+      "ciphertext": "d7e649625d85e8af3271a42f95c2f3",
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "nonce of 23 bytes",
+      "from": "wrap account-key-wrap",
+      "nonce": "29628253042d34609e6ca910a71bef4ea78305e4583a4e",
+      "error": "DECRYPTION_FAILED"
+    }
+  ]
+}

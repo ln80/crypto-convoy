@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-const node = { environment: "node" as const, passWithNoTests: true };
+const node = { environment: "node" as const, passWithNoTests: true, setupFiles: ["test/support/setup.ts"] };
 
 export default defineConfig({
   test: {
