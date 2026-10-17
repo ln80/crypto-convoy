@@ -1,4 +1,4 @@
-import type { Clock, LocalKeyStore, OprfService, RecordKey, RecordStore, ResolvedSettings, WriteOp } from "../ports.js";
+import type { AnchorStore, Clock, DeviceKeyStore, OprfService, RecordKey, RecordStore, ResolvedSettings, WriteOp } from "../ports.js";
 import { accountKeyWrapToJson, type AccountKeyWrap } from "../records/account-key-wrap.js";
 import type { Suite } from "../suites/suite.js";
 
@@ -7,7 +7,9 @@ export interface AccountPorts {
   readonly suite: Suite;
   readonly store: RecordStore;
   readonly oprf: OprfService;
-  readonly localKeys: LocalKeyStore;
+  readonly deviceKeys: DeviceKeyStore;
+  /** Only to open team sessions in the vault's own context. */
+  readonly anchors?: AnchorStore;
   readonly clock: Clock;
   readonly settings: ResolvedSettings;
 }

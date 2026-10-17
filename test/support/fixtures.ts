@@ -26,7 +26,10 @@ export function world(options: { budget?: number } = {}) {
   ): Promise<Device> {
     const store = new TamperingStore(server.as(accountId));
     const localKeys = extra.localKeys ?? new MemoryLocalKeyStore();
-    const vault = await createVault({ store, oprf: extra.oprf ?? oprf, localKeys, clock, settings: extra.settings ?? FAST }, accountId);
+    const vault = await createVault(
+      { store, oprf: extra.oprf ?? oprf, deviceKeys: localKeys, anchors: localKeys, clock, settings: extra.settings ?? FAST },
+      accountId,
+    );
     return { vault, store, localKeys };
   }
 

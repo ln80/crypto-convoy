@@ -6,19 +6,24 @@
 /** Package version. */
 export const version = "0.0.0";
 
-export { createVault, type Vault, type VaultOptions } from "./account/vault.js";
+export { createVault, type Vault, type VaultOptions, type VaultStatus } from "./account/vault.js";
 export type {
   AccessState,
   Member,
   MemberRequest,
+  MemberStatus,
   RotationOptions,
   TeamSession,
+  Warning,
 } from "./team/session.js";
 export type { OwnerChange } from "./team/chain.js";
+export { createTeamKeyReceiver, type ReceiverPorts, type TeamKeyReceiver } from "./team/receiver.js";
 export { createLinkClient, type LinkClient, type LinkClientOptions } from "./content/link-client.js";
-export type { OpenedPart, PartInput } from "./content/context.js";
-export type { PartStream } from "./content/items.js";
-export type { OpenedSubmission } from "./content/inbox.js";
+export type { PartInfo, PartOptions, PartSource } from "./content/context.js";
+export type { Draft } from "./content/draft.js";
+export type { ItemDraft } from "./content/items.js";
+export type { SubmissionDraft } from "./content/inbox.js";
+export type { OpenedItem, OpenedSubmission } from "./content/opened.js";
 
 export {
   ConvoyError,
@@ -30,14 +35,15 @@ export {
 } from "./errors.js";
 
 export type {
+  AnchorStore,
   Argon2Cost,
   Clock,
+  DeviceKeyStore,
   LocalAnchor,
   LocalDevice,
   LocalKeyStore,
   OprfPurpose,
   OprfService,
-  PartKey,
   RecordKey,
   RecordQuery,
   RecordStore,

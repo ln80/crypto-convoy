@@ -1,5 +1,5 @@
 import { ConvoyError, StoreConflictError } from "../errors.js";
-import { callPort, type Clock, type LocalKeyStore, type RecordStore, type ResolvedSettings, type WriteOp } from "../ports.js";
+import { callPort, type AnchorStore, type Clock, type RecordStore, type ResolvedSettings, type WriteOp } from "../ports.js";
 import type { MemberKeys } from "../records/member-keys.js";
 import type { MemberKeyPairs } from "../records/member-keys-wrap.js";
 import type { Suite } from "../suites/suite.js";
@@ -8,7 +8,7 @@ import type { Suite } from "../suites/suite.js";
 export interface TeamPorts {
   readonly suite: Suite;
   readonly store: RecordStore;
-  readonly localKeys: LocalKeyStore;
+  readonly anchors: AnchorStore;
   readonly clock: Clock;
   readonly settings: ResolvedSettings;
 }

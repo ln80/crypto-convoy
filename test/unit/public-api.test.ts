@@ -12,7 +12,7 @@ import { team } from "../support/teams.js";
 describe("public API", () => {
   it("exports exactly these values from each entry", () => {
     expect(Object.keys(main).sort()).toEqual(
-      ["ConvoyError", "RateLimitedError", "StoreConflictError", "createLinkClient", "createVault", "isConvoyError", "version"].sort(),
+      ["ConvoyError", "RateLimitedError", "StoreConflictError", "createLinkClient", "createTeamKeyReceiver", "createVault", "isConvoyError", "version"].sort(),
     );
     expect(Object.keys(browser).sort()).toEqual(["createIndexedDbLocalKeyStore", "takeLinkKey"]);
     expect(Object.keys(testing).sort()).toEqual(["FakeOprfServer", "MemoryLocalKeyStore", "MemoryRecordStore", "fixedClock"]);
@@ -25,8 +25,8 @@ describe("public API", () => {
       ...Object.getOwnPropertyNames(o),
       ...Object.getOwnPropertyNames(Object.getPrototypeOf(o)),
     ];
-    // Operations whose names contain "key" but return only link strings or act on member keys.
-    const allowed = ["shareLinkKey", "rekey", "accountId"];
+    // Names containing "key" that return only link strings or sealed transfers, or act on member keys.
+    const allowed = ["shareLinkKey", "rekey", "accountId", "exportTeamKeys"];
     const exposed = (o: object) => publicNames(o).filter((n) => forbidden.test(n) && !allowed.includes(n));
     expect(exposed(aliceTeam)).toEqual([]);
     expect(exposed(members.alice!.vault)).toEqual([]);

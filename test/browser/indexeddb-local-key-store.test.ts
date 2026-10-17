@@ -86,9 +86,12 @@ describe("IndexedDB LocalKeyStore", () => {
     const server = new MemoryRecordStore();
     const oprf = new FakeOprfServer();
     const localKeys = await createIndexedDbLocalKeyStore({ indexedDB: fresh() });
-    const vault = await createVault({ store: server.as("alice"), oprf, localKeys, settings: FAST }, "alice");
+    const vault = await createVault({ store: server.as("alice"), oprf, deviceKeys: localKeys, anchors: localKeys, settings: FAST }, "alice");
     await vault.setup("1234");
-    await (await vault.createTeam("team-1")).createItem("i", [{ content: new Uint8Array([1]) }]);
+    await vault.createTeam("team-1");
+    const draft = (await vault.openTeam("team-1")).beginItem();
+    draft.addPart(new Uint8Array([1]));
+    await draft.seal("i");
     vault.lock();
     await vault.unlock();
     expect((await vault.openTeam("team-1")).state).toBe("ready");

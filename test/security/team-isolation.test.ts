@@ -15,7 +15,7 @@ describe("SP-02: a team session holds only its own team's keys", () => {
     const { members } = await team("bob");
     const alice = members.alice!;
     const session = await alice.vault.openTeam("team-1");
-    expect(Object.keys(sessionInternals(session).ports).sort()).toEqual(["clock", "localKeys", "settings", "store", "suite"]);
+    expect(Object.keys(sessionInternals(session).ports).sort()).toEqual(["anchors", "clock", "settings", "store", "suite"]);
     expect(JSON.stringify(session)).not.toMatch(/key/i);
     const accountKey = vaultInternals(alice.vault).account().key;
     const reachable = [await sessionInternals(session).teamKey(1)];
@@ -25,7 +25,8 @@ describe("SP-02: a team session holds only its own team's keys", () => {
   it("one team's keys open nothing of another team", async () => {
     const { members } = await team("bob");
     const alice = members.alice!;
-    const teamB = await alice.vault.createTeam("team-2");
+    await alice.vault.createTeam("team-2");
+    const teamB = await alice.vault.openTeam("team-2");
     await teamB.rotate({ keep: [] });
     const teamA = await alice.vault.openTeam("team-1");
 

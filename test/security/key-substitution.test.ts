@@ -48,7 +48,8 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
   it("a grant from another team is refused as out of context", async () => {
     const { members } = await team("bob");
     const bob = members.bob!;
-    const aliceTeam2 = await members.alice!.vault.createTeam("team-2");
+    await members.alice!.vault.createTeam("team-2");
+    const aliceTeam2 = await members.alice!.vault.openTeam("team-2");
     await bob.vault.joinTeam("team-2");
     await aliceTeam2.grant("bob", 1);
     const otherTeam = (await bob.store.list({ type: "grant", teamId: "team-2", accountId: "bob" }))[0];

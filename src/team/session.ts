@@ -4,14 +4,15 @@ import { ConvoyError, isConvoyError, trustFailure } from "../errors.js";
 import { callPort } from "../ports.js";
 import type { Grant } from "../records/grant.js";
 import { hasValidContinuity, parseMemberKeys, type MemberKeys } from "../records/member-keys.js";
-import { openPreviousKey, parseTeamKeyVersion, type TeamKeyVersion } from "../records/team-key-version.js";
-import type { OpenedPart, PartInput } from "../content/context.js";
-import { fetchInbox, readSubmission, storeInbox, type OpenedSubmission } from "../content/inbox.js";
-import { fetchItem, readParts, storeItem, streamPart, type PartStream } from "../content/items.js";
+import { openPreviousKey, type TeamKeyVersion } from "../records/team-key-version.js";
+import { fetchInbox, openSubmissionRecord, storeInbox } from "../content/inbox.js";
+import { newItemDraft, openedItem, type ItemDraft } from "../content/items.js";
+import type { OpenedItem, OpenedSubmission } from "../content/opened.js";
 import { encodeLinkKey } from "../encoding/link.js";
-import { openItemKey } from "../records/item.js";
-import { advanceAnchor, collectAnchors, readServerState } from "./anchors.js";
-import { isOwner, verifyChain, type OwnerChange, type VerifiedChain } from "./chain.js";
+import { itemToJson, openItemKey, parseItem, sealItem, type Item } from "../records/item.js";
+import { advanceAnchor } from "./anchors.js";
+import { loadChain } from "./load.js";
+import { isOwner, type OwnerChange, type VerifiedChain } from "./chain.js";
 import { commitTeam, type MemberBundle, type TeamPorts } from "./context.js";
 import { checkOwnerRule, listGrants, openOwnGrant, type OwnGrant } from "./grants.js";
 import { grantOp, recipientFromGrant, recipientFromKeys, versionOp, type Recipient, type Signer } from "./rotation.js";
@@ -36,6 +37,23 @@ export interface MemberRequest {
   readonly granted: boolean;
 }
 
+/** One account's access, as an owner sees it (§12). */
+export type MemberStatus =
+  | { readonly accountId: string; readonly status: "no-keys" | "approved" }
+  | {
+      readonly accountId: string;
+      readonly status: "awaiting-approval" | "outdated" | "rekey-awaiting-approval";
+      /** `routine`: the previous keys vouch for these; `unproven`: verify out of band (§6.8). */
+      readonly continuity: MemberRequest["continuity"];
+    };
+
+/** Something an owner should act on, with the operation that clears it (§12). */
+export interface Warning {
+  readonly code: "single-owner" | "members-awaiting-approval" | "rekeys-awaiting-approval" | "rotation-needed" | "rotation-interrupted";
+  readonly accountIds: readonly string[];
+  readonly action: "setOwners" | "grant" | "rotate" | "completeRotation";
+}
+
 export interface RotationOptions {
   /** Accounts that receive the new version: an allowlist (§6.6). The caller is always kept. */
   readonly keep: readonly string[];
@@ -54,6 +72,12 @@ const INTERNALS = new WeakMap<TeamSession, SessionInternals>();
 
 export function sessionInternals(session: TeamSession): SessionInternals {
   return INTERNALS.get(session)!;
+}
+
+function continuityOf(newest: MemberKeys, keys: readonly MemberKeys[]): MemberRequest["continuity"] {
+  if (newest.memberKeysVersion === 1) return "new";
+  const previous = keys.find((k) => k.memberKeysVersion === newest.memberKeysVersion - 1);
+  return previous && hasValidContinuity(newest, previous) ? "routine" : "unproven";
 }
 
 export class TeamSession {
@@ -145,8 +169,7 @@ export class TeamSession {
     const keys = await this.#publishedKeys(accountId);
     const newest = keys.at(-1);
     if (!newest) throw new ConvoyError("NOT_GRANTED");
-    const previous = keys.find((k) => k.memberKeysVersion === newest.memberKeysVersion - 1);
-    const continuity = newest.memberKeysVersion === 1 ? "new" : previous && hasValidContinuity(newest, previous) ? "routine" : "unproven";
+    const continuity = continuityOf(newest, keys);
     const granted = (await this.#currentGrants()).some(
       (g) => g.accountId === accountId && g.memberKeysVersion === newest.memberKeysVersion,
     );
@@ -197,32 +220,37 @@ export class TeamSession {
   }
 
   /**
-   * Encrypts and stores an item at the current version (§7.1). Parts are plaintext plus an
-   * optional opaque `meta` (D-16). Throws `NOT_GRANTED`, `STALE_VERSION` (id used or version changed).
+   * Starts an item (§7.1, D-27): add parts, store their ciphertext yourself, then `seal(itemId)`
+   * stores the `item` record at the version current then. Throws `NOT_GRANTED`; `seal` throws
+   * `NOT_GRANTED` or `STALE_VERSION` (id used, version changed while sealing).
    */
-  async createItem(itemId: string, parts: readonly PartInput[]): Promise<void> {
-    const version = this.#writeVersion();
-    await storeItem(this.#ports, { teamId: this.teamId, itemId, teamKeyVersion: version, createdBy: this.accountId }, await this.#teamKey(version), parts);
+  beginItem(): ItemDraft {
+    this.#writeVersion();
+    return newItemDraft(this.#ports, async (itemKey, manifest, itemId) => {
+      const version = this.#writeVersion();
+      const record = sealItem(
+        this.#ports.suite,
+        { teamId: this.teamId, itemId, teamKeyVersion: version, createdBy: this.accountId, createdAt: this.#ports.clock.now() },
+        await this.#teamKey(version),
+        itemKey,
+        manifest,
+      );
+      await commitTeam(this.#ports.store, [{ op: "create", key: { type: "item", teamId: this.teamId, itemId }, record: itemToJson(record) }]);
+    });
   }
 
   /**
-   * Opens every part of an item, buffered (§7.2): all or nothing. Refuses parts above
-   * `maxBufferedSize` before downloading (`MALFORMED_RECORD`). Throws `NOT_GRANTED`, `DECRYPTION_FAILED`.
+   * Opens an item's key record from the key store (§7.2); parts are then opened on demand with
+   * the ciphertext you fetch. Throws `NOT_GRANTED`, `DECRYPTION_FAILED`, `STORE_ERROR` (no record).
    */
-  async openItem(itemId: string): Promise<OpenedPart[]> {
-    const record = await fetchItem(this.#ports, this.teamId, itemId);
-    return readParts(this.#ports, record, await this.#itemKey(record));
-  }
-
-  /** Opt-in streaming read of one part (§3.4): discard what you received if it ends with an error. */
-  async openItemStream(itemId: string, index: number): Promise<PartStream> {
-    const record = await fetchItem(this.#ports, this.teamId, itemId);
-    return streamPart(this.#ports, record, await this.#itemKey(record), index);
+  async openItem(itemId: string): Promise<OpenedItem> {
+    const record = await this.#fetchItem(itemId);
+    return openedItem(this.#ports, record, await this.#itemKey(record));
   }
 
   /** The item key for a share link's fragment (§7.3). Whoever holds the link can read the item (TH-23). */
   async shareLinkKey(itemId: string): Promise<string> {
-    const key = await this.#itemKey(await fetchItem(this.#ports, this.teamId, itemId));
+    const key = await this.#itemKey(await this.#fetchItem(itemId));
     try {
       return encodeLinkKey(key);
     } finally {
@@ -233,7 +261,7 @@ export class TeamSession {
   /** Creates an inbox at the current version; the link key goes in the inbox link's fragment (§7.4). */
   async createInbox(inboxId: string): Promise<{ linkKey: string }> {
     const version = this.#writeVersion();
-    return storeInbox(this.#ports, { teamId: this.teamId, inboxId, teamKeyVersion: version, createdBy: this.accountId }, await this.#teamKey(version));
+    return storeInbox(this.#ports, this.#ports.store, { teamId: this.teamId, inboxId, teamKeyVersion: version, createdBy: this.accountId }, await this.#teamKey(version));
   }
 
   /**
@@ -241,17 +269,84 @@ export class TeamSession {
    * member's access to new submissions once the integration retires `inboxId`'s link.
    */
   async replaceInbox(inboxId: string, newInboxId: string): Promise<{ linkKey: string }> {
-    await fetchInbox(this.#ports, this.teamId, inboxId);
+    await fetchInbox(this.#ports.store, this.teamId, inboxId);
     return this.createInbox(newInboxId);
   }
 
-  /** Opens a submission, buffered (§7.6). Throws `NOT_GRANTED`, `DECRYPTION_FAILED`, `TRUST_FAILURE` (`key_mismatch`). */
-  async openSubmission(inboxId: string, submissionId: string): Promise<OpenedSubmission> {
-    const inbox = await fetchInbox(this.#ports, this.teamId, inboxId);
-    return readSubmission(this.#ports, inbox, await this.#teamKey(inbox.teamKeyVersion), submissionId);
+  /**
+   * Opens a submission record the integration stored (§7.6); parts are then opened on demand.
+   * Throws `NOT_GRANTED`, `DECRYPTION_FAILED`, `TRUST_FAILURE` (`context_mismatch`, `key_mismatch`).
+   */
+  async openSubmission(inboxId: string, submissionId: string, submissionRecord: unknown): Promise<OpenedSubmission> {
+    const inbox = await fetchInbox(this.#ports.store, this.teamId, inboxId);
+    return openSubmissionRecord(this.#ports, inbox, await this.#teamKey(inbox.teamKeyVersion), submissionId, submissionRecord);
   }
 
-  async #itemKey(record: Parameters<typeof openItemKey>[0]): Promise<Uint8Array> {
+  /**
+   * Each account's access, for an owner's member list (§12, SP-15): `no-keys` (hasn't set up or
+   * joined), `awaiting-approval`, `approved`, `outdated` (only older versions granted), or
+   * `rekey-awaiting-approval` (newer keys published, with their continuity hint).
+   */
+  async memberStatuses(accountIds: readonly string[]): Promise<MemberStatus[]> {
+    const current = await this.#currentGrants();
+    const statuses: MemberStatus[] = [];
+    for (const accountId of accountIds) {
+      const keys = await this.#publishedKeys(accountId);
+      const newest = keys.at(-1);
+      const granted = current.filter((g) => g.accountId === accountId).map((g) => g.memberKeysVersion);
+      if (!newest) {
+        statuses.push({ accountId, status: "no-keys" });
+      } else if (granted.includes(newest.memberKeysVersion)) {
+        statuses.push({ accountId, status: "approved" });
+      } else if (granted.length > 0) {
+        statuses.push({ accountId, status: "rekey-awaiting-approval", continuity: continuityOf(newest, keys) });
+      } else {
+        const older = (await this.#grantsFor(accountId)).length > 0;
+        statuses.push({ accountId, status: older ? "outdated" : "awaiting-approval", continuity: continuityOf(newest, keys) });
+      }
+    }
+    return statuses;
+  }
+
+  /**
+   * What needs an owner's attention (§12, SP-15), each with the operation that clears it.
+   * `activeAccountIds` are the accounts the integration considers members now.
+   */
+  async warnings(activeAccountIds: readonly string[]): Promise<Warning[]> {
+    const warnings: Warning[] = [];
+    if (this.owners().length === 1) warnings.push({ code: "single-owner", accountIds: this.owners(), action: "setOwners" });
+    const statuses = await this.memberStatuses(activeAccountIds);
+    const waiting = statuses.filter((s) => s.status === "awaiting-approval" || s.status === "outdated").map((s) => s.accountId);
+    if (waiting.length > 0) warnings.push({ code: "members-awaiting-approval", accountIds: waiting, action: "grant" });
+    const rekeys = statuses.filter((s) => s.status === "rekey-awaiting-approval").map((s) => s.accountId);
+    if (rekeys.length > 0) warnings.push({ code: "rekeys-awaiting-approval", accountIds: rekeys, action: "rotate" });
+    const granted = (await this.members()).map((m) => m.accountId);
+    const inactive = [...new Set(granted.filter((id) => !activeAccountIds.includes(id)))];
+    if (inactive.length > 0) warnings.push({ code: "rotation-needed", accountIds: inactive, action: "rotate" });
+    if (this.currentVersion > 1) {
+      const previous = (await this.#grantsOf(this.currentVersion - 1)).map((g) => g.accountId);
+      const missing = [...new Set(previous.filter((id) => activeAccountIds.includes(id) && !granted.includes(id)))];
+      if (missing.length > 0) warnings.push({ code: "rotation-interrupted", accountIds: missing, action: "completeRotation" });
+    }
+    return warnings;
+  }
+
+  async #fetchItem(itemId: string): Promise<Item> {
+    const json = await callPort(() => this.#ports.store.get({ type: "item", teamId: this.teamId, itemId }));
+    if (json === null || json === undefined) throw new ConvoyError("STORE_ERROR");
+    return parseItem(json, { teamId: this.teamId, itemId });
+  }
+
+  async #grantsFor(accountId: string): Promise<Grant[]> {
+    return this.#guard(async () => {
+      const chain = this.#requireChain();
+      const grants = await listGrants(this.#ports, this.teamId, { accountId });
+      for (const grant of grants) checkOwnerRule(grant, chain);
+      return grants;
+    });
+  }
+
+  async #itemKey(record: Item): Promise<Uint8Array> {
     return openItemKey(record, await this.#teamKey(record.teamKeyVersion));
   }
 
@@ -301,16 +396,7 @@ export class TeamSession {
   }
 
   async #verify(): Promise<void> {
-    const { store } = this.#ports;
-    const server = await readServerState(this.#ports, this.accountId, this.teamId, this.#bundles);
-    const anchors = await collectAnchors(this.#ports, this.accountId, this.teamId, server, this.#invite);
-    const records = (await callPort(() => store.list({ type: "team-key-version", teamId: this.teamId, fromVersion: 1 }))).map(
-      (json) => parseTeamKeyVersion(json, { teamId: this.teamId }),
-    );
-    const memberKeys = (await callPort(() => store.list({ type: "member-keys", teamId: this.teamId }))).map((json) =>
-      parseMemberKeys(json, { teamId: this.teamId, accountId: (json as { accountId: string }).accountId }),
-    );
-    const chain = verifyChain({ records, anchors, memberKeys });
+    const { chain, server } = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles, this.#invite);
     const own = await openOwnGrant(this.#ports, this.teamId, this.accountId, chain, this.#bundles);
 
     this.#chain = chain;

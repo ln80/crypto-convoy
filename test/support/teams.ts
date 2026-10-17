@@ -5,14 +5,16 @@ import { world } from "./fixtures.js";
 export async function team(...others: string[]) {
   const w = world();
   const alice = await w.account("alice");
-  const aliceTeam = await alice.vault.createTeam("team-1");
+  await alice.vault.createTeam("team-1");
+  const aliceTeam = await alice.vault.openTeam("team-1");
   const members: Record<string, Awaited<ReturnType<typeof w.account>>> = { alice };
   for (const name of others) {
     const member = await w.account(name);
-    const pending = await member.vault.joinTeam("team-1");
+    await member.vault.joinTeam("team-1");
+    // The joiner's first open: first contact, anchored from here on (§6.1).
+    (await member.vault.openTeam("team-1")).close();
     const request = await aliceTeam.memberRequest(name);
     await aliceTeam.grant(name, request.memberKeysVersion);
-    pending.close();
     members[name] = member;
   }
   return { w, members, aliceTeam };

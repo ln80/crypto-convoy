@@ -11,7 +11,8 @@ describe("SP-12: compromised member keys can be replaced", () => {
   it("a routine re-key is reported as such, and receives nothing until an owner rotates", async () => {
     const { members, aliceTeam } = await team("bob");
     const bob = members.bob!;
-    const rekeyed = await bob.vault.rekey("team-1");
+    await bob.vault.rekey("team-1");
+    const rekeyed = await bob.vault.openTeam("team-1");
     expect(rekeyed.state).toBe("ready"); // still reading with the old keys
     expect(await aliceTeam.memberRequest("bob")).toEqual({ accountId: "bob", memberKeysVersion: 2, continuity: "routine", granted: false });
     expect(await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 })).toEqual([]);

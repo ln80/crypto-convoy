@@ -17,7 +17,7 @@ import { deriveRecoveryKey } from "./recovery-key.js";
 /** The server's current account key version, never below the highest this device accepted (SP-07). */
 export async function currentVersion(ports: AccountPorts, accountId: string): Promise<number | null> {
   const version = await callPort(() => ports.store.getAccountKeyVersion(accountId));
-  const seen = await callPort(() => ports.localKeys.getAccountKeyVersion(accountId));
+  const seen = await callPort(() => ports.deviceKeys.getAccountKeyVersion(accountId));
   if (version === null) {
     if (seen !== null) throw trustFailure("rollback");
     return null;
@@ -28,9 +28,9 @@ export async function currentVersion(ports: AccountPorts, accountId: string): Pr
 }
 
 export async function acceptVersion(ports: AccountPorts, account: OpenAccount): Promise<void> {
-  const seen = await callPort(() => ports.localKeys.getAccountKeyVersion(account.accountId));
+  const seen = await callPort(() => ports.deviceKeys.getAccountKeyVersion(account.accountId));
   if (seen === null || account.version > seen) {
-    await callPort(() => ports.localKeys.setAccountKeyVersion(account.accountId, account.version));
+    await callPort(() => ports.deviceKeys.setAccountKeyVersion(account.accountId, account.version));
   }
 }
 

@@ -60,14 +60,6 @@ describe("server contract (§11)", () => {
     await expect(alice.commit([create({ ...r.grant, accountId: "bob", teamKeyVersion: 2 })])).rejects.toEqual(conflict);
   });
 
-  it("accepts a part only after or with its record", async () => {
-    const { alice } = teamStore();
-    const part: WriteOp = { op: "create-part", key: { type: "item-part", teamId: "team-1", itemId: "item-1", index: 0 }, bytes: new Uint8Array(3) };
-    await alice.commit([create(r["team-key-version"]), create(r.grant)]);
-    await expect(alice.commit([part])).rejects.toEqual(conflict);
-    await alice.commit([create(r.item), part]);
-  });
-
   it("stores a record only under its own identity", async () => {
     const { alice } = teamStore();
     await expect(alice.commit([{ op: "create", key: { type: "member-keys", teamId: "team-2", accountId: "alice", memberKeysVersion: 1 }, record: r["member-keys"] }])).rejects.toEqual(conflict);
@@ -110,7 +102,7 @@ describe("server contract (§11)", () => {
     await alice.commit([create(wrap)]);
     await alice.commit([{ op: "delete", key: keyOf(wrap) }]);
     expect(await alice.get(keyOf(wrap))).toBeNull();
-    expect(server.dump().records).toContainEqual(wrap);
+    expect(server.dump()).toContainEqual(wrap);
     await alice.commit([{ op: "delete", key: keyOf(wrap) }, create(wrap)]);
     expect(await alice.get(keyOf(wrap))).toEqual(wrap);
   });

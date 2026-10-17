@@ -1,6 +1,6 @@
-// An honest in-memory server applying every rule of protocol §11 (D-24). Not persistent.
+// An honest in-memory key store applying every rule of protocol §11 (D-24, D-25). Not persistent.
 import { StoreConflictError } from "../errors.js";
-import type { PartKey, RecordKey, RecordQuery, RecordStore, WireRecord, WriteOp } from "../ports.js";
+import type { RecordKey, RecordQuery, RecordStore, WireRecord, WriteOp } from "../ports.js";
 
 interface Entry {
   readonly key: RecordKey;
@@ -19,14 +19,13 @@ const IDENTITY: Record<RecordKey["type"], readonly string[]> = {
   grant: ["teamId", "accountId", "memberKeysVersion", "teamKeyVersion"],
   item: ["teamId", "itemId"],
   inbox: ["teamId", "inboxId"],
-  submission: ["teamId", "inboxId", "submissionId"],
 };
 
 /** Records served only to their own account (§11, server contract rule 1). */
 const PRIVATE = new Set<RecordKey["type"]>(["account-key-wrap", "member-keys-wrap", "team-state"]);
 
 const fieldsOf = (key: object) => key as Record<string, unknown>;
-const keyString = (key: RecordKey | PartKey) => JSON.stringify(Object.entries(key).sort(([a], [b]) => a.localeCompare(b)));
+const keyString = (key: RecordKey) => JSON.stringify(Object.entries(key).sort(([a], [b]) => a.localeCompare(b)));
 const clone = <T>(value: T): T => structuredClone(value);
 
 class Forbidden extends Error {}
@@ -37,7 +36,6 @@ class Forbidden extends Error {}
  */
 export class MemoryRecordStore {
   readonly #records = new Map<string, Entry>();
-  readonly #parts = new Map<string, Uint8Array>();
   readonly #accountVersions = new Map<string, number>();
 
   /** A client signed in as `accountId`. */
@@ -45,7 +43,7 @@ export class MemoryRecordStore {
     return this.#view(accountId);
   }
 
-  /** A client with no account: share links and inbox senders. */
+  /** A client with no account, for example a link holder reading an `item` record (§7.3). */
   anonymous(): RecordStore {
     return this.#view(null);
   }
@@ -57,8 +55,8 @@ export class MemoryRecordStore {
   }
 
   /** Every record ever written, deleted ones included: what a database thief would get. */
-  dump(): { records: WireRecord[]; parts: Uint8Array[] } {
-    return { records: [...this.#records.values()].map((e) => clone(e.record)), parts: [...this.#parts.values()].map(clone) };
+  dump(): WireRecord[] {
+    return [...this.#records.values()].map((e) => clone(e.record));
   }
 
   #view(caller: string | null): RecordStore {
@@ -68,17 +66,6 @@ export class MemoryRecordStore {
         if (!canRead(key)) throw new Forbidden("private record");
         const entry = this.#records.get(keyString(key));
         return entry && !entry.deleted ? clone(entry.record) : null;
-      },
-      getPart: async (key) => {
-        const part = this.#parts.get(keyString(key));
-        return part ? part.slice() : null;
-      },
-      getPartStream: async (key) => {
-        const part = this.#parts.get(keyString(key));
-        if (!part) return null;
-        return (async function* () {
-          for (let offset = 0; offset < part.length; offset += 1 << 20) yield part.slice(offset, offset + (1 << 20));
-        })();
       },
       list: async (query) => this.#list(query, caller),
       getAccountKeyVersion: async (accountId) => {
@@ -127,7 +114,6 @@ export class MemoryRecordStore {
   /** Applies the batch to copies and swaps them in only if every rule holds (atomic). */
   #commit(ops: readonly WriteOp[], caller: string | null): void {
     const records = new Map([...this.#records].map(([k, e]) => [k, { ...e }]));
-    const parts = new Map(this.#parts);
     const versions = new Map(this.#accountVersions);
     const conflict = (why: string) => new StoreConflictError(why);
     const ownOnly = (key: RecordKey) => {
@@ -159,16 +145,6 @@ export class MemoryRecordStore {
             atCurrentVersion.push({ teamId: op.key.teamId, version: op.record["teamKeyVersion"] });
           }
           records.set(keyString(op.key), { key: clone(op.key), record: clone(op.record), deleted: false });
-          break;
-        }
-        case "create-part": {
-          const parent: RecordKey =
-            op.key.type === "item-part"
-              ? { type: "item", teamId: op.key.teamId, itemId: op.key.itemId }
-              : { type: "submission", teamId: op.key.teamId, inboxId: op.key.inboxId, submissionId: op.key.submissionId };
-          if (!live(parent)) throw conflict("part before its record");
-          if (parts.has(keyString(op.key))) throw conflict("write-once");
-          parts.set(keyString(op.key), op.bytes.slice());
           break;
         }
         case "compare-and-set": {
@@ -219,8 +195,6 @@ export class MemoryRecordStore {
 
     this.#records.clear();
     for (const [k, e] of records) this.#records.set(k, e);
-    this.#parts.clear();
-    for (const [k, p] of parts) this.#parts.set(k, p);
     this.#accountVersions.clear();
     for (const [k, v] of versions) this.#accountVersions.set(k, v);
   }

@@ -54,7 +54,7 @@ describe("SP-11: the account key can be rotated", () => {
     const oldKey = openAccountKeyWrap(v1, device.deviceKey);
 
     await laptop.vault.rotate({ pin: "1234" });
-    const after = w.server.dump().records.filter((r) => r["accountKeyVersion"] === 2);
+    const after = w.server.dump().filter((r) => r["accountKeyVersion"] === 2);
     expect(after.length).toBeGreaterThan(0);
     for (const json of after) {
       const wrap = parseAccountKeyWrap(json, { accountId: "alice", accountKeyVersion: 2, method: json["method"] as "pin" });

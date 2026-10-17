@@ -1,6 +1,6 @@
 // A malicious server for adversarial tests: an honest store view with tamper hooks
 // (testing guide: swap, replay, rollback, drop, fork, garbage, withhold).
-import type { PartKey, RecordKey, RecordQuery, RecordStore, WriteOp } from "../../src/ports.js";
+import type { RecordKey, RecordQuery, RecordStore, WriteOp } from "../../src/ports.js";
 
 type Match = { type: string } & Record<string, unknown>;
 const matches = (key: object, match: Match) =>
@@ -13,7 +13,6 @@ export class TamperingStore implements RecordStore {
   #dropped: Match[] = [];
   #chainCuts = new Map<string, number>();
   #forks: { teamId: string; version: number; record: unknown }[] = [];
-  #partReplacements: { match: Match; bytes: Uint8Array }[] = [];
   #commitFilter: ((ops: readonly WriteOp[]) => void) | undefined;
   #accountVersion: number | null | undefined;
   readonly commits: WriteOp[][] = [];
@@ -51,11 +50,6 @@ export class TamperingStore implements RecordStore {
     return this;
   }
 
-  replacePart(match: Match, bytes: Uint8Array): this {
-    this.#partReplacements.push({ match, bytes });
-    return this;
-  }
-
   /** Runs before each commit reaches the honest store; may throw to refuse or interrupt it. */
   onCommit(filter: (ops: readonly WriteOp[]) => void): this {
     this.#commitFilter = filter;
@@ -67,7 +61,6 @@ export class TamperingStore implements RecordStore {
     this.#dropped = [];
     this.#chainCuts.clear();
     this.#forks = [];
-    this.#partReplacements = [];
     this.#commitFilter = undefined;
     this.#accountVersion = undefined;
     return this;
@@ -89,19 +82,6 @@ export class TamperingStore implements RecordStore {
 
   async get(key: RecordKey) {
     return this.#tamper(await this.inner.get(key), key);
-  }
-
-  async getPart(key: PartKey) {
-    const replacement = this.#partReplacements.find((r) => matches(key, r.match));
-    return replacement ? replacement.bytes.slice() : this.inner.getPart(key);
-  }
-
-  async getPartStream(key: PartKey) {
-    const bytes = await this.getPart(key);
-    if (!bytes) return null;
-    return (async function* () {
-      yield bytes;
-    })();
   }
 
   async list(query: RecordQuery) {
@@ -130,23 +110,18 @@ export class TamperingStore implements RecordStore {
   }
 }
 
-/** Keeps every byte sequence sent to the server, for SP-01. */
+/** Keeps every record sent to the key store, for SP-01. */
 export class RecordingStore implements RecordStore {
-  readonly sent: Uint8Array[] = [];
   readonly sentText: string[] = [];
 
   constructor(readonly inner: RecordStore) {}
 
   get = (key: RecordKey) => this.inner.get(key);
-  getPart = (key: PartKey) => this.inner.getPart(key);
   list = (query: RecordQuery) => this.inner.list(query);
   getAccountKeyVersion = (accountId: string) => this.inner.getAccountKeyVersion(accountId);
 
   async commit(ops: readonly WriteOp[]) {
-    for (const op of ops) {
-      if (op.op === "create-part") this.sent.push(op.bytes.slice());
-      else this.sentText.push(JSON.stringify(op));
-    }
+    for (const op of ops) this.sentText.push(JSON.stringify(op));
     await this.inner.commit(ops);
   }
 }

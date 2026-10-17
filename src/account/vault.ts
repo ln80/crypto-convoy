@@ -6,8 +6,9 @@ import {
   resolveSettings,
   systemClock,
   type Clock,
+  type AnchorStore,
+  type DeviceKeyStore,
   type LocalDevice,
-  type LocalKeyStore,
   type OprfService,
   type RecordStore,
   type Settings,
@@ -20,7 +21,7 @@ import type { AccountPorts, OpenAccount } from "./context.js";
 import { createWrap, replaceWrap, wrapKey } from "./context.js";
 import { deriveRecoveryKey } from "./recovery-key.js";
 import { rotateAccount } from "./rotation.js";
-import { newMemberKeys, newTeamOps, openBundles, openSession } from "./member-custody.js";
+import { currentOwners, exportBundles, newMemberKeys, newTeamOps, openBundles, openSession } from "./member-custody.js";
 import {
   acceptVersion,
   commit,
@@ -35,9 +36,17 @@ import {
 export interface VaultOptions {
   readonly store: RecordStore;
   readonly oprf: OprfService;
-  readonly localKeys: LocalKeyStore;
+  /** The vault's half of local storage: device key, account key version. */
+  readonly deviceKeys: DeviceKeyStore;
+  /** Only to open team sessions in the vault's own context (`openTeam`). */
+  readonly anchors?: AnchorStore;
   readonly clock?: Clock;
   readonly settings?: Settings;
+}
+
+export interface VaultStatus {
+  readonly account: "not-set-up" | "locked" | "unlocked";
+  readonly deviceRegistered: boolean;
 }
 
 /** Opens an account's vault. Loads libsodium; throws `MALFORMED_RECORD` for settings below the floor. */
@@ -47,7 +56,8 @@ export async function createVault(options: VaultOptions, accountId: string): Pro
     suite: CURRENT_SUITE,
     store: options.store,
     oprf: options.oprf,
-    localKeys: options.localKeys,
+    deviceKeys: options.deviceKeys,
+    ...(options.anchors ? { anchors: options.anchors } : {}),
     clock: options.clock ?? systemClock,
     settings: resolveSettings(options.settings),
   };
@@ -102,7 +112,7 @@ export class Vault {
    * to show once. Throws `PIN_RATE_LIMITED`, `STALE_VERSION` (account exists), `STORE_ERROR`.
    */
   async setup(pin: string): Promise<{ recoveryPhrase: string }> {
-    const { suite, localKeys } = this.#ports;
+    const { suite, deviceKeys } = this.#ports;
     const account: OpenAccount = { accountId: this.accountId, version: 1, key: suite.randomBytes(suite.sizes.key) };
     const recoveryPhrase = suite.generateRecoveryPhrase();
     const { device, op } = newDevice(this.#ports, account);
@@ -112,7 +122,7 @@ export class Vault {
       op,
       { op: "set-account-key-version", accountId: this.accountId, expected: null, accountKeyVersion: 1 },
     ]);
-    await callPort(() => localKeys.setDevice(this.accountId, device));
+    await callPort(() => deviceKeys.setDevice(this.accountId, device));
     await acceptVersion(this.#ports, account);
     this.#account = account;
     return { recoveryPhrase };
@@ -120,8 +130,7 @@ export class Vault {
 
   /** Unlocks with this device's key (§5.4). Throws `DEVICE_NOT_REGISTERED`, `TRUST_FAILURE` (`rollback`). */
   async unlock(): Promise<void> {
-    const { localKeys } = this.#ports;
-    const device = await callPort(() => localKeys.getDevice(this.accountId));
+    const device = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
     if (!device) throw new ConvoyError("DEVICE_NOT_REGISTERED");
     const version = await currentVersion(this.#ports, this.accountId);
     if (version === null) throw new ConvoyError("DEVICE_NOT_REGISTERED");
@@ -206,8 +215,8 @@ export class Vault {
   async revokeDevice(deviceId: string): Promise<void> {
     const account = this.#requireAccount();
     await commit(this.#ports, [{ op: "delete", key: wrapKey({ accountId: this.accountId, accountKeyVersion: account.version, method: "device", deviceId }) }]);
-    const local = await callPort(() => this.#ports.localKeys.getDevice(this.accountId));
-    if (local?.deviceId === deviceId) await callPort(() => this.#ports.localKeys.deleteDevice(this.accountId));
+    const local = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
+    if (local?.deviceId === deviceId) await callPort(() => this.#ports.deviceKeys.deleteDevice(this.accountId));
   }
 
   /**
@@ -222,53 +231,70 @@ export class Vault {
     return recoveryPhrase ? { recoveryPhrase } : {};
   }
 
+  /** Whether the account is set up, the vault unlocked, and this device registered (§12). Never calls the OPRF. */
+  async status(): Promise<VaultStatus> {
+    const version = await callPort(() => this.#ports.store.getAccountKeyVersion(this.accountId));
+    if (version === null) return { account: "not-set-up", deviceRegistered: false };
+    const device = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
+    const wrap = device
+      ? await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId })
+      : null;
+    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null };
+  }
+
   /** Creates a team with this account as its first owner (§6.3). Throws `STALE_VERSION` if it exists. */
-  async createTeam(teamId: string): Promise<TeamSession> {
+  async createTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
     await commit(this.#ports, newTeamOps(this.#ports, account, teamId));
-    return openSession(this.#ports, account, teamId);
   }
 
   /**
-   * Creates this account's member keys for a team; it stays `pending` until an owner grants it (§6.4).
-   * `anchor` comes from the invite link's fragment: the chain must contain it.
+   * Creates this account's member keys for a team, if it has none; it stays `pending` until an
+   * owner grants it (§6.4). Open the team then, here or in another context.
    */
-  async joinTeam(teamId: string, options: { anchor?: string } = {}): Promise<TeamSession> {
+  async joinTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
-    const invite = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
     if ((await openBundles(this.#ports, account, teamId)).length === 0) {
       await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1).ops);
     }
-    return openSession(this.#ports, account, teamId, invite);
   }
 
-  /** Opens a team: hands the session only this team's member keys (§5.8, SP-02). */
-  async openTeam(teamId: string): Promise<TeamSession> {
-    return openSession(this.#ports, this.#requireAccount(), teamId);
+  /**
+   * Opens a team in the vault's own context: hands the session only this team's member keys
+   * (§5.8, SP-02). Needs `anchors`. `anchor` comes from an invite link's fragment on a first join.
+   */
+  async openTeam(teamId: string, options: { anchor?: string } = {}): Promise<TeamSession> {
+    const invite = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
+    return openSession(this.#ports, this.#requireAccount(), teamId, invite);
+  }
+
+  /**
+   * One team's member keys sealed to a receiver in another context (§3.8, D-29). Deciding which
+   * context may ask is the integration's. Throws `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `NOT_GRANTED`.
+   */
+  async exportTeamKeys(teamId: string, request: string): Promise<string> {
+    return exportBundles(this.#ports, this.#requireAccount(), teamId, request);
   }
 
   /**
    * New member keys for a team (§6.8 step 1), signed for continuity by the current ones.
-   * They receive nothing until an owner approves them by rotating.
+   * They receive nothing until an owner approves them by rotating. Throws `NOT_GRANTED`.
    */
-  async rekey(teamId: string): Promise<TeamSession> {
+  async rekey(teamId: string): Promise<void> {
     const account = this.#requireAccount();
     const [newest] = await openBundles(this.#ports, account, teamId);
     if (!newest) throw new ConvoyError("NOT_GRANTED");
     await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, newest.memberKeysVersion + 1, newest).ops);
-    return openSession(this.#ports, account, teamId);
   }
 
-  /** Deletes this account's keys and state for a team (§5.9). Throws `LAST_OWNER` for the only owner. */
+  /**
+   * Deletes this account's keys and state for a team (§5.9), after verifying the chain here.
+   * Throws `LAST_OWNER` for the only owner, `TRUST_FAILURE` if the chain doesn't verify.
+   */
   async leaveTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
-    const session = await this.openTeam(teamId);
-    if (session.state === "unverified") throw session.failure!;
-    if (session.currentVersion > 0) {
-      const owners = session.owners();
-      if (owners.length === 1 && owners[0] === this.accountId) throw new ConvoyError("LAST_OWNER");
-    }
-    session.close();
+    const owners = await currentOwners(this.#ports, account, teamId);
+    if (owners.length === 1 && owners[0] === this.accountId) throw new ConvoyError("LAST_OWNER");
     const bundles = await openBundles(this.#ports, account, teamId);
     await commit(this.#ports, [
       ...bundles.map((b) => ({
@@ -277,12 +303,12 @@ export class Vault {
       })),
       { op: "delete", key: { type: "team-state", accountId: this.accountId, teamId } },
     ]);
-    await callPort(() => this.#ports.localKeys.deleteAnchor(this.accountId, teamId));
+    if (this.#ports.anchors) await callPort(() => this.#ports.anchors!.deleteAnchor(this.accountId, teamId));
   }
 
   /** Registers this device unless it has a live wrap at the account's version (§5.5). */
   async #registration(account: OpenAccount): Promise<{ ops: WriteOp[]; device: LocalDevice | null }> {
-    const local = await callPort(() => this.#ports.localKeys.getDevice(this.accountId));
+    const local = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
     if (local) {
       const expected = { accountId: this.accountId, accountKeyVersion: account.version, method: "device", deviceId: local.deviceId } as const;
       if (await fetchWrap(this.#ports, expected)) return { ops: [], device: null };
@@ -293,7 +319,7 @@ export class Vault {
 
   /** Kept only once its wrap is stored. */
   async #keepDevice(device: LocalDevice | null) {
-    if (device) await callPort(() => this.#ports.localKeys.setDevice(this.accountId, device));
+    if (device) await callPort(() => this.#ports.deviceKeys.setDevice(this.accountId, device));
   }
 
   async #requireVersion(): Promise<number> {

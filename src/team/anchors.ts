@@ -15,7 +15,7 @@ const stateKey = (accountId: string, teamId: string): TeamStateKey => ({ type: "
 
 /** The server's `team-state`, opened with any of this account's team state keys; unreadable is `state_unreadable`. */
 export async function readServerState(
-  ports: TeamPorts,
+  ports: Pick<TeamPorts, "store" | "suite">,
   accountId: string,
   teamId: string,
   bundles: readonly MemberBundle[],
@@ -33,18 +33,6 @@ export async function readServerState(
   throw trustFailure("state_unreadable");
 }
 
-/** Local anchor, server anchor and invite anchor: every one must be in the chain (§6.1 step 1). */
-export async function collectAnchors(
-  ports: TeamPorts,
-  accountId: string,
-  teamId: string,
-  server: ServerState | null,
-  invite?: Anchor,
-): Promise<Anchor[]> {
-  const local = await callPort(() => ports.localKeys.getAnchor(accountId, teamId));
-  return [local, server?.anchor, invite].filter((a): a is Anchor => a !== null && a !== undefined);
-}
-
 /** Advances the anchor to the newest verified version, locally and on the server (§6.1 step 7). */
 export async function advanceAnchor(
   ports: TeamPorts,
@@ -56,8 +44,8 @@ export async function advanceAnchor(
 ): Promise<void> {
   const newest = chain.records[chain.records.length - 1]!;
   const anchor = { version: newest.version, hash: chain.hashes.get(newest.version)! };
-  const local = await callPort(() => ports.localKeys.getAnchor(accountId, teamId));
-  if (!local || local.version < anchor.version) await callPort(() => ports.localKeys.setAnchor(accountId, teamId, anchor));
+  const local = await callPort(() => ports.anchors.getAnchor(accountId, teamId));
+  if (!local || local.version < anchor.version) await callPort(() => ports.anchors.setAnchor(accountId, teamId, anchor));
 
   for (let attempt = 0; attempt < 3; attempt++) {
     if (server && server.anchor.version >= anchor.version) return;

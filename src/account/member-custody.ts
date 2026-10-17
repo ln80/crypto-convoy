@@ -1,6 +1,8 @@
 // Member keys live under the account key, so creating and opening them runs in the vault (§5.8, §5.9).
 import type { Anchor } from "../encoding/link.js";
-import { isConvoyError } from "../errors.js";
+import { ConvoyError, isConvoyError } from "../errors.js";
+import { decodeRequest, sealTransfer } from "../records/transfer.js";
+import { loadChain } from "../team/load.js";
 import { callPort, type WriteOp } from "../ports.js";
 import { createGrant, grantToJson } from "../records/grant.js";
 import { createMemberKeys, memberKeysToJson, parseMemberKeys } from "../records/member-keys.js";
@@ -107,8 +109,12 @@ export function newTeamOps(ports: AccountPorts, account: OpenAccount, teamId: st
   ];
 }
 
-/** Any trust failure, in this account's own keys or in the team's records, gives an `unverified` session (§6.1). */
+/**
+ * Opens a session in the vault's own context (§5.8). Any trust failure, in this account's own
+ * keys or in the team's records, gives an `unverified` session (§6.1).
+ */
 export async function openSession(ports: AccountPorts, account: OpenAccount, teamId: string, invite?: Anchor): Promise<TeamSession> {
+  if (!ports.anchors) throw new Error("crypto-convoy: give the vault `anchors` to open teams in its context, or use exportTeamKeys");
   let bundles: MemberBundle[];
   try {
     bundles = await openBundles(ports, account, teamId);
@@ -120,6 +126,33 @@ export async function openSession(ports: AccountPorts, account: OpenAccount, tea
 }
 
 /** Only what team work needs: no OPRF, no account key (D-03). */
-function teamPorts({ suite, store, localKeys, clock, settings }: AccountPorts): TeamPorts {
-  return { suite, store, localKeys, clock, settings };
+function teamPorts({ suite, store, anchors, clock, settings }: AccountPorts): TeamPorts {
+  return { suite, store, anchors: anchors!, clock, settings };
+}
+
+/** One team's member keys sealed to a receiver in another context (§3.8, D-29). Throws `NOT_GRANTED` without keys. */
+export async function exportBundles(ports: AccountPorts, account: OpenAccount, teamId: string, request: string): Promise<string> {
+  const { suite } = ports;
+  const receiver = decodeRequest(suite, request);
+  const bundles = await openBundles(ports, account, teamId);
+  if (bundles.length === 0) throw new ConvoyError("NOT_GRANTED");
+  return sealTransfer(
+    suite,
+    receiver,
+    { accountId: account.accountId, teamId },
+    bundles.map((b) => ({
+      memberKeysVersion: b.memberKeysVersion,
+      // libsodium's Ed25519 secret key is seed ‖ public key.
+      signingSeed: b.pairs.signing.secretKey.subarray(0, 32),
+      encryptionSecretKey: b.pairs.encryption.secretKey,
+      teamStateKey: b.pairs.teamStateKey,
+    })),
+  );
+}
+
+/** The owners of the newest verified version, read in the vault for the last-owner rule (§5.9). */
+export async function currentOwners(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<string[]> {
+  const bundles = await openBundles(ports, account, teamId);
+  const { chain } = await loadChain(ports, account.accountId, teamId, bundles);
+  return chain.records.at(-1)!.owners.map((o) => o.accountId);
 }

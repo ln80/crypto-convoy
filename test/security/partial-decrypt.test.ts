@@ -10,6 +10,7 @@ import { labelled } from "../../src/encoding/labels.js";
 import { createVault } from "../../src/account/vault.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { FAST } from "../support/fixtures.js";
+import { ContentStore } from "../support/content-store.js";
 import { team } from "../support/teams.js";
 
 const CHUNK = cc1.sizes.streamChunk;
@@ -113,25 +114,39 @@ describe("SP-18: the streaming read yields only authenticated chunks and ends wi
 });
 
 describe("SP-18: the buffered API refuses oversized parts before downloading", () => {
-  it("never fetches a part whose manifest size exceeds maxBufferedSize", async () => {
+  it("never calls the fetcher of a part whose manifest size exceeds maxBufferedSize", async () => {
     const { members, aliceTeam, w } = await team("bob");
-    await aliceTeam.createItem("big", [{ content: new Uint8Array(2000) }]);
+    const content = new ContentStore();
+    const draft = aliceTeam.beginItem();
+    content.put("big", 0, draft.addPart(new Uint8Array(2000)));
+    await draft.seal("big");
 
-    const fetched: unknown[] = [];
-    const base = w.server.as("bob");
-    const store = { ...base, getPart: async (key: never) => (fetched.push(key), base.getPart(key)) };
     const small = await createVault(
-      { store, oprf: w.oprf, localKeys: members.bob!.localKeys, clock: w.clock, settings: { ...FAST, maxBufferedSize: 1000 } },
+      { store: w.server.as("bob"), oprf: w.oprf, deviceKeys: members.bob!.localKeys, anchors: members.bob!.localKeys, clock: w.clock, settings: { ...FAST, maxBufferedSize: 1000 } },
       "bob",
     );
     await small.unlock();
-    const session = await small.openTeam("team-1");
-    await expect(session.openItem("big")).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
-    expect(fetched).toEqual([]);
+    const opened = await (await small.openTeam("team-1")).openItem("big");
+    const calls: string[] = [];
+    await expect(opened.part(0, content.fetcher("big", 0, calls))).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    expect(calls).toEqual([]);
 
-    const streamed = await session.openItemStream("big", 0);
     let total = 0;
-    for await (const chunk of streamed.chunks) total += chunk.length;
+    for await (const chunk of opened.partStream(0, content.fetcher("big", 0, calls))) total += chunk.length;
     expect(total).toBe(2000);
+  });
+
+  it("a streamed source longer than its manifest entry is refused while buffering", async () => {
+    const { aliceTeam } = await team();
+    const content = new ContentStore();
+    const draft = aliceTeam.beginItem();
+    content.put("i", 0, draft.addPart(new Uint8Array(10)));
+    await draft.seal("i");
+    const opened = await aliceTeam.openItem("i");
+    async function* tooLong() {
+      yield content.get("i", 0);
+      yield new Uint8Array(1);
+    }
+    await expect(opened.part(0, tooLong())).rejects.toEqual(failed);
   });
 });

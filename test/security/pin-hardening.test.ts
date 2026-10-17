@@ -17,7 +17,7 @@ describe("SP-08: a PIN guess needs a server evaluation", () => {
   it("a stolen PIN wrap doesn't open with the right PIN and no evaluation", async () => {
     const w = world();
     await w.account("alice");
-    const stolen = w.server.dump().records.find((r) => r["method"] === "pin")!;
+    const stolen = w.server.dump().find((r) => r["method"] === "pin")!;
     const wrap = parseAccountKeyWrap(stolen, { accountId: "alice", accountKeyVersion: 1, method: "pin" });
     const kdf = wrap.kdf!;
     const a = cc1.passwordHash(new TextEncoder().encode("1234"), kdf.salt, kdf.opslimit, kdf.memlimit);

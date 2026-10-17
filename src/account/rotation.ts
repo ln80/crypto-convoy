@@ -23,7 +23,7 @@ export async function rotateAccount(
   current: OpenAccount,
   input: { pin: string; phrase?: string },
 ): Promise<{ account: OpenAccount; recoveryPhrase?: string }> {
-  const { suite, store, localKeys } = ports;
+  const { suite, store, deviceKeys } = ports;
   const { accountId } = current;
 
   if (input.phrase !== undefined) {
@@ -58,11 +58,11 @@ export async function rotateAccount(
   const recoveryPhrase = input.phrase === undefined ? suite.generateRecoveryPhrase() : undefined;
   ops.push(createWrap(await pinWrap(ports, next, input.pin)));
   ops.push(createWrap(recoveryWrap(ports, next, input.phrase ?? recoveryPhrase!)));
-  const device = await callPort(() => localKeys.getDevice(accountId));
+  const device = await callPort(() => deviceKeys.getDevice(accountId));
   if (device) ops.push(createWrap(deviceWrap(ports, next, device)));
   ops.push({ op: "set-account-key-version", accountId, expected: current.version, accountKeyVersion: next.version });
 
   await commit(ports, ops);
-  await callPort(() => localKeys.setAccountKeyVersion(accountId, next.version));
+  await callPort(() => deviceKeys.setAccountKeyVersion(accountId, next.version));
   return { account: next, ...(recoveryPhrase ? { recoveryPhrase } : {}) };
 }

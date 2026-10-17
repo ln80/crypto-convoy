@@ -7,10 +7,10 @@ import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { openItemKey, parseItem } from "../../src/records/item.js";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
+import { ContentStore, addParts, read } from "../support/content-store.js";
 import { bundleOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
-const text = (s: string) => new TextEncoder().encode(s);
 
 describe("SP-06: a removed member can't open what comes after the rotation", () => {
   it("nothing bob held opens the new version or items created with it", async () => {
@@ -20,7 +20,7 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     const held = { v1: await sessionInternals(bobSession).teamKey(1), bundle: await bundleOf(bob.vault), accountKey: vaultInternals(bob.vault).account().key };
 
     await aliceTeam.rotate({ keep: ["carol"] });
-    await aliceTeam.createItem("after", [{ content: text("new secret") }]);
+    await addParts(aliceTeam.beginItem(), new ContentStore(), "after", ["new secret"]).seal("after");
 
     // Bob's session and every key he held.
     await expect(bobSession.openItem("after")).rejects.toEqual(expect.objectContaining({ code: "NOT_GRANTED" }));
@@ -53,10 +53,11 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
   it("Limit: re-admitting the member with a later grant opens the gap", async () => {
     const { members, aliceTeam } = await team("bob");
     await aliceTeam.rotate({ keep: [] });
-    await aliceTeam.createItem("while-away", [{ content: text("gap") }]);
+    const content = new ContentStore();
+    await addParts(aliceTeam.beginItem(), content, "while-away", ["gap"]).seal("while-away");
     await aliceTeam.grant("bob", 1);
     const bob = await members.bob!.vault.openTeam("team-1");
     expect(bob.state).toBe("ready");
-    expect(new TextDecoder().decode((await bob.openItem("while-away"))[0]!.content)).toBe("gap");
+    expect(read(await (await bob.openItem("while-away")).part(0, content.get("while-away", 0)))).toBe("gap");
   });
 });

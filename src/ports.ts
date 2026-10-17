@@ -1,7 +1,7 @@
 // The four interfaces the integration provides, and the library's settings (protocol §12).
 import { ConvoyError, RateLimitedError, StoreConflictError, malformed } from "./errors.js";
 
-/** A record's identity on the server (§11). */
+/** A key record's identity on the server (§11). Content never goes through the key store (D-25). */
 export type RecordKey =
   | { type: "account-key-wrap"; accountId: string; accountKeyVersion: number; method: "pin" | "recovery" | "device"; deviceId?: string }
   | { type: "member-keys"; teamId: string; accountId: string; memberKeysVersion: number }
@@ -10,15 +10,9 @@ export type RecordKey =
   | { type: "team-key-version"; teamId: string; version: number }
   | { type: "grant"; teamId: string; accountId: string; memberKeysVersion: number; teamKeyVersion: number }
   | { type: "item"; teamId: string; itemId: string }
-  | { type: "inbox"; teamId: string; inboxId: string }
-  | { type: "submission"; teamId: string; inboxId: string; submissionId: string };
+  | { type: "inbox"; teamId: string; inboxId: string };
 
 export type TeamStateKey = { type: "team-state"; accountId: string; teamId: string };
-
-/** An item or submission part: raw bytes (§4.8, §4.10). */
-export type PartKey =
-  | { type: "item-part"; teamId: string; itemId: string; index: number }
-  | { type: "submission-part"; teamId: string; inboxId: string; submissionId: string; index: number };
 
 /** What `RecordStore.list` can be asked; results come in identity order (versions ascending). */
 export type RecordQuery =
@@ -33,7 +27,6 @@ export type WireRecord = { readonly [key: string]: unknown };
 
 export type WriteOp =
   | { op: "create"; key: RecordKey; record: WireRecord }
-  | { op: "create-part"; key: PartKey; bytes: Uint8Array }
   /** `expectedRevision` is `null` when the record must not exist yet. */
   | { op: "compare-and-set"; key: TeamStateKey; expectedRevision: number | null; record: WireRecord }
   | { op: "delete"; key: RecordKey }
@@ -41,14 +34,11 @@ export type WriteOp =
   | { op: "set-account-key-version"; accountId: string; expected: number | null; accountKeyVersion: number };
 
 /**
- * Fetches and publishes records. The integration authenticates calls and maps them
- * to its API; a conforming server enforces the rules of protocol §11.
+ * The key store: fetches and publishes key records. The integration authenticates calls and
+ * maps them to its API; a conforming server enforces the rules of protocol §11.
  */
 export interface RecordStore {
   get(key: RecordKey): Promise<unknown>;
-  getPart(key: PartKey): Promise<Uint8Array | null>;
-  /** Optional: a part as a stream, for `openItemStream` and `openSubmissionStream`. */
-  getPartStream?(key: PartKey): Promise<AsyncIterable<Uint8Array> | null>;
   list(query: RecordQuery): Promise<unknown[]>;
   getAccountKeyVersion(accountId: string): Promise<number | null>;
   /**
@@ -82,17 +72,24 @@ export interface LocalAnchor {
   readonly hash: Uint8Array;
 }
 
-/** Device-local state (§12). A value that can't be read back must throw, never read as absent. */
-export interface LocalKeyStore {
+/** The vault's half of device-local state (§12). A value that can't be read back must throw, never read as absent. */
+export interface DeviceKeyStore {
   getDevice(accountId: string): Promise<LocalDevice | null>;
   setDevice(accountId: string, device: LocalDevice): Promise<void>;
   deleteDevice(accountId: string): Promise<void>;
   getAccountKeyVersion(accountId: string): Promise<number | null>;
   setAccountKeyVersion(accountId: string, version: number): Promise<void>;
+}
+
+/** The team sessions' half: each team's anchor (SP-07). Same rule on unreadable values. */
+export interface AnchorStore {
   getAnchor(accountId: string, teamId: string): Promise<LocalAnchor | null>;
   setAnchor(accountId: string, teamId: string, anchor: LocalAnchor): Promise<void>;
   deleteAnchor(accountId: string, teamId: string): Promise<void>;
 }
+
+/** Both halves, for an integration running vault and sessions in one context. */
+export type LocalKeyStore = DeviceKeyStore & AnchorStore;
 
 /** Unix seconds, for record timestamps (§1). */
 export interface Clock {

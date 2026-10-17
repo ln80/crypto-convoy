@@ -69,8 +69,10 @@ describe("SP-07: a client never goes back", () => {
     const anchor = aliceTeam.inviteAnchor();
     const dave = await w.account("dave");
     dave.store.rollback("team-1", 1);
-    expect((await dave.vault.joinTeam("team-1", { anchor })).failure).toEqual(trust("rollback"));
+    await dave.vault.joinTeam("team-1");
+    expect((await dave.vault.openTeam("team-1", { anchor })).failure).toEqual(trust("rollback"));
     const erin = await w.account("erin");
-    expect((await erin.vault.joinTeam("team-1", { anchor })).state).toBe("pending");
+    await erin.vault.joinTeam("team-1");
+    expect((await erin.vault.openTeam("team-1", { anchor })).state).toBe("pending");
   });
 });
