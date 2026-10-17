@@ -2,6 +2,8 @@
  * SP-06: A removed member can't open items encrypted after a rotation.
  * Threats: TH-14.
  */
+import { vaultInternals } from "../../src/account/vault.js";
+import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { openItemKey, parseItem } from "../../src/records/item.js";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
@@ -15,7 +17,7 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     const { members, aliceTeam } = await team("bob", "carol");
     const bob = members.bob!;
     const bobSession = await bob.vault.openTeam("team-1");
-    const held = { v1: await bobSession.teamKey(1), bundle: await bundleOf(bob.vault), accountKey: bob.vault.requireAccount().key };
+    const held = { v1: await sessionInternals(bobSession).teamKey(1), bundle: await bundleOf(bob.vault), accountKey: vaultInternals(bob.vault).account().key };
 
     await aliceTeam.rotate({ keep: ["carol"] });
     await aliceTeam.createItem("after", [{ content: text("new secret") }]);

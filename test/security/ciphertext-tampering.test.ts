@@ -2,6 +2,7 @@
  * SP-03: Encrypted data can't be modified or moved undetected.
  * Threats: TH-06, TH-29.
  */
+import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { streamEncrypt } from "../../src/blocks/stream.js";
 import { openSharedItem } from "../../src/content/link-share.js";
@@ -97,7 +98,7 @@ describe("SP-03: tampered or moved content fails to open", () => {
   it("a share link key opens only its own item", async () => {
     const { session, w } = await twoItems();
     const link = await session.shareLinkKey("item-1");
-    const ports = { suite: cc1, store: w.server.anonymous(), clock: w.clock, settings: session.ports.settings };
+    const ports = { suite: cc1, store: w.server.anonymous(), clock: w.clock, settings: sessionInternals(session).ports.settings };
     expect((await openSharedItem(ports, link, "team-1", "item-1")).length).toBe(2);
     await expect(openSharedItem(ports, link, "team-1", "item-2")).rejects.toEqual(failed);
   });

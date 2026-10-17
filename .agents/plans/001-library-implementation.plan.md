@@ -508,3 +508,43 @@ _Appended per phase: what changed, deviations, spec changes made through protoco
   - Removing the grant owner rule fails the TH-33 and fake-member tests.
   - Removing the anchor rollback check fails the invite-anchor test. The other rollback cases are still refused by the grant check: a grant above the served chain is `rollback`. That is defence in depth.
 - **SP-15 coverage:** member approvals at the current version show through `members()` with `grantedBy` (§6.5). There is no separate report stream.
+
+### Phases 6–8 (done)
+- **Content:**
+  - Records and their parts are stored in one batch by the library itself, so content never exists without its key (§7.1).
+  - §3.4 and §7.2 now name the codes: an oversized part is `MALFORMED_RECORD`, refused before download; a missing part is `DECRYPTION_FAILED`.
+- **Proved the guards:**
+  - Removing the buffered-size check fails the SP-18 "never fetches" test.
+  - Removing the manifest size and hash check failed no test at first: stream associated data already catches swaps. Added the attack the manifest exists for: a holder of the item key re-encrypts a valid stream for the same part. It fails without the check and passes with it.
+- **Browser adapter:** values are `enc(bytes iv, bytes ciphertext)` under labelled associated data (§3.7). When two tabs race to create the wrapping key, the first write wins. `takeLinkKey` returns `null` when there is no fragment.
+- **Public API (D-15):**
+  - Session and vault internals (team keys, account key, ports) moved behind module-private `sessionInternals` / `vaultInternals`, never exported from an entry point.
+  - `public-api.test.ts` pins the exports of all three entries and checks that no key-bearing member is public.
+  - The bundled `.d.ts` strips `@internal`.
+- **Finding:** `FakeOprfServer` drew randomness in its constructor, before libsodium loaded. The vitest setup file hid it; the built package exposed it. Fixed (seeds drawn on first use), and `test/package/smoke.mjs` now runs the built package as a consumer in `prepublishOnly`.
+- **Docs:** README usage guide (entry points, quick start, custody, error handling, links, large content); `docs/integration.md` (product-neutral server and port guide); `docs/libsodium-map.md` (kept in sync by a test).
+- **Final gate:** typecheck, 568 tests, 31 fuzz properties, `check:spec`, build, package smoke test.
+
+### Follow-ups
+- Streaming *encryption* for large uploads. It needs a protocol decision: the manifest needs each part's hash before the record is stored.
+- api-extractor API reports before the first public release (see Phase 0 notes).
+- A deeper fuzz of nested record fields (`kdf`, `signer`, wrapped values), field by field.
+- `TeamSession` grew to about 400 lines; split the content methods into a mixin or helper if it keeps growing.
+
+## Hand-off: integrating into doconvoy (next plan, in the doconvoy repo)
+
+Product-specific, so it lives here and not in `docs/`.
+
+1. **Client adapter** (`frontend/app/src/e2ee-adapter/`, rewritten):
+   - `RecordStore` over new `api/e2ee` routes. `get`, `list` and `commit` map to one generic records endpoint keyed by the §11 identity; parts go to object storage, behind the same commit.
+   - `OprfService` over `pin/:user/evaluate`.
+   - `createIndexedDbLocalKeyStore()` as the `LocalKeyStore`.
+   - Throw `StoreConflictError` on HTTP 409 and `RateLimitedError` on 429.
+2. **Go server** (`internal/core/e2ee`, rebuilt):
+   - A record store with the §11 rules as conditions in a DynamoDB `TransactWriteItems`: write-once `attribute_not_exists`, current-version checks, compare-and-set on `revision`, the account key version switch, and soft delete with a restore window.
+   - Run the cases of `test/unit/memory-store.test.ts` as Go contract tests on the memory and DynamoDB backends (the existing `trusttest` pattern).
+3. **OPRF:** keep circl, but use `info = enc(string label("pin-oprf"), u32 oprfKeyId, accountId)`; one total budget across `unlock` and `enroll`. Check against `pin-key.v1.json`.
+4. **Strict signature checks** in the Go handlers (defence in depth): the §2 lists, replayed from `team-key.v1.json`.
+5. **Custody:** keep the iframe bridge as integration code (D-02). The vault runs in the bridge origin and team sessions in workspace pages, connected by `postMessage`.
+6. **Data:** D-01, no legacy formats. Plan a migration or a reset of existing E2EE data.
+7. **React:** a thin binding package over the vault and session; no crypto in components.

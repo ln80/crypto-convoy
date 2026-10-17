@@ -43,6 +43,19 @@ export interface RotationOptions {
   readonly approveRekeys?: readonly string[];
 }
 
+/** Library-only access to a session's keys and ports. Never exported from the package entry (D-15). */
+export interface SessionInternals {
+  teamKey(version: number): Promise<Uint8Array>;
+  writeVersion(): number;
+  readonly ports: TeamPorts;
+}
+
+const INTERNALS = new WeakMap<TeamSession, SessionInternals>();
+
+export function sessionInternals(session: TeamSession): SessionInternals {
+  return INTERNALS.get(session)!;
+}
+
 export class TeamSession {
   readonly teamId: string;
   readonly accountId: string;
@@ -62,6 +75,7 @@ export class TeamSession {
     this.teamId = teamId;
     this.#bundles = bundles;
     this.#invite = invite;
+    INTERNALS.set(this, { teamKey: (v) => this.#teamKey(v), writeVersion: () => this.#writeVersion(), ports });
   }
 
   /** @internal Built by the vault, which hands over only this team's keys (§5.8). */
@@ -147,7 +161,7 @@ export class TeamSession {
     const signer = this.#ownerSigner();
     const keys = (await this.#publishedKeys(accountId)).find((k) => k.memberKeysVersion === memberKeysVersion);
     if (!keys) throw new ConvoyError("NOT_GRANTED");
-    const teamKey = await this.teamKey(this.currentVersion);
+    const teamKey = await this.#teamKey(this.currentVersion);
     await commitTeam(this.#ports.store, [grantOp(this.#ports, this.teamId, this.currentVersion, teamKey, recipientFromKeys(keys), signer)]);
   }
 
@@ -176,7 +190,7 @@ export class TeamSession {
     const previous = await this.#grantsOf(version - 1);
     const missing = previous.filter((g) => this.#kept(options, g.accountId) && !have.has(g.accountId));
     const recipients = await this.#recipients(missing, options);
-    const teamKey = await this.teamKey(version);
+    const teamKey = await this.#teamKey(version);
     const ops = recipients.map((r) => grantOp(this.#ports, this.teamId, version, teamKey, r, signer));
     if (ops.length > 0) await commitTeam(this.#ports.store, ops);
     return { granted: recipients.map((r) => r.accountId) };
@@ -187,8 +201,8 @@ export class TeamSession {
    * optional opaque `meta` (D-16). Throws `NOT_GRANTED`, `STALE_VERSION` (id used or version changed).
    */
   async createItem(itemId: string, parts: readonly PartInput[]): Promise<void> {
-    const version = this.writeVersion();
-    await storeItem(this.#ports, { teamId: this.teamId, itemId, teamKeyVersion: version, createdBy: this.accountId }, await this.teamKey(version), parts);
+    const version = this.#writeVersion();
+    await storeItem(this.#ports, { teamId: this.teamId, itemId, teamKeyVersion: version, createdBy: this.accountId }, await this.#teamKey(version), parts);
   }
 
   /**
@@ -218,8 +232,8 @@ export class TeamSession {
 
   /** Creates an inbox at the current version; the link key goes in the inbox link's fragment (§7.4). */
   async createInbox(inboxId: string): Promise<{ linkKey: string }> {
-    const version = this.writeVersion();
-    return storeInbox(this.#ports, { teamId: this.teamId, inboxId, teamKeyVersion: version, createdBy: this.accountId }, await this.teamKey(version));
+    const version = this.#writeVersion();
+    return storeInbox(this.#ports, { teamId: this.teamId, inboxId, teamKeyVersion: version, createdBy: this.accountId }, await this.#teamKey(version));
   }
 
   /**
@@ -234,18 +248,15 @@ export class TeamSession {
   /** Opens a submission, buffered (§7.6). Throws `NOT_GRANTED`, `DECRYPTION_FAILED`, `TRUST_FAILURE` (`key_mismatch`). */
   async openSubmission(inboxId: string, submissionId: string): Promise<OpenedSubmission> {
     const inbox = await fetchInbox(this.#ports, this.teamId, inboxId);
-    return readSubmission(this.#ports, inbox, await this.teamKey(inbox.teamKeyVersion), submissionId);
+    return readSubmission(this.#ports, inbox, await this.#teamKey(inbox.teamKeyVersion), submissionId);
   }
 
   async #itemKey(record: Parameters<typeof openItemKey>[0]): Promise<Uint8Array> {
-    return openItemKey(record, await this.teamKey(record.teamKeyVersion));
+    return openItemKey(record, await this.#teamKey(record.teamKeyVersion));
   }
 
-  /**
-   * @internal The key of `version`, opened through the chain from the granted version (§6.2).
-   * Throws `NOT_GRANTED` above the granted version.
-   */
-  async teamKey(version: number): Promise<Uint8Array> {
+  /** The key of `version`, opened through the chain from the granted version (§6.2). Throws `NOT_GRANTED` above it. */
+  async #teamKey(version: number): Promise<Uint8Array> {
     this.#requireUsable();
     const own = this.#own;
     if (!own || version > own.grant.teamKeyVersion || version < 1) throw new ConvoyError("NOT_GRANTED");
@@ -255,16 +266,11 @@ export class TeamSession {
     return this.#keys.get(version)!;
   }
 
-  /** @internal Writes need the current version (§7.1). Throws `NOT_GRANTED`, `STALE_VERSION`. */
-  writeVersion(): number {
+  /** Writes need the current version (§7.1). Throws `NOT_GRANTED`. */
+  #writeVersion(): number {
     this.#requireUsable();
     if (this.#state !== "ready") throw new ConvoyError("NOT_GRANTED");
     return this.currentVersion;
-  }
-
-  /** @internal */
-  get ports(): TeamPorts {
-    return this.#ports;
   }
 
   /** Forgets this team's keys (best effort). */
@@ -335,7 +341,7 @@ export class TeamSession {
 
   /** The caller's keys listed among the current owners; their own grant must be current. */
   #ownerSigner(): Signer {
-    this.writeVersion();
+    this.#writeVersion();
     const current = this.#current!;
     for (const bundle of this.#bundles) {
       const ref = { accountId: this.accountId, signingPublicKey: bundle.pairs.signing.publicKey };
@@ -403,7 +409,7 @@ export class TeamSession {
     const self = recipients.find((r) => r.accountId === this.accountId)!;
 
     const nextKey = this.#ports.suite.randomBytes(this.#ports.suite.sizes.key);
-    const currentKey = await this.teamKey(current.version);
+    const currentKey = await this.#teamKey(current.version);
     const owners = newOwners ?? current.owners.map((o) => o.accountId);
     const version = versionOp(this.#ports, current, chain.hashes.get(current.version)!, currentKey, nextKey, owners, recipients, signer);
     // The version and its signer's grant in one batch: this makes it current (§6.6 step 5).

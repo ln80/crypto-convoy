@@ -40,9 +40,10 @@
     "test:fuzz": "vitest run --project fuzz",
     "test:all": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build && npm run test:package",
     "test:browser": "vitest run --project browser",
-    "vectors:generate": "for f in test/vectors/generate/*.mjs; do case $f in *common.mjs) ;; *) node $f;; esac; done"
+    "vectors:generate": "for f in test/vectors/generate/*.mjs; do case $f in *common.mjs) ;; *) node $f;; esac; done",
+    "test:package": "node test/package/smoke.mjs"
   },
   "devDependencies": {
     "@fast-check/vitest": "^0.5.0",

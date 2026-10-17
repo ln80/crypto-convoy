@@ -54,6 +54,18 @@ export async function createVault(options: VaultOptions, accountId: string): Pro
   return new Vault(ports, accountId);
 }
 
+/** Library-only access to the vault's ports and open account key. Never exported from the package entry (D-15). */
+export interface VaultInternals {
+  readonly ports: AccountPorts;
+  account(): OpenAccount;
+}
+
+const VAULT_INTERNALS = new WeakMap<Vault, VaultInternals>();
+
+export function vaultInternals(vault: Vault): VaultInternals {
+  return VAULT_INTERNALS.get(vault)!;
+}
+
 /**
  * Holds the account key once unlocked. Methods that need it throw a plain `Error`
  * when the vault is locked: that is a programming error, not a protocol failure.
@@ -67,19 +79,14 @@ export class Vault {
   constructor(ports: AccountPorts, accountId: string) {
     this.#ports = ports;
     this.accountId = accountId;
+    VAULT_INTERNALS.set(this, { ports, account: () => this.#requireAccount() });
   }
 
   get isUnlocked(): boolean {
     return this.#account !== null;
   }
 
-  /** @internal For the team operations of this package. */
-  get ports(): AccountPorts {
-    return this.#ports;
-  }
-
-  /** @internal */
-  requireAccount(): OpenAccount {
+  #requireAccount(): OpenAccount {
     if (!this.#account) throw new Error("crypto-convoy: the vault is locked");
     return this.#account;
   }
@@ -171,13 +178,13 @@ export class Vault {
 
   /** Replaces the PIN wrap (§5.6). Throws `PIN_RATE_LIMITED`, `STALE_VERSION`. */
   async changePin(newPin: string): Promise<void> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     await commit(this.#ports, replaceWrap(await pinWrap(this.#ports, account, newPin)));
   }
 
   /** Replaces the recovery phrase (§5.6) and returns the new one, to show once. */
   async replaceRecoveryPhrase(): Promise<{ recoveryPhrase: string }> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     const recoveryPhrase = this.#ports.suite.generateRecoveryPhrase();
     await commit(this.#ports, replaceWrap(recoveryWrap(this.#ports, account, recoveryPhrase)));
     return { recoveryPhrase };
@@ -185,7 +192,7 @@ export class Vault {
 
   /** The `deviceId` of every device wrap at the current version (§5.5). */
   async listDevices(): Promise<string[]> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     const wraps = await callPort(() =>
       this.#ports.store.list({ type: "account-key-wrap", accountId: this.accountId, accountKeyVersion: account.version }),
     );
@@ -197,7 +204,7 @@ export class Vault {
 
   /** Deletes a device's wrap: it can't unlock again (§5.5, SP-10). */
   async revokeDevice(deviceId: string): Promise<void> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     await commit(this.#ports, [{ op: "delete", key: wrapKey({ accountId: this.accountId, accountKeyVersion: account.version, method: "device", deviceId }) }]);
     const local = await callPort(() => this.#ports.localKeys.getDevice(this.accountId));
     if (local?.deviceId === deviceId) await callPort(() => this.#ports.localKeys.deleteDevice(this.accountId));
@@ -208,7 +215,7 @@ export class Vault {
    * new one. Other devices must register again. Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
    */
   async rotate(input: { pin: string; phrase?: string }): Promise<{ recoveryPhrase?: string }> {
-    const current = this.requireAccount();
+    const current = this.#requireAccount();
     const { account, recoveryPhrase } = await rotateAccount(this.#ports, current, input);
     this.lock();
     this.#account = account;
@@ -217,7 +224,7 @@ export class Vault {
 
   /** Creates a team with this account as its first owner (§6.3). Throws `STALE_VERSION` if it exists. */
   async createTeam(teamId: string): Promise<TeamSession> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     await commit(this.#ports, newTeamOps(this.#ports, account, teamId));
     return openSession(this.#ports, account, teamId);
   }
@@ -227,7 +234,7 @@ export class Vault {
    * `anchor` comes from the invite link's fragment: the chain must contain it.
    */
   async joinTeam(teamId: string, options: { anchor?: string } = {}): Promise<TeamSession> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     const invite = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
     if ((await openBundles(this.#ports, account, teamId)).length === 0) {
       await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1).ops);
@@ -237,7 +244,7 @@ export class Vault {
 
   /** Opens a team: hands the session only this team's member keys (§5.8, SP-02). */
   async openTeam(teamId: string): Promise<TeamSession> {
-    return openSession(this.#ports, this.requireAccount(), teamId);
+    return openSession(this.#ports, this.#requireAccount(), teamId);
   }
 
   /**
@@ -245,7 +252,7 @@ export class Vault {
    * They receive nothing until an owner approves them by rotating.
    */
   async rekey(teamId: string): Promise<TeamSession> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     const [newest] = await openBundles(this.#ports, account, teamId);
     if (!newest) throw new ConvoyError("NOT_GRANTED");
     await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, newest.memberKeysVersion + 1, newest).ops);
@@ -254,7 +261,7 @@ export class Vault {
 
   /** Deletes this account's keys and state for a team (§5.9). Throws `LAST_OWNER` for the only owner. */
   async leaveTeam(teamId: string): Promise<void> {
-    const account = this.requireAccount();
+    const account = this.#requireAccount();
     const session = await this.openTeam(teamId);
     if (session.state === "unverified") throw session.failure!;
     if (session.currentVersion > 0) {

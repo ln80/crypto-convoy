@@ -1,4 +1,5 @@
 /** A walk through the team lifecycle (§6), the honest path for the team security tests. */
+import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { team } from "../support/teams.js";
 
@@ -24,10 +25,10 @@ describe("team lifecycle", () => {
     await bob2.setOwners(["bob"], { keep: ["carol"] });
     const aliceAgain = await members.alice!.vault.openTeam("team-1");
     expect(aliceAgain.state).toBe("pending");
-    expect(await aliceAgain.teamKey(1)).toHaveLength(32);
+    expect(await sessionInternals(aliceAgain).teamKey(1)).toHaveLength(32);
     const carol = await members.carol!.vault.openTeam("team-1");
     expect(carol.state).toBe("ready");
     expect(carol.currentVersion).toBe(3);
-    expect(await carol.teamKey(1)).toEqual(await aliceAgain.teamKey(1));
+    expect(await sessionInternals(carol).teamKey(1)).toEqual(await sessionInternals(aliceAgain).teamKey(1));
   });
 });

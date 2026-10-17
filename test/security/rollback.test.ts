@@ -2,6 +2,7 @@
  * SP-07: A client never goes back to an older team state.
  * Threats: TH-05.
  */
+import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
@@ -26,7 +27,7 @@ describe("SP-07: a client never goes back", () => {
     bob.store.rollback("team-1", 2);
     const session = await bob.vault.openTeam("team-1");
     expect(session.failure).toEqual(trust("rollback"));
-    expect(() => session.writeVersion()).toThrow(trust("rollback"));
+    expect(() => sessionInternals(session).writeVersion()).toThrow(trust("rollback"));
   });
 
   it("refuses a chain that diverges from its anchor", async () => {

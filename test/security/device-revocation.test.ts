@@ -2,6 +2,7 @@
  * SP-10: A revoked device can't unlock the account again.
  * Threats: TH-10.
  */
+import { vaultInternals } from "../../src/account/vault.js";
 import { describe, expect, it } from "vitest";
 import { world } from "../support/fixtures.js";
 import { openGrant, parseGrant } from "../../src/records/grant.js";
@@ -51,7 +52,7 @@ describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full reme
   it("revoke, rotate the account key, re-key and rotate the team: copied keys open nothing new", async () => {
     const { members, aliceTeam } = await team("bob");
     const bob = members.bob!;
-    const stolenAccountKey = bob.vault.requireAccount().key.slice();
+    const stolenAccountKey = vaultInternals(bob.vault).account().key.slice();
     const stolenBundle = await bundleOf(bob.vault);
 
     // Revocation alone: the copied member keys still open a version granted afterwards.
@@ -68,7 +69,7 @@ describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full reme
     expect(() => openGrant(v3, stolenBundle.pairs.encryption)).toThrow(code("DECRYPTION_FAILED"));
     const wraps = await bob.store.list({ type: "member-keys-wrap", accountId: "bob", accountKeyVersion: 2 });
     expect(wraps.length).toBeGreaterThan(0);
-    expect(Buffer.from(stolenAccountKey).equals(Buffer.from(bob.vault.requireAccount().key))).toBe(false);
+    expect(Buffer.from(stolenAccountKey).equals(Buffer.from(vaultInternals(bob.vault).account().key))).toBe(false);
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
   });
 });

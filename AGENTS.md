@@ -46,7 +46,10 @@ Never implement behaviour the protocol doesn't specify. If the spec is missing o
 | `npm test` | Unit, properties, security and compatibility projects |
 | `npm run test:security` | Adversarial tests only |
 | `npm run test:fuzz` | Bounded fuzzing (opt-in) |
+| `npm run test:browser` | Browser adapter tests (Node, with fake IndexedDB) |
 | `npm run check:spec` | Consistency of `docs/` (labels, ids, § references, vectors, traceability, product terms) |
-| `npm run build` | Library build |
+| `npm run build` | Library build: `crypto-convoy`, `crypto-convoy/browser`, `crypto-convoy/testing` |
+| `npm run test:package` | Runs the built package as a consumer, after `build` |
+| `npm run vectors:generate` | Writes missing vector files from independent generators; never overwrites |
 
 Every security property's tests must exist and pass: the traceability test (`test/unit/traceability.test.ts`) enforces it.

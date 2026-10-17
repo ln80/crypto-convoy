@@ -2,6 +2,8 @@
  * SP-01: The server never holds a key that opens items.
  * Threats: TH-01, TH-29.
  */
+import { vaultInternals } from "../../src/account/vault.js";
+import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { submit } from "../../src/content/inbox.js";
 import { decodeLinkKey } from "../../src/encoding/link.js";
@@ -38,11 +40,11 @@ describe("SP-01: the server holds no key that opens items, and no plaintext", ()
     const session = await alice.vault.openTeam("team-1");
     const secrets: Uint8Array[] = [
       ...plaintexts,
-      alice.vault.requireAccount().key,
+      vaultInternals(alice.vault).account().key,
       (await alice.localKeys.getDevice("alice"))!.deviceKey,
-      await session.teamKey(1),
-      await session.teamKey(2),
-      await session.teamKey(3),
+      await sessionInternals(session).teamKey(1),
+      await sessionInternals(session).teamKey(2),
+      await sessionInternals(session).teamKey(3),
       decodeLinkKey(await session.shareLinkKey("item-1")),
     ];
     for (const who of [alice, members.bob!]) {

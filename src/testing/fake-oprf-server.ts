@@ -4,7 +4,7 @@ import { string, u32 } from "../encoding/canonical.js";
 import { labelled } from "../encoding/labels.js";
 import { RateLimitedError } from "../errors.js";
 import type { OprfService } from "../ports.js";
-import { CURRENT_SUITE } from "../suites/registry.js";
+import { CURRENT_SUITE, ready } from "../suites/registry.js";
 
 export interface FakeOprfOptions {
   /** Evaluations allowed per account, across both purposes (default 10). */
@@ -19,15 +19,20 @@ export class FakeOprfServer implements OprfService {
 
   constructor(options: FakeOprfOptions = {}) {
     this.#budget = options.budget ?? 10;
-    this.#seeds.set(1, CURRENT_SUITE.randomBytes(32));
   }
 
   async evaluate(request: Parameters<OprfService["evaluate"]>[0]): Promise<Uint8Array> {
     const used = this.#attempts.get(request.accountId) ?? 0;
     if (used >= this.#budget) throw new RateLimitedError();
     this.#attempts.set(request.accountId, used + 1);
-    const seed = this.#seeds.get(request.oprfKeyId);
-    if (!seed) throw new Error("unknown OPRF key");
+    if (request.oprfKeyId < 1 || request.oprfKeyId > this.#currentKeyId) throw new Error("unknown OPRF key");
+    // Seeds are drawn on first use: libsodium may not be loaded when the server is constructed.
+    await ready();
+    let seed = this.#seeds.get(request.oprfKeyId);
+    if (!seed) {
+      seed = CURRENT_SUITE.randomBytes(32);
+      this.#seeds.set(request.oprfKeyId, seed);
+    }
     // A conforming per-account key: DeriveKeyPair(seed, enc(label("pin-oprf"), u32 oprfKeyId, accountId)).
     const info = labelled("pin-oprf", u32(request.oprfKeyId), string(request.accountId));
     const { secretKey } = ristretto255_oprf.oprf.deriveKeyPair(seed, info);
@@ -41,7 +46,6 @@ export class FakeOprfServer implements OprfService {
   /** Replaces the server seed; the previous key keeps working, as during a transition period. */
   rotateKey(): number {
     this.#currentKeyId += 1;
-    this.#seeds.set(this.#currentKeyId, CURRENT_SUITE.randomBytes(32));
     return this.#currentKeyId;
   }
 

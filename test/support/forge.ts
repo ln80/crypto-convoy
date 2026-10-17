@@ -1,6 +1,6 @@
 // Records an attacker could build: with stolen or own keys, outside the library's checks.
 import { openBundles } from "../../src/account/member-custody.js";
-import type { Vault } from "../../src/account/vault.js";
+import { vaultInternals, type Vault } from "../../src/account/vault.js";
 import { createGrant, grantToJson } from "../../src/records/grant.js";
 import { createMemberKeys, memberKeysToJson } from "../../src/records/member-keys.js";
 import { bundleKeyPairs, generateBundle } from "../../src/records/member-keys-wrap.js";
@@ -11,7 +11,7 @@ import type { MemberBundle } from "../../src/team/context.js";
 
 /** Keys a member holds (AS-07): their newest bundle for the team. */
 export async function bundleOf(vault: Vault, teamId = "team-1"): Promise<MemberBundle> {
-  return (await openBundles(vault.ports, vault.requireAccount(), teamId))[0]!;
+  return (await openBundles(vaultInternals(vault).ports, vaultInternals(vault).account(), teamId))[0]!;
 }
 
 /** Fresh keys with no member keys record behind them. */
