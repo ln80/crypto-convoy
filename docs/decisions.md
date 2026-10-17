@@ -95,7 +95,7 @@ Consequence: no backfill and no cleanup job. Access to history is all or nothing
 
 Status: Accepted.
 
-Decision: `crypto-convoy/browser` implements device storage with IndexedDB and a non-extractable WebCrypto key. The core depends only on the `LocalKeyStore` interface.
+Decision: `crypto-convoy/browser` implements device storage with IndexedDB and a non-extractable WebCrypto key. The core depends only on the `LocalKeyStore` interface. The stored format, and why it uses WebCrypto's AES-GCM rather than the suite, is in protocol §3.7.
 
 ## D-09: Items are signed by their author
 
@@ -254,3 +254,28 @@ Rejected for v1, recorded for later:
 - **Split keys:** the share key is derived from the link secret and a second factor sent through another channel, either a random code or a passcode (hardened with Argon2id or the PIN OPRF). A leaked link alone then decrypts nothing.
 
 Consequence: no new record or mechanism in v1. Leaked links are covered by the integration's controls (expiry, view limits, server-side checks) and accepted in TH-23.
+
+## D-23: Expected failures are thrown as typed errors
+
+Status: Accepted.
+
+Problem: an operation can fail in expected ways (wrong PIN, not granted, stale version). Returning a result object forces every caller to unwrap values, and differs from how asynchronous TypeScript APIs usually behave; throwing untyped errors makes failures hard to tell apart.
+
+Decision: every public operation is asynchronous and throws one error class, `ConvoyError`, with a `code` from protocol §9 and, for `TRUST_FAILURE`, a `reason`. Messages are fixed per code and never carry keys, plaintext or record contents. Internal parsers and checks stop at the first failure and raise the same error.
+
+Rejected: a `Result<T, E>` return type for expected failures. It's more explicit, but verbose at every call, and a forgotten check silently drops the error.
+
+Consequence: integrations branch on `error.code`. Errors from the integration's own interfaces are wrapped (`STORE_ERROR`) unless they are the library's signals (`StoreConflictError`, `RateLimitedError`).
+
+## D-24: The library publishes a testing kit
+
+Status: Accepted.
+
+Problem: integrations need an honest server to test against, and a server implementation (in any language) needs a precise statement of the server contract. Both otherwise get written from prose, and drift.
+
+Decision: `crypto-convoy/testing` ships an in-memory `RecordStore` that applies every rule of protocol §11, a fake OPRF server (RFC 9497, one key and one total budget per account), an in-memory `LocalKeyStore` and a fixed clock. The tamper hooks used by the library's own adversarial tests stay outside the package.
+
+Rejected: keeping the fakes in the test folder only. Each integration would write its own, with weaker rules.
+
+Consequence: one more public entry point, kept out of the core (the core never imports it). Its store is a reference for the server contract, not a production store: nothing is persisted.
+

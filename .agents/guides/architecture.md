@@ -8,21 +8,24 @@ How the library's code is organized. The behaviour it implements is specified in
 src/
   index.ts          the only public entry (D-15: high-level operations only)
   errors.ts         error codes and TRUST_FAILURE reasons of protocol §9; typed errors
-  result.ts         Result<T, E> for operations that report expected failures
-  ports.ts          RecordStore, OprfService, LocalKeyStore, Clock (scope "Interfaces")
+  ports.ts          RecordStore, OprfService, LocalKeyStore, Clock, Settings (protocol §12)
+  internal/         byte helpers shared by every layer
   encoding/         canonical encoding (§1), base64url, labels table and label(name), link values (§3.5)
   suites/           the suite registry (below) and the cc1 implementation
+  blocks/           wrap, seal, sign, stream (§3.1–3.4): label and context are built here
   records/          one module per record type of §4: type, shape validation, payload encoder, build and open
   account/          the account vault (§5): unlock methods, devices, rotation, member-key custody
   team/             the team session (§6): chain verification, anchors, grants, rotation, owners
   content/          items, link shares, inboxes, submissions (§7)
   browser/          optional adapter, published as `crypto-convoy/browser`: IndexedDB LocalKeyStore, takeLinkKey()
+  testing/          testing kit, published as `crypto-convoy/testing` (D-24): honest store, fake OPRF, memory key store, clock
 ```
 
 Rules of the layout:
 - `index.ts` exports operations and types only. Primitives, suites, encoders and raw keys stay internal (D-15).
 - The core (everything but `browser/`) is platform-neutral: no DOM, no `window`, no Node-only APIs.
-- `browser/` may depend on the core; the core never imports `browser/`.
+- `browser/` and `testing/` may depend on the core; the core never imports them.
+- Layers import downwards only: `encoding` and `suites` → `blocks` → `records` → `account` / `team` / `content` → `index.ts`.
 
 ## Suite registry ("dictionary")
 
@@ -63,7 +66,7 @@ Each record module has one encoder per format version: `switch (record.v) { case
 
 - One error class with a `code` from protocol §9, and a `reason` for `TRUST_FAILURE`.
 - Messages never include keys, plaintext or record contents.
-- Expected failures (wrong PIN, not granted, stale version) are returned as results; programming errors throw.
+- Every failure, expected or not, is thrown as a `ConvoyError` (D-23). Integration interfaces signal conflicts and rate limits with `StoreConflictError` and `RateLimitedError`; anything else they throw becomes `STORE_ERROR`.
 
 ## Dependencies
 

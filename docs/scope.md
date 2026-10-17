@@ -99,6 +99,8 @@ Randomness is not an interface: the library always uses the platform's cryptogra
 
 An optional browser adapter, `crypto-convoy/browser`, implements `LocalKeyStore` with IndexedDB and a non-extractable WebCrypto key (D-08), and offers `takeLinkKey()`, which reads a key from the URL fragment, validates it and removes it from the address bar and history (D-22). It ships with the library but outside the core, which stays platform-neutral (browser, Node, workers).
 
+A testing kit, `crypto-convoy/testing`, provides an in-memory `RecordStore` that applies every server rule of protocol §11, a fake OPRF server, an in-memory `LocalKeyStore` and a fixed clock (D-24). The exact contracts of the four interfaces are in protocol §12.
+
 ## Key custody
 
 The API splits key custody into two roles (D-03):

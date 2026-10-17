@@ -90,6 +90,9 @@ Every `wrap`, `seal`, `sign`, `stream` and key derivation below encodes `string 
 | `inbox-key` | Wrapping an inbox private key |
 | `submission` | Context inside a submission envelope |
 | `submission-part` | Associated data of a submission part's stream |
+| `local-device-key` | Browser adapter: associated data of a stored device key (§3.7) |
+| `local-account-version` | Browser adapter: associated data of the stored account key version (§3.7) |
+| `local-anchor` | Browser adapter: associated data of a stored team anchor (§3.7) |
 
 ### Records on the wire
 
@@ -124,8 +127,26 @@ The fixed set of primitives used by every v1 record. All come from libsodium, ex
 
 Two rules every implementation must apply identically, because the team key chain depends on every client accepting exactly the same records:
 
-- **Strict Ed25519 verification** (RFC 8032 with libsodium's checks): reject a signature whose `S` isn't canonical (S ≥ L), a public key that isn't a canonical encoding or has small order, and a signature whose `R` has small order. Some libraries (for example Go's `crypto/ed25519`) don't make all these checks by default; they must be added.
-- **No low-order X25519 keys:** a published encryption public key or inbox public key that is a low-order point is refused (`MALFORMED_RECORD`). Sealing to one would give a shared secret known to anyone; libsodium already refuses it, and other implementations must too.
+- **Strict Ed25519 verification** (RFC 8032 with libsodium's checks). Before the signature equation, in this order:
+  1. the public key is 32 bytes and the signature 64 bytes;
+  2. `S` (the last 32 bytes of the signature, little-endian) is canonical: S < L, where L = 2^252 + 27742317777372353535851937790883648493;
+  3. the public key is a valid point: a canonical encoding (y < p, p = 2^255 − 19), on the curve, of the prime-order subgroup, and not of small order (libsodium's `crypto_core_ed25519_is_valid_point`);
+  4. `R` (the first 32 bytes) is not in the **small-order list** below.
+
+  Some libraries (for example Go's `crypto/ed25519`) don't make all these checks by default; they must be added. The same public key check applies to every signing public key a record carries (`MALFORMED_RECORD` otherwise).
+- **No low-order X25519 keys:** a published encryption public key or inbox public key in the **low-order list** below is refused (`MALFORMED_RECORD`). Sealing to one would give a shared secret known to anyone; libsodium already refuses it, and other implementations must too.
+
+Both lists are compared with bit 255 (the top bit of the last byte) cleared, so each entry also covers its variant with that bit set. Values in hexadecimal, as encoded (little-endian):
+
+| Ed25519 small-order list (`R`) | X25519 low-order list |
+| --- | --- |
+| `0000000000000000000000000000000000000000000000000000000000000000` | `0000000000000000000000000000000000000000000000000000000000000000` |
+| `0100000000000000000000000000000000000000000000000000000000000000` | `0100000000000000000000000000000000000000000000000000000000000000` |
+| `26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05` | `e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800` |
+| `c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a` | `5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157` |
+| `ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` (p − 1) | `ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` (p − 1) |
+| `edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` (p) | `edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` (p) |
+| `eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` (p + 1) | `eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f` (p + 1) |
 
 ### Bounds the client enforces
 
@@ -214,7 +235,21 @@ In a browser, `takeLinkKey()` (from `crypto-convoy/browser`) reads the fragment,
 
 ### 3.6 Random values
 
-Every key, nonce, id and salt comes from libsodium's `randombytes_buf`. There is no other source of randomness.
+Every key, nonce, id and salt comes from libsodium's `randombytes_buf`. There is no other source of randomness. This includes the two values drawn outside libsodium's own functions: the OPRF blinding scalar (the random generator handed to `Blind`, §5.1) and the 16 bytes of BIP-39 entropy behind a recovery phrase (§5.2).
+
+### 3.7 Local storage (browser adapter)
+
+The browser adapter (`crypto-convoy/browser`, D-08) keeps `LocalKeyStore` values in IndexedDB, encrypted with AES-256-GCM under a **local wrapping key**: a non-extractable WebCrypto key, generated once per browser profile and stored by structured clone, so its bytes can't be read or copied as a file. This is the only primitive not taken from the `cc1` suite: only WebCrypto can make a key non-extractable. The format is local to one device and never sent to a server.
+
+Each value is stored as `iv (12 random bytes) ‖ AES-GCM(value, ad)`:
+
+| Value | `ad` | Plaintext |
+| --- | --- | --- |
+| Device key | `enc(string label("local-device-key"), accountId)` | `enc(string deviceId, bytes deviceKey)` |
+| Highest account key version seen | `enc(string label("local-account-version"), accountId)` | `enc(u32 accountKeyVersion)` |
+| Team anchor | `enc(string label("local-anchor"), accountId, teamId)` | `enc(u32 version, bytes recordHash)` |
+
+A value that fails to decrypt is an error, never silently discarded: discarding an anchor would send the device back to first-contact trust (SP-07).
 
 ---
 
@@ -296,12 +331,12 @@ What a member last accepted about a team, so their other devices start from it. 
 | Field | Type |
 | --- | --- |
 | `accountId`, `teamId` | string |
-| `revision` | integer, increases on each write |
+| `revision` | integer ≥ 1: 1 on the first write, then +1 on each write |
 | `wrappedState` | `wrap` output |
 
 Protection: `wrappedState = wrap(teamStateKey, "team-state", accountId, teamId, u64 revision, state)`, where `state` = `enc(u32 anchorVersion, bytes anchorHash)`: the newest team key version record this account has verified, and its record hash (§4.5).
 
-The server can't forge a `team-state`, since it doesn't have `teamStateKey`. It can only serve an older revision. A `team-state` that fails to decrypt was corrupted or tampered with (for example by someone holding the account's session): it is a `TRUST_FAILURE` with reason `state_unreadable`, never silently ignored, since ignoring it would send the device back to first-contact trust. How the anchor is used is in §6.1.
+The server has no `team-state` for an account until its first write; no record means no anchor on the server. The server can't forge a `team-state`, since it doesn't have `teamStateKey`. It can only serve an older revision. A `team-state` that fails to decrypt was corrupted or tampered with (for example by someone holding the account's session): it is a `TRUST_FAILURE` with reason `state_unreadable`, never silently ignored, since ignoring it would send the device back to first-contact trust. How the anchor is used is in §6.1.
 
 ### 4.5 `team-key-version`
 
@@ -716,7 +751,9 @@ The [server contract](scope.md#server-contract) applied to each record.
 
 ## 12. API shape (informative)
 
-How the operations above surface to developers. Names are indicative; the exact TypeScript API is defined with the implementation.
+How the operations above surface to developers. Names are indicative; the exact TypeScript API is defined with the implementation (its API reports are the reference).
+
+Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyError` carrying its `code` and, for `TRUST_FAILURE`, its `reason` (D-23). "Throws X" below names such a code.
 
 ```ts
 // Account vault: holds the account key; anything that wraps member keys runs here.
@@ -758,6 +795,30 @@ submitToInbox(linkKey, teamId, inboxId, parts) → { record, parts }
 ```
 
 The integration implements `RecordStore`, `OprfService`, `LocalKeyStore` and `Clock` ([scope.md](scope.md#interfaces-the-integration-provides)).
+
+### Interface contracts
+
+What the library expects from each interface. A conforming server enforces the rules of §11 behind `RecordStore`; the library never relies on it for confidentiality or authenticity.
+
+**`RecordStore`.** Records are addressed by their §11 identity (a *record key*: the record type and its identity fields). Item and submission parts are addressed the same way, with their `index`, and carry raw bytes.
+
+| Method | Contract |
+| --- | --- |
+| `get(key)` | The record (a JSON value, parsed by the library) or `null`. |
+| `getPart(key)` | The part's bytes or `null`. |
+| `list(query)` | The records matching a query, in identity order: an account's wraps at one account key version, its member keys wraps at one version, a team's team key versions from a given version, a team's member keys records (optionally of one account), grants of a team (optionally of one version, account or member keys version). |
+| `getAccountKeyVersion(accountId)` | The current account key version, or `null` for an account that was never set up. |
+| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record or part), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none), `delete`, and `setAccountKeyVersion` (with the expected current version). |
+
+A write that a server rule refuses (write-once, current version, compare-and-set, ordering) is reported by throwing the library's `StoreConflictError`: the library turns it into `STALE_VERSION`, or reloads and retries for a `team-state` (§6.1 step 7). Any other failure is `STORE_ERROR`. Private records (§11) are served only to their account: the integration authenticates the caller, the library never sees how.
+
+**`OprfService`.** `evaluate(accountId, blindedElement, oprfKeyId, purpose)` returns the evaluated element (§5.1); a refusal by the rate limit is reported by throwing `RateLimitedError`, which the library turns into `PIN_RATE_LIMITED`. `currentKeyId(accountId)` returns the server's current `oprfKeyId`, for enrolment and the upgrade on unlock (§5.4).
+
+**`LocalKeyStore`.** Keeps, on this device: per account, the device key and `deviceId`, and the highest account key version accepted (SP-07); per account and team, the anchor (version, record hash). Values that can't be read back are errors, never an empty result (§3.7).
+
+**`Clock`.** `now()` returns Unix seconds (§1).
+
+**Settings.** The Argon2id writer cost and reader minimum (§2, D-17), and `maxBufferedSize` (§3.4). The library refuses settings below its hard floor.
 
 ---
 
