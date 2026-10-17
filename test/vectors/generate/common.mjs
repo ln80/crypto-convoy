@@ -51,3 +51,27 @@ export function writeVectors(file, data, attachments = {}) {
   writeFileSync(path, json + "\n");
   console.log(`wrote ${file}`);
 }
+
+// Record builders shared by record generators: plain libsodium and the encoder above.
+export const listOf = (items) => ["raw", hex(Buffer.concat([Buffer.from(encode([["u32", items.length]])), ...items.map((fields) => Buffer.from(encode(fields)))]))];
+export const optionalOf = (fields) => ["raw", fields === null ? "00" : "01" + hex(encode(fields))];
+export const blake = (bytes) => sodium.crypto_generichash(32, bytes);
+
+export function wrapWith(key, nonce, labelName, context, plaintext) {
+  const ad = encode([label(labelName), ...context]);
+  return { nonce, ciphertext: sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext, ad, null, nonce, key) };
+}
+export const wrappedJson = (w) => ({ nonce: b64u(w.nonce), ciphertext: b64u(w.ciphertext) });
+export const wrappedHashOf = (w) => blake(Buffer.concat([w.nonce, w.ciphertext]));
+
+export function account(name) {
+  const signing = sodium.crypto_sign_seed_keypair(fixed(`${name} signing seed`, 32));
+  const encryptionSecret = fixed(`${name} encryption secret`, 32);
+  return {
+    accountId: name,
+    signingPublicKey: signing.publicKey,
+    signingSecretKey: signing.privateKey,
+    encryptionSecretKey: encryptionSecret,
+    encryptionPublicKey: sodium.crypto_scalarmult_base(encryptionSecret),
+  };
+}

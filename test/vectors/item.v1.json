@@ -1,0 +1,141 @@
+{
+  "file": "item.v1",
+  "covers": "Protocol §4.7 item, §4.8 parts, D-16 manifest",
+  "teamKey": "82f8ef554d48cb5036df457bc1c651caa2b5013c0b9a3b18640ecfab1856858d",
+  "itemKey": "b48d549fbbe90be81551bc5aa7eca2abbcbd36b692a31228fe21421cbf3aa26a",
+  "record": {
+    "v": 1,
+    "suite": "cc1",
+    "type": "item",
+    "teamId": "team-1",
+    "itemId": "item-1",
+    "teamKeyVersion": 1,
+    "createdBy": "alice",
+    "createdAt": 1700000500,
+    "wrappedManifest": {
+      "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
+      "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+    },
+    "wrappedItemKey": {
+      "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
+      "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+    }
+  },
+  "manifest": "0000000200000000000000000000003400000020dfd34c5b031e939035e9631c1df865ccf617dd9bbd3349d57c66bba643867f3b0000000f7b226b696e64223a2274657874227d000000010000000000000069000000207dc8488f342a2d8dc94a15e799c084d8c1421c918b569eecbc5009c22d1eaf7200000000",
+  "parts": [
+    {
+      "ciphertext": "e2eac86c1a00124e20a26d95dd9bb325d0da9a4dcfda75ceb812b50a1373a814e38645f7335da76aada62fcf7c0d85c8b8510c18",
+      "plaintext": "68656c6c6f2c207465616d",
+      "meta": "7b226b696e64223a2274657874227d"
+    },
+    {
+      "ciphertext": "ae33d3e146f6dabf3d7f10170f4cdccfb92aa2430ac0ac1096733b8e1ec5b37cdb6418abb3af8934056d41a571a13cdddce5c3a8fd4da6541ae4ed51fa1fc257a8294eae497915e37bc08fe83420ed8ab209cba593113fe93a9429d0160ffc079d8535647af1d8c1d4",
+      "plaintext": "000d94830f00e4100c81d432f7989fd0b2edc4e245d4815dc23e5340b1feea3e582d27f971b04517ed1502d82f6805e77d6cb075bd60186ccbca89cf59406261",
+      "meta": ""
+    }
+  ],
+  "tampered": [
+    {
+      "name": "createdBy changed",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "item",
+        "teamId": "team-1",
+        "itemId": "item-1",
+        "teamKeyVersion": 1,
+        "createdBy": "mallory",
+        "createdAt": 1700000500,
+        "wrappedManifest": {
+          "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
+          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+        },
+        "wrappedItemKey": {
+          "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+        }
+      },
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "teamKeyVersion changed",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "item",
+        "teamId": "team-1",
+        "itemId": "item-1",
+        "teamKeyVersion": 2,
+        "createdBy": "alice",
+        "createdAt": 1700000500,
+        "wrappedManifest": {
+          "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
+          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+        },
+        "wrappedItemKey": {
+          "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+        }
+      },
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "manifest of another item",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "item",
+        "teamId": "team-1",
+        "itemId": "item-1",
+        "teamKeyVersion": 1,
+        "createdBy": "alice",
+        "createdAt": 1700000500,
+        "wrappedManifest": {
+          "nonce": "FtBFkue7BIQwGLGabd8LL6lp6tL_0tUt",
+          "ciphertext": "KFvEVAwU88kpIly4-uRGMNUbCyMqnJCv48VxvD7QIkCh8OFVtMRrRmk08Dz0JUC3fFam8vDpSfU9W9pNht52CmB3C2kVURMDNUNkvqq7uMtTyamfzJLDOBppXEwgK1JjP4nNzFq5IqCTmfgU4x2qUGJTQBISkJsCSI8QaV1E9-J_pAjLyzNpZKEtGg"
+        },
+        "wrappedItemKey": {
+          "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+        }
+      },
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "record of another item id",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "item",
+        "teamId": "team-1",
+        "itemId": "item-2",
+        "teamKeyVersion": 1,
+        "createdBy": "alice",
+        "createdAt": 1700000500,
+        "wrappedManifest": {
+          "nonce": "WMWu0fJj6KCULZFRAYYorgQt3gkZHlPp",
+          "ciphertext": "pv2j09d85Go3NrLdyMn5bYogrEzXSRuTCZwBMoaeE-YTsFyMmd5sBiRQjGQys2_h9u0o72lbp58q_QYyZlVtC1cblAUX41z6XgqZxofA3iAluomGAi0OEP-eD8-eL3UyOWWbKsEZfCorGbqWIahyvi26MSMpTnCtMCjPqwvJW1l2TWiL1wSJ3lAMxQ"
+        },
+        "wrappedItemKey": {
+          "nonce": "qH3BWST5iSZG2gCZDMvNsN5ZnMflyaor",
+          "ciphertext": "4-lknGAkcDGWsz8VqY0Tm1K2mtk1q3M4_jxO4I5oKToiqAIzDNolEbpUXRpThwIz"
+        }
+      },
+      "expectedItemId": "item-1",
+      "error": "TRUST_FAILURE",
+      "reason": "context_mismatch"
+    }
+  ],
+  "swappedParts": [
+    {
+      "name": "parts swapped",
+      "order": [1, 0],
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "part dropped",
+      "order": [0],
+      "error": "DECRYPTION_FAILED"
+    }
+  ]
+}

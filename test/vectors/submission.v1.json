@@ -1,0 +1,57 @@
+{
+  "file": "submission.v1",
+  "covers": "Protocol §4.10 submission, D-14 content key",
+  "inbox": {
+    "secretKey": "e72dc860fb5550a78e40c0f861afa6b4e006749fd1ef309153cf606bf427a681",
+    "publicKey": "29f3a8c10292c30028a27423335d5ae92732a503eddf7cc5ec6f144bbe82ca5d"
+  },
+  "contentKey": "76155440d74bc70a11b6459cea0548341ee791882b4b5a8269504c9869d2b36e",
+  "createdAt": 1700000900,
+  "record": {
+    "v": 1,
+    "suite": "cc1",
+    "type": "submission",
+    "teamId": "team-1",
+    "inboxId": "inbox-1",
+    "submissionId": "8H240eAMDb91YCGMVpax1A",
+    "sealedEnvelope": "wbN3B7Ws3posuDPGF0lC5gmKiJ93Ms2u2056XfmV1i-Mu3URzTG93HDOwtDhVogFNohlgq_iv9I7XNYL2qx3uT2pp6ZBK7XBF6X6cO5vWWMBTgZ8MJ2Z1vVnB0ic4B2ly0WzadcBMy1n5tBRF8cpFZlDaDsD-EgC2ztPOjeBl536dScVQ537vhuhiBuGeE5uhQ-9k0Dqjz8MwnXhIud7JNnd1uuDzzL36M-kskorCDeWDwtCyftpy8t3b-1NDlWKbf9UWPmLgDLLvsLfeKgRsP0DX2zBCHv9hJiOqWsDU0RvafOI9zevFvsGYuzqpXrBWCQXM4judr2Uy2Sl-1oYmhZMJQlTWm0-xFF6uRBBe-OV6ycCYRxBK0sK"
+  },
+  "parts": [
+    {
+      "ciphertext": "f22d93b66894d51af72d5798e3da1a32008f72c55e8667b3eb7f15b54556cde357f34733b79ce43b4010c9739dd2514be9fbd4f678557c46950a925e50f754",
+      "plaintext": "61206d6573736167652066726f6d206f757473696465"
+    },
+    {
+      "ciphertext": "163d8a56d59cd3cc64aa1452da5fb99e3fc8b500ac6f3f34c3e149479f0add3b39bfb0402f89154efbf5755e8d21d2c6c93dacb7ccc4802a66382925bc534c0dca1949ccf483550615a54f25f46da0401ad8688ffc21af3b3f4692de969159e9130e37f2f43aa2ff6a",
+      "plaintext": "d72da50652fee2b91df5a7b6ed0494895b2e45dbcc962bca3d6c40728f4f6757cab3b26e2ff5ba51eb0a39960f9e3b544e5d20b7b733fb53d299f083d28c4e8c"
+    }
+  ],
+  "tampered": [
+    {
+      "name": "envelope sealed for another inbox",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "submission",
+        "teamId": "team-1",
+        "inboxId": "inbox-1",
+        "submissionId": "8H240eAMDb91YCGMVpax1A",
+        "sealedEnvelope": "-aqW5d91LvQiBHjMMfOngyijuzpLt6vtZMsnRl4jJTppzzds0enzqIgjJKMktZEOzaCMP_pDbzSbrkm7vb-ULDa81Xrk0xWHYwq5BgxpkxIkeZ9XuM5EpnRdh6_O7FOS8hKIMirsuC4gmEwNxPNomGmguNpFWTb6_2KeWuKnLGeON4TgxdseSQM0Znnz4OkN7DAjoo7IcCRvFC2MtBIWTyqhuH8EgYmYZbTYcyKtyL8QOHYRucVVbjm5iwIk9QN57PGih5Q5JahjyrNfr7Dw4h3GJ6QMq9duHJrpEJ4IVAoU_5_nGqKIzy5ajyaclJ_8p2hKcRKL3B0EjJmc76w_o-1t2bL39gWhXBdaToxhFpKIK7Q_Ku2_r3i9"
+      },
+      "error": "DECRYPTION_FAILED"
+    },
+    {
+      "name": "submission id that is not 16 bytes",
+      "record": {
+        "v": 1,
+        "suite": "cc1",
+        "type": "submission",
+        "teamId": "team-1",
+        "inboxId": "inbox-1",
+        "submissionId": "abc",
+        "sealedEnvelope": "wbN3B7Ws3posuDPGF0lC5gmKiJ93Ms2u2056XfmV1i-Mu3URzTG93HDOwtDhVogFNohlgq_iv9I7XNYL2qx3uT2pp6ZBK7XBF6X6cO5vWWMBTgZ8MJ2Z1vVnB0ic4B2ly0WzadcBMy1n5tBRF8cpFZlDaDsD-EgC2ztPOjeBl536dScVQ537vhuhiBuGeE5uhQ-9k0Dqjz8MwnXhIud7JNnd1uuDzzL36M-kskorCDeWDwtCyftpy8t3b-1NDlWKbf9UWPmLgDLLvsLfeKgRsP0DX2zBCHv9hJiOqWsDU0RvafOI9zevFvsGYuzqpXrBWCQXM4judr2Uy2Sl-1oYmhZMJQlTWm0-xFF6uRBBe-OV6ycCYRxBK0sK"
+      },
+      "error": "MALFORMED_RECORD"
+    }
+  ]
+}
