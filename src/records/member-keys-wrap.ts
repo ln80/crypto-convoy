@@ -76,7 +76,7 @@ export function createMemberKeysWrap(
 
 export function parseMemberKeysWrap(
   json: unknown,
-  expected: Omit<MemberKeysWrapContext, "memberKeysVersion"> & Partial<MemberKeysWrapContext>,
+  expected: Pick<MemberKeysWrapContext, "accountId" | "accountKeyVersion"> & Partial<MemberKeysWrapContext>,
 ): MemberKeysWrap {
   const { header, fields } = readRecord(json, MEMBER_KEYS_WRAP, [
     "accountId",

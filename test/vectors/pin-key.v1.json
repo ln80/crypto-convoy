@@ -1,0 +1,52 @@
+{
+  "file": "pin-key.v1",
+  "covers": "Protocol §5.1 PIN key: Argon2id, RFC 9497 OPRF (ristretto255-SHA512), keyed BLAKE2b",
+  "rfc9497": {
+    "seed": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+    "keyInfo": "74657374206b6579",
+    "skSm": "5ebcea5ee37023ccb9fc2d2019f9d7737be85591ae8652ffa9ef0f4d37063b0e",
+    "vectors": [
+      {
+        "input": "00",
+        "blind": "64d37aed22a27f5191de1c1d69fadb899d8862b58eb4220029e036ec4c1f6706",
+        "blindedElement": "609a0ae68c15a3cf6903766461307e5c8bb2f95e7e6550e1ffa2dc99e412803c",
+        "evaluationElement": "7ec6578ae5120958eb2db1745758ff379e77cb64fe77b0b2d8cc917ea0869c7e",
+        "output": "527759c3d9366f277d8c6020418d96bb393ba2afb20ff90df23fb7708264e2f3ab9135e3bd69955851de4b1f9fe8a0973396719b7912ba9ee8aa7d0b5e24bcf6"
+      },
+      {
+        "input": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "blind": "64d37aed22a27f5191de1c1d69fadb899d8862b58eb4220029e036ec4c1f6706",
+        "blindedElement": "da27ef466870f5f15296299850aa088629945a17d1f5b7f5ff043f76b3c06418",
+        "evaluationElement": "b4cbf5a4f1eeda5a63ce7b77c7d23f461db3fcab0dd28e4e17cecb5c90d02c25",
+        "output": "f4a74c9c592497375e796aa837e907b1a045d34306a749db9f34221f7e750cb4f2a6413a6bf6fa5e19ba6348eb673934a722a7ede2e7621306d18951e7cf2c73"
+      }
+    ]
+  },
+  "composition": {
+    "inputs": {
+      "accountId": "alice",
+      "pin": "1234",
+      "salt": "6e21317e00edf37b8d88125e67f4ca3d",
+      "opslimit": 2,
+      "memlimit": 67108864,
+      "oprfKeyId": 1,
+      "serverSeed": "027615bd407e9559b0ec77df2a35a33e7b669020315f89d09e6703f16fcee821"
+    },
+    "intermediate": {
+      "argon2id": "610571bceaa409513ef2f2bfffba6934626d6d5f7f316eb991028d2cabed8cb1",
+      "oprfInfo": "0000001963727970746f2d636f6e766f792f76312f70696e2d6f7072660000000100000005616c696365",
+      "serverSecretKey": "d2cbdd7b8637e2cf7c44e88778242dc8ca1997879eaeb00c1e106cd0d777d804",
+      "blind": "10c4623075f4d1bf82b5ac04336929b063d2c2cee5298a5e27e87730db164a09",
+      "blindedElement": "144528c302b68f9a1c441c76e222f434d2485e65045a08623b7e6777b2b6080e",
+      "evaluatedElement": "3ad8d29cce01612a03156ba061015ea7be62ff4659b52106745ad76d068e066c",
+      "oprfOutput": "bdb17b59713201b99e1a964027d8766768b95e4e49a94ad0f96190727044ccb83fda531d8a5caacd61dd1c2be42b7299e599b626482ce176520959f5804225fb"
+    },
+    "outputs": {
+      "pinKey": "88cd9a6482bf84e826c7f128072226c5665e28990475787de94767719809434b"
+    }
+  },
+  "normalization": {
+    "pin": "ﬁ1",
+    "nfkc": "fi1"
+  }
+}

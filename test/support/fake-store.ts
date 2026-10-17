@@ -15,6 +15,7 @@ export class TamperingStore implements RecordStore {
   #forks: { teamId: string; version: number; record: unknown }[] = [];
   #partReplacements: { match: Match; bytes: Uint8Array }[] = [];
   #commitFilter: ((ops: readonly WriteOp[]) => void) | undefined;
+  #accountVersion: number | null | undefined;
   readonly commits: WriteOp[][] = [];
 
   constructor(readonly inner: RecordStore) {}
@@ -43,6 +44,12 @@ export class TamperingStore implements RecordStore {
     return this;
   }
 
+  /** Serves this account key version instead of the current one. */
+  accountVersion(version: number | null): this {
+    this.#accountVersion = version;
+    return this;
+  }
+
   replacePart(match: Match, bytes: Uint8Array): this {
     this.#partReplacements.push({ match, bytes });
     return this;
@@ -61,6 +68,7 @@ export class TamperingStore implements RecordStore {
     this.#forks = [];
     this.#partReplacements = [];
     this.#commitFilter = undefined;
+    this.#accountVersion = undefined;
     return this;
   }
 
@@ -110,8 +118,8 @@ export class TamperingStore implements RecordStore {
     return out;
   }
 
-  getAccountKeyVersion(accountId: string) {
-    return this.inner.getAccountKeyVersion(accountId);
+  async getAccountKeyVersion(accountId: string) {
+    return this.#accountVersion !== undefined ? this.#accountVersion : this.inner.getAccountKeyVersion(accountId);
   }
 
   async commit(ops: readonly WriteOp[]) {
