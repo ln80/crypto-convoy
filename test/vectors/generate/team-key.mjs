@@ -107,7 +107,7 @@ const chainCases = [
 
 const bobOtherKey = account("bob-other");
 const variants = {
-  forkV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice), ownerRef(mallory)], signer: alice }).record,
+  forkV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice), ownerRef(carol)], signer: alice }).record,
   badPrevV2: versionRecord({ version: 2, prevHash: fixed("not the hash", 32), owners: [ownerRef(alice), ownerRef(bob)], signer: alice }).record,
   carolSignsV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice), ownerRef(carol)], signer: carol }).record,
   aliceSignsV4: versionRecord({ version: 4, prevHash: fromHex(v3.recordHash), owners: [ownerRef(alice)], signer: alice }).record,

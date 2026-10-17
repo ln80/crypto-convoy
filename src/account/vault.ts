@@ -1,4 +1,5 @@
 // The account vault (§5, D-03): the only holder of the account key.
+import { decodeAnchor } from "../encoding/link.js";
 import { ConvoyError } from "../errors.js";
 import {
   callPort,
@@ -14,10 +15,12 @@ import {
 } from "../ports.js";
 import { openAccountKeyWrap, parseAccountKeyWrap } from "../records/account-key-wrap.js";
 import { CURRENT_SUITE, ready } from "../suites/registry.js";
+import type { TeamSession } from "../team/session.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { createWrap, replaceWrap, wrapKey } from "./context.js";
 import { deriveRecoveryKey } from "./recovery-key.js";
 import { rotateAccount } from "./rotation.js";
+import { newMemberKeys, newTeamOps, openBundles, openSession } from "./member-custody.js";
 import {
   acceptVersion,
   commit,
@@ -210,6 +213,64 @@ export class Vault {
     this.lock();
     this.#account = account;
     return recoveryPhrase ? { recoveryPhrase } : {};
+  }
+
+  /** Creates a team with this account as its first owner (§6.3). Throws `STALE_VERSION` if it exists. */
+  async createTeam(teamId: string): Promise<TeamSession> {
+    const account = this.requireAccount();
+    await commit(this.#ports, newTeamOps(this.#ports, account, teamId));
+    return openSession(this.#ports, account, teamId);
+  }
+
+  /**
+   * Creates this account's member keys for a team; it stays `pending` until an owner grants it (§6.4).
+   * `anchor` comes from the invite link's fragment: the chain must contain it.
+   */
+  async joinTeam(teamId: string, options: { anchor?: string } = {}): Promise<TeamSession> {
+    const account = this.requireAccount();
+    const invite = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
+    if ((await openBundles(this.#ports, account, teamId)).length === 0) {
+      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1).ops);
+    }
+    return openSession(this.#ports, account, teamId, invite);
+  }
+
+  /** Opens a team: hands the session only this team's member keys (§5.8, SP-02). */
+  async openTeam(teamId: string): Promise<TeamSession> {
+    return openSession(this.#ports, this.requireAccount(), teamId);
+  }
+
+  /**
+   * New member keys for a team (§6.8 step 1), signed for continuity by the current ones.
+   * They receive nothing until an owner approves them by rotating.
+   */
+  async rekey(teamId: string): Promise<TeamSession> {
+    const account = this.requireAccount();
+    const [newest] = await openBundles(this.#ports, account, teamId);
+    if (!newest) throw new ConvoyError("NOT_GRANTED");
+    await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, newest.memberKeysVersion + 1, newest).ops);
+    return openSession(this.#ports, account, teamId);
+  }
+
+  /** Deletes this account's keys and state for a team (§5.9). Throws `LAST_OWNER` for the only owner. */
+  async leaveTeam(teamId: string): Promise<void> {
+    const account = this.requireAccount();
+    const session = await this.openTeam(teamId);
+    if (session.state === "unverified") throw session.failure!;
+    if (session.currentVersion > 0) {
+      const owners = session.owners();
+      if (owners.length === 1 && owners[0] === this.accountId) throw new ConvoyError("LAST_OWNER");
+    }
+    session.close();
+    const bundles = await openBundles(this.#ports, account, teamId);
+    await commit(this.#ports, [
+      ...bundles.map((b) => ({
+        op: "delete" as const,
+        key: { type: "member-keys-wrap" as const, accountId: this.accountId, teamId, memberKeysVersion: b.memberKeysVersion, accountKeyVersion: account.version },
+      })),
+      { op: "delete", key: { type: "team-state", accountId: this.accountId, teamId } },
+    ]);
+    await callPort(() => this.#ports.localKeys.deleteAnchor(this.accountId, teamId));
   }
 
   /** Registers this device unless it has a live wrap at the account's version (§5.5). */

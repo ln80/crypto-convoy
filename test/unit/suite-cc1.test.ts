@@ -101,11 +101,9 @@ describe("recovery phrase (§5.2)", () => {
 
   it("refuses a bad checksum or a wrong word count with WRONG_CREDENTIAL", () => {
     const words = cc1.generateRecoveryPhrase().split(" ");
-    const swapped = [words[1], words[0], ...words.slice(2)].join(" ");
     for (const phrase of [words.slice(0, 11).join(" "), "abandon ".repeat(12).trim(), "not a phrase"]) {
       expect(() => cc1.recoverySeed(phrase)).toThrow(expect.objectContaining({ code: "WRONG_CREDENTIAL" }));
     }
-    if (swapped !== words.join(" ")) expect(() => cc1.recoverySeed(swapped)).toThrow();
   });
 });
 

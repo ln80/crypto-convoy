@@ -165,8 +165,8 @@
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         {
-          "accountId": "mallory",
-          "signingPublicKey": "D0QqrFWh3fm6gK-mB65nP0HgCh3cpOJEg4gLi0U5Gt4"
+          "accountId": "carol",
+          "signingPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc"
         }
       ],
       "wrappedPreviousKey": {
@@ -178,7 +178,7 @@
         "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
       },
       "createdAt": 1700000002,
-      "signature": "jacX2ywFvkHf0geVd5B7WRU0899lE5UTsaQvEZhMv8HaM6xXwXcvYEpjD1LG3y01QEWEeSybPT26WiGJhb9YBw"
+      "signature": "vW-4Sen2OkaPcWi0LbfzsMHoo6OwbGnguMiNDBlfR4uabzbXu-lY_-7Ch057A4Q2WcEkg7qlnU8clmv9_9MzAg"
     },
     "badPrevV2": {
       "v": 1,
@@ -456,13 +456,13 @@
         "memberSigningPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q",
         "memberEncryptionPublicKey": "-Nb5rrGMGvKaPL6Fa2A5uYuLT1gbARI6OfnwZukSyCA",
         "teamKeyVersion": 1,
-        "sealedTeamKey": "hBl0wVNIDV6XiAogz-tIfrJNO6WUW1RzGgvwSxG6nyF46MAJ9CJ4d0o7Ud9z85OLdeZv-b388UyfOPgz8rpWIbqeQAGSoUtwvQ8lIOlfwAdsPF6xSTuPFYfXkUmVXmv-DgKZKe_WUFt4c5mCTG09jYfFXPFK42bDjoQKMvOnUmlmKzdRxYFqgGwxwaKQtg",
+        "sealedTeamKey": "BC6iDhoOuP3hcMrQgUGVD5dqR7HUuhdshYSSZT3VUksGH9ESYzYbGrc7p8Uuet5_ktmc2tWn6a1aV_KRY68td7kYVlJp0Fbt5BnzcXHqJdz8PqnKpw0IR3G-hymbrf0r3Bs8AG9wKG10engaSOGWzgI2KYkCD0arkuTsEiokrTldNs5GVraP-FKlZhvyJQ",
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000101,
-        "signature": "TxGkeqzR0riq2zqv6AuRnQ_Q6NPwDyoEPa-pdYNDdgjmZr_NNfd1tg4iEhJKQlpNmUu0WkyKXioVnkgh0VF8DQ"
+        "signature": "XzNnQz4SYLdavHdUc4BpChuQR6MOLkRzRgVteRaA9JM4O3QgqWv50ujiqGaKJWzV4WPGAEruA4T60Y7fQ20nDg"
       },
       "member": "alice",
       "expect": {
@@ -481,13 +481,13 @@
         "memberSigningPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4",
         "memberEncryptionPublicKey": "p3HBmxm9xW7rxqVHTyGEaEmswWiKt_i99s5fX9nTkQU",
         "teamKeyVersion": 2,
-        "sealedTeamKey": "ityoq9SEymau_LibmB6jCF4ijwIYerj6a3jlQxU7p0RjPxyw4bJTf93i6hgch7wjmJ7L-TAV779ZGbbu8qKsvluUbSUzLvGHiLE5aNaB8Ow7Q0Ej5jjhBofHYWYOnssJgoGcwzW5GNv4vEAemK_voA3hQGPv40Q6YywLyk4A2865YklqUEEXkmMiUJQ",
+        "sealedTeamKey": "SCDFSnGkjbD4LrGROH1WWEs5XevkRrib4Jm0ktokJTs9Cun5HXpUNIJUVdxSW4cx8zK8ggLmdrbF3QvRf8PELs_n5g2kFk96mH5jA3abDlod-EaZPrHAy3PUWLoLVQqW2nyCrmVoSzJd-bP0QGNXgET2W1-JiDKTHDgjdidvhi6lML8zdZiXFETf6tg",
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000102,
-        "signature": "G2plyP-1X2flSSIl5yhmPtnyR8X3Tjrn7DsaR4Fe_qHkaIWeYfRLwtX91Bczca7dMsBJJ-rrVyX5ppMGNkGUAA"
+        "signature": "z0hlh5v5tS69yWz6EbeTHC7GYJg4SURn1STcU1HvLuBeQ8p6urivQIdcT3hWNWA0d5TLy9N-fbNT2zMba6ObBA"
       },
       "member": "bob",
       "expect": {
@@ -506,13 +506,13 @@
         "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
         "memberEncryptionPublicKey": "v1j3zkuGhrU5Nm-gLtkjNYvGEPpJUkc-HpKe3DgBE00",
         "teamKeyVersion": 3,
-        "sealedTeamKey": "aHf4f0sgPNVqpkZxizXv8tW6IxYL5jVwhloC6NsmqVklqGZKKtBUW7wTKQ-U7-ZaFTc1Adi_GLo0kEvAxWlE4gkeVeh30sxD7vNvp_KZdp8_Jd9rry1M7Lru4x9a3d7HwZMleFQyC0fTUoCdy3SiRG-AMYHEw9tv8-esJdYc-Du2pxHsvgcD7IODW7VsZg",
+        "sealedTeamKey": "-zCnKPtRY55zNSGL5MYq9AppDrLhT5OAhaFtE5OnNRflSmMrEyQ7FOeE-0_GqouaIQDW3zjA8OAlUmnvVPZPUCl90b5m5OJ8Y9-pAI3s3HHRExRmokfdI52zyGf6YqXcS9ZC64ihkAtPaGp17n5UfqrAmdgCirvvBirelKfiY_Rgy1uGuAKyPpjZAF2Pmw",
         "signer": {
           "accountId": "bob",
           "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
         },
         "createdAt": 1700000103,
-        "signature": "s3gbr94xHnTU1pY7UcD9Kq94J5FOV_QZ_p95vXlSlzTUsvh3f-hxx5lNWZcfXyfx8wPqEVgSlEPJ3syLgvfiCQ"
+        "signature": "DcNW9EN-VAN7DLgHM0JeQ14rvbSKZSKYDaKi5xdhlMRXQJ9kIlTC5jLnL0cu9RORW879ge3s1GboeooqmwOZBw"
       },
       "member": "carol",
       "expect": {
@@ -531,13 +531,13 @@
         "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
         "memberEncryptionPublicKey": "v1j3zkuGhrU5Nm-gLtkjNYvGEPpJUkc-HpKe3DgBE00",
         "teamKeyVersion": 3,
-        "sealedTeamKey": "-D7MEXvYVqThpYu-3IiMpHb6Mq7c64123fOLz-l5TQZDeTaJXnd37PpuEJKKnZ4Bd1sgy-_0bSXcg8gpc2kyozRc9LGEsdQncsaDzbczfpS24-1i6VJPzI2pzkWehF5mErDhH2Gvqmg01D_5U_ifbk5Grv_icKqatfoYCnihqx4o_TpKYs7OA3qOCYddqA",
+        "sealedTeamKey": "5uCM-VZXNywtjuxCmFQnaXM5nqKbx4cMrK0j7mioUC03C9GsIj_436vvPtx7_vF1YF63qbaI3pSFciy_j3gfQckJYLgTlgomRTaruEnq56TKGqOPpkU5aKhSVZ1FHycNsm6hm0XCJOOKQhTAIaihGF_CNQSQOCtLIg2EnOkViNEsm4OU-KFPceqxL-50RA",
         "signer": {
           "accountId": "alice",
           "signingPublicKey": "ULb2-Qzq43QGQTD8up1vDHhSDt_vz2Cn7YEAD0lau_Q"
         },
         "createdAt": 1700000103,
-        "signature": "NFdk77t8fafqK7Zou88qR0lqxeETjRP4Shje1MBC9KC1aFeFdfJro9bsb1hnbIAm5Ji-dmEfKnUtnmLvkvVhDw"
+        "signature": "oe_qqkseeu8QSt3jDu-Ms5_Sjz_q7ATePWg_BDfPnPyyx2KIK_FvQ5OLKDY7TTYRlBj93hyaHwJ9iHylFedoBQ"
       },
       "member": "carol",
       "expect": {
@@ -557,13 +557,13 @@
         "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
         "memberEncryptionPublicKey": "v1j3zkuGhrU5Nm-gLtkjNYvGEPpJUkc-HpKe3DgBE00",
         "teamKeyVersion": 2,
-        "sealedTeamKey": "Avzrkad6KEpITNtAUVB06GgtZdTE40Z453eMIVAtZz8_D2Vsru2EjFbba4OyMkqS2v6wE1x2KyH8e5UiqbAKQgtBz2QRX2KiDUc-Ivdev13LDpgKVEGWhzHskTIZAvVszNXwbAgW5XJgnrVWqtZ5HW8GjZEUT-fnn68ttjo-5Y61He8H2t7quGDf9UGv_Q",
+        "sealedTeamKey": "St6Q3eQr53fo0uU8a2ySkCntioZDxYqVYO_0MpkPNk58e5WA55lYZVqhF8jPS0tAg4oJ3mjJuirkxlum1CeScP8tppCbX9mMRsGpfm1eZ48f-1PoG87MxJ_dpSdvhaHVfacyYhbiZQrUmZWTHoajFNZdmnfTm_aG8dYAg2lxM8WzI7vonk0Afs0qKLK_ZA",
         "signer": {
           "accountId": "carol",
           "signingPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc"
         },
         "createdAt": 1700000102,
-        "signature": "XInK21KQu_cTDgu7cBMHD3tJ48iOB3ac714aiX7w_elE8nZ_CNDEFo68RGPQadtG0UcMEuFdMtT01H0ZKcXlAg"
+        "signature": "RhXgqM57B0vBincfQbYfn3CidT4g9QHd6DnqnuY81JaX7xz_UIqdRTziZEJUf72A1YJlxsOz8YZnFOdy9Y_dCA"
       },
       "member": "carol",
       "expect": {
@@ -583,13 +583,13 @@
         "memberSigningPublicKey": "P0VsTKrHA9hwREhgFPqh0TUABQLU8kwqHhTP-0sVtAc",
         "memberEncryptionPublicKey": "IzlSExMN3xsqUGlJKcdTN1udE22PHOBSdl8L09GWnio",
         "teamKeyVersion": 3,
-        "sealedTeamKey": "KcvwEv5KEXMfGosB1mPMidpI9BkD271lVyAmvTXdb21e6GuXW85miQyOWSJyYeNigLgOi3ndTKKdyWCaIPshPmCbHEhuXmm41oql8USCAbzaGjZWisICAE0ED3xUFWvvhw4iXmaGkOyHGxux_gHIasLUJgk1o6h9ZieIPL1nB79jabDoieV5C2j9I93y3A",
+        "sealedTeamKey": "PrWy1eE0RHnIA-TGuiRLCVeAoX_ONurz3M-2sOgp_VN7xfbh4-e0Cdhoy-XOOntuopqa2WeLdmCVCrB6Y_npXrQJWKXMfRoogX-JTY76dT5wCbaVmGRom-436qaUYyxzKXgbHOneQjeICbDkz4iIZzNwleh7OvnPbH8CDDpyafPVZiI2Iyg8d1mAxYU_vQ",
         "signer": {
           "accountId": "bob",
           "signingPublicKey": "RkJHqKcdBLMBcMAKeCF9HiVttTliG_rPUJlx2GYe0b4"
         },
         "createdAt": 1700000103,
-        "signature": "RHA65xdwc9nDEFyuNXHW1vbLl-we1eeFq0i0Z96N3mBkUfiNTeIjPdhUGLfua4WQOl-B1K8SSCKnd4CuwdPnCQ"
+        "signature": "wIgTdmZ3341Dalji30IGI6WfCpgC78nuIiN1pBJMKrrhPMFtL0BmzHIYq4g0-tLQxvTlk5vZuc7y940UdNKiBw"
       },
       "member": "carol",
       "expect": {

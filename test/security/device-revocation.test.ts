@@ -4,6 +4,9 @@
  */
 import { describe, expect, it } from "vitest";
 import { world } from "../support/fixtures.js";
+import { openGrant, parseGrant } from "../../src/records/grant.js";
+import { bundleOf } from "../support/forge.js";
+import { team } from "../support/teams.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -41,5 +44,31 @@ describe("SP-10: a revoked device can't unlock again", () => {
     await laptop.vault.unlockWithPin("1234");
     laptop.vault.lock();
     await laptop.vault.unlock();
+  });
+});
+
+describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full remedy does", () => {
+  it("revoke, rotate the account key, re-key and rotate the team: copied keys open nothing new", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    const stolenAccountKey = bob.vault.requireAccount().key.slice();
+    const stolenBundle = await bundleOf(bob.vault);
+
+    // Revocation alone: the copied member keys still open a version granted afterwards.
+    await aliceTeam.rotate({ keep: ["bob"] });
+    const v2 = parseGrant((await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", teamKeyVersion: 2 }))[0], { teamId: "team-1" });
+    expect(openGrant(v2, stolenBundle.pairs.encryption)).toHaveLength(32);
+
+    // The full remedy (D-21).
+    await bob.vault.rotate({ pin: bob.pin, phrase: bob.recoveryPhrase });
+    await bob.vault.rekey("team-1");
+    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: ["bob"] });
+
+    const v3 = parseGrant((await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", teamKeyVersion: 3 }))[0], { teamId: "team-1" });
+    expect(() => openGrant(v3, stolenBundle.pairs.encryption)).toThrow(code("DECRYPTION_FAILED"));
+    const wraps = await bob.store.list({ type: "member-keys-wrap", accountId: "bob", accountKeyVersion: 2 });
+    expect(wraps.length).toBeGreaterThan(0);
+    expect(Buffer.from(stolenAccountKey).equals(Buffer.from(bob.vault.requireAccount().key))).toBe(false);
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
   });
 });
