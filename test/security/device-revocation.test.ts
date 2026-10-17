@@ -57,13 +57,13 @@ describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full reme
     const stolenBundle = await bundleOf(bob.vault);
 
     // Revocation alone: the copied member keys still open a version granted afterwards.
-    await aliceTeam.rotate({ keep: ["bob"] });
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
     expect((await accessOf(bob.store, "bob", 2))!.open(stolenBundle.pairs.encryption)).toHaveLength(32);
 
     // The full remedy (D-21).
     await bob.vault.rotate({ pin: bob.pin, phrase: bob.recoveryPhrase });
     await bob.vault.rekey("team-1");
-    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    await aliceTeam.owner().rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
 
     const v3 = (await accessOf(bob.store, "bob", 3))!;
     expect(v3.memberKeysVersion).toBe(2);

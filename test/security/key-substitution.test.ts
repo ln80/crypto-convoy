@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { isConvoyError } from "../../src/errors.js";
 import { bundleOf, forgeGrant, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
-import { team } from "../support/teams.js";
+import { requestOf, team } from "../support/teams.js";
 
 const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
 
@@ -54,7 +54,7 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
     await members.alice!.vault.createTeam("team-2");
     const aliceTeam2 = await members.alice!.vault.openTeam("team-2");
     await bob.vault.joinTeam("team-2");
-    await aliceTeam2.grant("bob", 1);
+    await aliceTeam2.owner().grant({ accountId: "bob", memberKeysVersion: 1 });
     const otherTeam = (await bob.store.list({ type: "grant", teamId: "team-2", accountId: "bob" }))[0];
     bob.store.replace({ type: "grant", teamId: "team-1", accountId: "bob" }, otherTeam);
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("context_mismatch"));
@@ -77,14 +77,14 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
     const alice = members.alice!;
     // Newer keys published without approval: the rotation carries the held ones.
     await alice.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, mallory) }]);
-    await aliceTeam.rotate({ keep: ["bob"] });
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
     expect((await accessOf(alice.store, "bob", 2))!.memberKeysVersion).toBe(1);
     expect((await members.bob!.vault.openTeam("team-1")).state).toBe("ready");
 
     // The held keys' record swapped by the server: their hash no longer matches, and the rotation stops.
     const owner = await alice.vault.openTeam("team-1");
     alice.store.replace({ type: "member-keys", accountId: "bob", memberKeysVersion: 1 }, forgeMemberKeys("bob", 1, mallory));
-    await expect(owner.rotate({ keep: ["bob"] })).rejects.toEqual(trust("key_mismatch"));
+    await expect(owner.owner().rotate({ keep: ["bob"] })).rejects.toEqual(trust("key_mismatch"));
     alice.store.reset();
     expect((await alice.vault.openTeam("team-1")).currentVersion).toBe(2);
     expect((await members.bob!.vault.openTeam("team-1")).state).toBe("ready");
@@ -93,7 +93,7 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
   it("keys published without proof from the current ones are flagged to the owner (TH-37)", async () => {
     const { members, aliceTeam } = await team("bob");
     await members.alice!.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) }]);
-    expect((await aliceTeam.memberRequest("bob")).continuity).toBe("unproven");
+    expect((await requestOf(aliceTeam.owner(), "bob")).proof).toBe("none");
   });
 
   it("an owner can't grant keys the member has replaced", async () => {
@@ -101,9 +101,9 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
     const carol = await w.account("carol");
     await carol.vault.joinTeam("team-1");
     await carol.vault.rekey("team-1");
-    await expect(aliceTeam.grant("carol", 1)).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    await expect(aliceTeam.owner().grant({ accountId: "carol", memberKeysVersion: 1 })).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
     expect(await members.alice!.store.list({ type: "grant", teamId: "team-1", accountId: "carol" })).toEqual([]);
-    await aliceTeam.grant("carol", 2);
+    await aliceTeam.owner().grant({ accountId: "carol", memberKeysVersion: 2 });
     expect((await carol.vault.openTeam("team-1")).state).toBe("ready");
   });
 });

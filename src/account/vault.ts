@@ -1,5 +1,5 @@
 // The account vault (§5, D-03): the only holder of the account key.
-import { decodeAnchor } from "../encoding/link.js";
+import { decodeAnchor, decodeInvite } from "../encoding/link.js";
 import { ConvoyError, trustFailure } from "../errors.js";
 import {
   callPort,
@@ -332,23 +332,31 @@ export class Vault {
 
   /**
    * Creates this account's member keys for a team, if it has none; it stays `pending` until an
-   * owner grants it (§6.4). Open the team then, here or in another context.
+   * owner grants it (§6.4). With the `invite` link value, the keys carry the invite's proof
+   * (D-32). Open the team then, here or in another context. Throws `RECOVERY_NOT_SET_UP`, `MALFORMED_RECORD`.
    */
-  async joinTeam(teamId: string): Promise<void> {
+  async joinTeam(teamId: string, options: { invite?: string } = {}): Promise<void> {
     const account = this.#requireAccount();
+    const invite = options.invite !== undefined ? decodeInvite(options.invite) : undefined;
     if ((await openBundles(this.#ports, account, teamId)).length === 0) {
-      const options = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account) };
-      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1, options).ops);
+      const keys = {
+        recoveryPublicKey: await recoveryPublicKey(this.#ports, account),
+        ...(invite ? { invite: { inviteId: invite.inviteId, secret: invite.secret } } : {}),
+      };
+      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1, keys).ops);
     }
+    if (invite) this.#ports.suite.wipe(invite.secret);
   }
 
   /**
    * Opens a team in the vault's own context: hands the session only this team's member keys
-   * (§5.8, SP-02). Needs `anchors`. `anchor` comes from an invite link's fragment on a first join.
+   * (§5.8, SP-02). Needs `anchors`. On a first join, pass the `invite` link value (or a bare
+   * `anchor`): the chain must contain its anchor (§6.4).
    */
-  async openTeam(teamId: string, options: { anchor?: string } = {}): Promise<TeamSession> {
-    const invite = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
-    return openSession(this.#ports, this.#requireAccount(), teamId, invite);
+  async openTeam(teamId: string, options: { invite?: string; anchor?: string } = {}): Promise<TeamSession> {
+    const anchor =
+      options.invite !== undefined ? decodeInvite(options.invite).anchor : options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
+    return openSession(this.#ports, this.#requireAccount(), teamId, anchor);
   }
 
   /**

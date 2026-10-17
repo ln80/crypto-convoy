@@ -34,9 +34,9 @@ describe("SP-01: no key that opens items, and no plaintext, in the key store or 
     const sender = (await outsider()).beginSubmission(linkKey, "team-1", "inbox-1");
     content.put("sub-1", 0, sender.addPart(plaintexts[1]!));
     content.putRecord("sub-1", await sender.seal("sub-1"));
-    await aliceTeam.setOwners(["alice", "bob"], { keep: ["bob"] });
+    await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob"] });
     await members.bob!.vault.rekey("team-1");
-    await aliceTeam.rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    await aliceTeam.owner().rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
     await alice.vault.changePin("2222");
     await replacePhrase(alice.vault, { currentPhrase: alice.recoveryPhrase });
     await alice.vault.rotate({ pin: "2222" });

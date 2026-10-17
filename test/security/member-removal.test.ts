@@ -20,7 +20,7 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     const bobSession = await bob.vault.openTeam("team-1");
     const held = { v1: await sessionInternals(bobSession).teamKey(1), bundle: await bundleOf(bob.vault), accountKey: vaultInternals(bob.vault).account().key };
 
-    await aliceTeam.rotate({ keep: ["carol"] });
+    await aliceTeam.owner().rotate({ keep: ["carol"] });
     await addParts(aliceTeam.beginItem(), new ContentStore(), "after", ["new secret"]).seal("after");
 
     // Bob's session and every key he held.
@@ -40,23 +40,24 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
 
   it("forgetting someone in the keep list costs them access, never leaks it", async () => {
     const { members, aliceTeam } = await team("bob");
-    await aliceTeam.rotate({ keep: [] });
+    await aliceTeam.owner().rotate({ keep: [] });
     expect((await members.bob!.vault.openTeam("team-1")).state).toBe("pending");
-    expect(await aliceTeam.needsRotation(["alice"])).toBe(false);
+    expect((await aliceTeam.owner().overview(["alice"])).warnings.map((x) => x.code)).not.toContain("rotation-needed");
   });
 
-  it("needsRotation flags granted accounts that are no longer active", async () => {
+  it("the overview flags holders that are no longer active", async () => {
     const { aliceTeam } = await team("bob");
-    expect(await aliceTeam.needsRotation(["alice", "bob"])).toBe(false);
-    expect(await aliceTeam.needsRotation(["alice"])).toBe(true);
+    const codes = async (active: string[]) => (await aliceTeam.owner().overview(active)).warnings.map((x) => x.code);
+    expect(await codes(["alice", "bob"])).not.toContain("rotation-needed");
+    expect(await codes(["alice"])).toContain("rotation-needed");
   });
 
   it("Limit: re-admitting the member with a later grant opens the gap", async () => {
     const { members, aliceTeam } = await team("bob");
-    await aliceTeam.rotate({ keep: [] });
+    await aliceTeam.owner().rotate({ keep: [] });
     const content = new ContentStore();
     await addParts(aliceTeam.beginItem(), content, "while-away", ["gap"]).seal("while-away");
-    await aliceTeam.grant("bob", 1);
+    await aliceTeam.owner().grant({ accountId: "bob", memberKeysVersion: 1 });
     const bob = await members.bob!.vault.openTeam("team-1");
     expect(bob.state).toBe("ready");
     expect(read(await (await bob.openItem("while-away")).part(0, content.get("while-away", 0)))).toBe("gap");

@@ -11,9 +11,9 @@ const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE
 /** v1 owners [alice]; v2 owners [alice, bob]; v3 owners [bob]: alice removed, carol kept. */
 async function removedOwner() {
   const t = await team("bob", "carol");
-  await t.aliceTeam.setOwners(["alice", "bob"], { keep: ["bob", "carol"] });
+  await t.aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob", "carol"] });
   const bob = await t.members.bob!.vault.openTeam("team-1");
-  await bob.setOwners(["bob"], { keep: ["alice", "carol"] });
+  await bob.owner().setOwners(["bob"], { keep: ["alice", "carol"] });
   return { ...t, alice: await bundleOf(t.members.alice!.vault), bob };
 }
 
@@ -66,7 +66,7 @@ describe("SP-05: only a current owner can change the owner list", () => {
     const { members } = await team("bob");
     const alice = members.alice!;
     const aliceKeys = await bundleOf(alice.vault);
-    await (await alice.vault.openTeam("team-1")).rotate({ keep: ["bob"] });
+    await (await alice.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
     const named = { accountId: "alice", keys: aliceKeys.pairs, published: aliceKeys.published };
     alice.store.fork("team-1", 2, await forgeVersion(alice.store, { version: 2, owners: [named], signer: named }));
     expect((await alice.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));

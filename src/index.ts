@@ -7,16 +7,19 @@
 export const version = "0.0.0";
 
 export { createVault, type RekeyReport, type Vault, type VaultOptions, type VaultStatus, type VaultWarning } from "./account/vault.js";
+export type { AccessState, Member, TeamSession } from "./team/session.js";
+export type { ChangeReport, ReconcileOptions, ReconcileReport, RotationOptions, TeamOwner } from "./team/owner.js";
 export type {
-  AccessState,
-  Member,
-  MemberRequest,
-  MemberStatus,
+  AccountOverview,
+  AccountStatus,
+  HumanReason,
+  InvitePolicy,
   KeysHandle,
-  RotationOptions,
-  TeamSession,
-  Warning,
-} from "./team/session.js";
+  NeedsHuman,
+  OwnerWarning,
+  ProofKind,
+  TeamOverview,
+} from "./team/membership.js";
 export type { OwnerChange } from "./team/chain.js";
 export { createTeamKeyReceiver, type ReceiverPorts, type TeamKeyReceiver } from "./team/receiver.js";
 export { createLinkClient, type LinkClient, type LinkClientOptions } from "./content/link-client.js";

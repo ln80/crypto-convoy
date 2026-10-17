@@ -85,7 +85,7 @@ describe("SP-11: teams survive an account key rotation", () => {
     const bob = members.bob!;
     const copied = await bundleOf(bob.vault);
     await bob.vault.rotate({ pin: bob.pin });
-    await aliceTeam.rotate({ keep: ["bob"] });
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
     expect((await accessOf(bob.store, "bob", 2))!.open(copied.pairs.encryption)).toHaveLength(32);
   });
 });

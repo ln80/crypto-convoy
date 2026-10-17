@@ -90,7 +90,7 @@ describe("SP-14: only the team opens inbox submissions", () => {
     const content = new ContentStore();
     const { linkKey } = await aliceTeam.createInbox("inbox-1");
     const bobSession = await members.bob!.vault.openTeam("team-1");
-    await aliceTeam.rotate({ keep: [] });
+    await aliceTeam.owner().rotate({ keep: [] });
     await send(linkKey, content, "sub-1", ["later"]);
     const opened = await bobSession.openSubmission("inbox-1", "sub-1", content.record("sub-1"));
     expect(read(await opened.part(0, content.get("sub-1", 0)))).toBe("later");

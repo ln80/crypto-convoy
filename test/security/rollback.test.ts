@@ -15,8 +15,8 @@ const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as c
 
 async function threeVersions() {
   const t = await team("bob");
-  await t.aliceTeam.rotate({ keep: ["bob"] });
-  await (await t.members.alice!.vault.openTeam("team-1")).rotate({ keep: ["bob"] });
+  await t.aliceTeam.owner().rotate({ keep: ["bob"] });
+  await (await t.members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
   const bob = t.members.bob!;
   expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(3);
   return { ...t, bob };
@@ -44,8 +44,8 @@ describe("SP-07: a client never goes back", () => {
     const t = await team("bob");
     const content = new ContentStore();
     await addParts(t.aliceTeam.beginItem(), content, "old", ["from version 1"]).seal("old");
-    await t.aliceTeam.rotate({ keep: ["bob"] });
-    await (await t.members.alice!.vault.openTeam("team-1")).rotate({ keep: ["bob"] });
+    await t.aliceTeam.owner().rotate({ keep: ["bob"] });
+    await (await t.members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
     const bob = t.members.bob!;
     expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(3);
 
@@ -87,7 +87,7 @@ describe("SP-07: a client never goes back", () => {
   it("an older team-state revision doesn't move the client back", async () => {
     const { bob, members } = await threeVersions();
     const old = await bob.store.get(stateKey);
-    await (await members.alice!.vault.openTeam("team-1")).rotate({ keep: ["bob"] });
+    await (await members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
     expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(4);
     bob.store.replace(stateKey, old);
     bob.store.rollback("team-1", 3);
@@ -104,7 +104,7 @@ describe("SP-07: a client never goes back", () => {
 
   it("a joining member refuses a chain that doesn't contain the invite anchor", async () => {
     const { aliceTeam, w } = await team();
-    await aliceTeam.rotate({ keep: [] });
+    await aliceTeam.owner().rotate({ keep: [] });
     const anchor = aliceTeam.inviteAnchor();
     const dave = await w.account("dave");
     dave.store.rollback("team-1", 1);

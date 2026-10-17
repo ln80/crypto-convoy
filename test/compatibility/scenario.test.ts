@@ -2,7 +2,8 @@
  * The library through its public entry points only, shaped like a product's pipelines:
  * a value encrypted before the server assigns an id, files uploaded one by one, the key record
  * sealed at finalize; per-part reveal; an intake from outside; a vault and a page in separate
- * contexts. Doubles as executable documentation. Covers SP-02, SP-06, SP-12, SP-14, SP-15 end to end.
+ * contexts; invites, the owner's reconcile and securing an account. Doubles as executable
+ * documentation. Covers SP-02, SP-06, SP-12, SP-14, SP-15, SP-22, SP-23, SP-24 end to end.
  */
 import { describe, expect, it } from "vitest";
 import { createLinkClient, createTeamKeyReceiver, createVault, isConvoyError, type Settings } from "../../src/index.js";
@@ -48,7 +49,8 @@ describe("scenario", () => {
     const vault = (accountId: string, keys = local()) =>
       createVault({ store: keyStore.as(accountId), oprf, deviceKeys: keys, anchors: keys, clock, settings }, accountId);
 
-    // 1. Encryption setup: the owner creates the team; a member joins and waits for approval.
+    // 1. Encryption setup: recovery first; the owner creates the team and invites a member, who
+    //    joins with the invite link; the owner's reconcile admits them because the product opts in.
     const alice = await vault("alice");
     expect((await alice.status()).account).toBe("not-set-up");
     await alice.setup("1234");
@@ -59,18 +61,25 @@ describe("scenario", () => {
     expect((await alice.status()).recovery).toBe("set-up");
     await alice.createTeam("team-1");
     const team = await alice.openTeam("team-1");
-    expect((await team.warnings(["alice"])).map((w) => w.code)).toEqual(["single-owner"]);
+    const owner = team.owner();
+    expect((await owner.overview(["alice"])).warnings.map((w) => w.code)).toEqual(["single-owner"]);
+    const { invite } = await owner.createInvite("invite-bob", { inviteeRef: "ref-bob" }); // in the invite link's fragment
 
     const bob = await vault("bob");
     await bob.setup("5678");
     await bob.confirmRecoveryPhrase(bob.beginRecoverySetup().recoveryPhrase);
-    expect((await team.memberStatuses(["bob"]))[0]!.status).toBe("no-keys");
-    await bob.joinTeam("team-1");
-    expect((await bob.openTeam("team-1", { anchor: team.inviteAnchor() })).state).toBe("pending");
-    expect(await team.memberStatuses(["bob"])).toEqual([{ accountId: "bob", status: "awaiting-approval", continuity: "new" }]);
-    expect((await team.warnings(["alice", "bob"])).find((w) => w.code === "members-awaiting-approval")?.accountIds).toEqual(["bob"]);
-    await team.grant("bob", (await team.memberRequest("bob")).memberKeysVersion);
-    expect((await team.memberStatuses(["bob"]))[0]!.status).toBe("approved");
+    expect((await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!.status).toBe("no-keys");
+    await bob.joinTeam("team-1", { invite });
+    expect((await bob.openTeam("team-1", { invite })).state).toBe("pending");
+    const bobView = (await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!;
+    expect(bobView).toMatchObject({ status: "awaiting-approval", proof: "invite", inviteId: "invite-bob", inviteeRef: "ref-bob" });
+    // Without the opt-in, an invite proof is a hint: a human approves.
+    expect((await owner.reconcile(["alice", "bob"])).needsHuman).toEqual([
+      { accountId: "bob", reason: "invite-not-accepted", keys: bobView.keys, proof: "invite" },
+    ]);
+    const admitted = await owner.reconcile(["alice", "bob"], { autoApproveInvites: ({ inviteeRef }) => inviteeRef === "ref-bob" });
+    expect(admitted).toMatchObject({ admitted: ["bob"], needsHuman: [] });
+    expect((await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!.status).toBe("approved");
 
     // 2. Secret creation: the value is encrypted before the server assigns the id, files are
     //    uploaded one by one (streamed), and the key record is sealed at finalize.
@@ -101,11 +110,13 @@ describe("scenario", () => {
     expect(read(await submission.part(0, product.download(submissionId, 0)))).toBe("filled form");
 
     // 5. Bob becomes an owner; then bob removes alice's access and ownership.
-    await team.setOwners(["alice", "bob"], { keep: ["bob"] });
+    await owner.setOwners(["alice", "bob"]);
     const bobOwner = await bob.openTeam("team-1");
     expect(bobOwner.ownerChanges.map((c) => c.added)).toEqual([["bob"]]);
-    expect((await bobOwner.warnings(["bob"])).map((w) => w.code)).toContain("rotation-needed");
-    await bobOwner.setOwners(["bob"], { keep: [] });
+    // Removing an owner is never automatic: reconcile leaves it to a human.
+    const plan = await bobOwner.owner().reconcile(["bob"], { dryRun: true });
+    expect(plan.needsHuman).toContainEqual(expect.objectContaining({ accountId: "alice", reason: "inactive-owner" }));
+    await bobOwner.owner().setOwners(["bob"], { keep: [] });
     const later = bobOwner.beginItem();
     later.addPart(text("alice can't read this"));
     await later.seal("after-removal");
@@ -115,9 +126,10 @@ describe("scenario", () => {
 
     // 6. Alice re-keys; bob sees the continuity hint and grants her new keys (never the replaced ones).
     await alice.rekey("team-1");
-    expect(await bobOwner.memberStatuses(["alice"])).toEqual([{ accountId: "alice", status: "outdated", continuity: "routine" }]);
-    await expect(bobOwner.grant("alice", 1)).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
-    await bobOwner.grant("alice", 2);
+    const aliceView2 = (await bobOwner.owner().overview(["alice", "bob"])).accounts.find((a) => a.accountId === "alice")!;
+    expect(aliceView2).toMatchObject({ status: "outdated", proof: "continuity", keys: { accountId: "alice", memberKeysVersion: 2 } });
+    await expect(bobOwner.owner().grant({ accountId: "alice", memberKeysVersion: 1 })).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    await bobOwner.owner().approve([aliceView2.keys!]);
     expect((await alice.openTeam("team-1")).state).toBe("ready");
 
     // 7. Separate contexts: the vault on one origin, team work on the product's page.
@@ -134,5 +146,14 @@ describe("scenario", () => {
     const newDevice = await vault("alice");
     await newDevice.recover(recoveryPhrase, "4321");
     expect((await newDevice.openTeam("team-1")).state).toBe("ready");
+
+    // 9. A device of alice's may have been misused: one call from a clean device secures the
+    //    account; bob's routine reconcile approves her proven re-key and rotates.
+    const secured = await newDevice.secureAccount({ phrase: recoveryPhrase, newPin: "8642" });
+    expect(secured).toEqual({ rekeyed: ["team-1"], failed: [] });
+    const routine = await (await bob.openTeam("team-1")).owner().reconcile(["alice", "bob"]);
+    expect(routine).toMatchObject({ approvedRekeys: ["alice"], needsHuman: [] });
+    expect((await newDevice.openTeam("team-1")).state).toBe("ready");
+    await expect(alice.unlock()).rejects.toSatisfy((e) => isConvoyError(e, "DEVICE_NOT_REGISTERED"));
   });
 });

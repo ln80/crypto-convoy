@@ -16,13 +16,13 @@ describe("team lifecycle", () => {
       ["carol", "alice"],
     ]);
 
-    await aliceTeam.setOwners(["alice", "bob"], { keep: ["bob", "carol"] });
+    await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob", "carol"] });
     expect(aliceTeam.currentVersion).toBe(2);
     await bob.close();
     const bob2 = await members.bob!.vault.openTeam("team-1");
     expect(bob2.ownerChanges).toEqual([{ version: 2, signer: "alice", added: ["bob"], removed: [], rekeyed: [] }]);
 
-    await bob2.setOwners(["bob"], { keep: ["carol"] });
+    await bob2.owner().setOwners(["bob"], { keep: ["carol"] });
     const aliceAgain = await members.alice!.vault.openTeam("team-1");
     expect(aliceAgain.state).toBe("pending");
     expect(await sessionInternals(aliceAgain).teamKey(1)).toHaveLength(32);

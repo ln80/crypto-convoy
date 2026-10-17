@@ -28,7 +28,7 @@ describe("SP-02: a team session holds only its own team's keys", () => {
     const alice = members.alice!;
     await alice.vault.createTeam("team-2");
     const teamB = await alice.vault.openTeam("team-2");
-    await teamB.rotate({ keep: [] });
+    await teamB.owner().rotate({ keep: [] });
     const teamA = await alice.vault.openTeam("team-1");
 
     const accessB = (await accessOf(alice.store, "alice", 2, "team-2"))!;
