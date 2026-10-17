@@ -1,11 +1,12 @@
 // Loading a team's verified chain (§6.1 steps 1–2), shared by sessions and the vault's leave check.
 import type { Anchor } from "../encoding/link.js";
+import { trustFailure } from "../errors.js";
 import { callPort, type AnchorStore, type RecordStore } from "../ports.js";
 import { parseMemberKeys } from "../records/member-keys.js";
 import { parseTeamKeyVersion } from "../records/team-key-version.js";
 import type { Suite } from "../suites/suite.js";
 import { readServerState, type ServerState } from "./anchors.js";
-import { verifyChain, type VerifiedChain } from "./chain.js";
+import { extendChain, verifyChain, type VerifiedChain } from "./chain.js";
 import type { MemberBundle } from "./context.js";
 
 export interface ChainPorts {
@@ -25,11 +26,25 @@ export async function loadChain(
   const server = await readServerState(ports, accountId, teamId, bundles);
   const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(accountId, teamId)) : null;
   const anchors = [local, server?.anchor, invite].filter((a): a is Anchor => a !== null && a !== undefined);
-  const records = (await callPort(() => store.list({ type: "team-key-version", teamId, fromVersion: 1 }))).map((json) =>
-    parseTeamKeyVersion(json, { teamId }),
-  );
+  // From the lowest anchor: what lies below it is pinned by hash and fetched only when needed (§6.1 step 2).
+  const fromVersion = anchors.length > 0 ? Math.min(...anchors.map((a) => a.version)) : 1;
+  const records = await fetchVersions(ports, teamId, fromVersion);
   const memberKeys = (await callPort(() => store.list({ type: "member-keys", teamId }))).map((json) =>
     parseMemberKeys(json, { teamId, accountId: (json as { accountId: string }).accountId }),
   );
   return { chain: verifyChain({ records, anchors, memberKeys }), server };
+}
+
+async function fetchVersions(ports: ChainPorts, teamId: string, fromVersion: number) {
+  const jsons = await callPort(() => ports.store.list({ type: "team-key-version", teamId, fromVersion }));
+  return jsons.map((json) => parseTeamKeyVersion(json, { teamId }));
+}
+
+/** The chain reaching down to `version`, fetching older records when needed (§6.2). Throws `TRUST_FAILURE`. */
+export async function chainFrom(ports: ChainPorts, teamId: string, chain: VerifiedChain, version: number): Promise<VerifiedChain> {
+  const first = chain.records[0]!.version;
+  if (version >= first) return chain;
+  const older = (await fetchVersions(ports, teamId, Math.max(version, 1))).filter((r) => r.version < first);
+  if (older[0]?.version !== Math.max(version, 1)) throw trustFailure("rollback");
+  return extendChain(chain, older);
 }

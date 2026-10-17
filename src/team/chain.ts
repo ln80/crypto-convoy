@@ -96,3 +96,25 @@ export function verifyChain(input: {
   });
   return { records, hashes, ownerChanges };
 }
+
+/**
+ * Prepends `older` records (consecutive, ending just below the chain's first record) to a verified
+ * chain. They are trusted through the hash links back from a record already verified, so nothing
+ * else needs checking: a different record can't have the same hash (§6.1 step 2). Throws `TRUST_FAILURE`.
+ */
+export function extendChain(chain: VerifiedChain, older: readonly TeamKeyVersion[]): VerifiedChain {
+  const first = chain.records[0]!;
+  if (older.length === 0 || older.at(-1)!.version !== first.version - 1) throw trustFailure("rollback");
+  const hashes = new Map(chain.hashes);
+  let next = first;
+  for (let i = older.length - 1; i >= 0; i--) {
+    const record = older[i]!;
+    if (record.version !== next.version - 1) throw trustFailure("chain_conflict");
+    const hash = recordHash(record);
+    if (!record.suite.equal(hash, next.prevHash)) throw trustFailure("chain_conflict");
+    hashes.set(record.version, hash);
+    next = record;
+  }
+  if (next.version === 1 && !next.prevHash.every((byte) => byte === 0)) throw trustFailure("chain_conflict");
+  return { records: [...older, ...chain.records], hashes, ownerChanges: chain.ownerChanges };
+}

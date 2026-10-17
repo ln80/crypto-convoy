@@ -22,6 +22,8 @@ export interface OwnGrant {
   readonly grant: Grant;
   readonly bundle: MemberBundle;
   readonly teamKey: Uint8Array;
+  /** The chain, reaching down to the grant's version. */
+  readonly chain: VerifiedChain;
 }
 
 /** The newest grant to any of this account's keys, checked and opened (§6.1 step 5). */
@@ -29,7 +31,7 @@ export async function openOwnGrant(
   ports: TeamPorts,
   teamId: string,
   accountId: string,
-  chain: VerifiedChain,
+  chainFrom: (version: number) => Promise<VerifiedChain>,
   bundles: readonly MemberBundle[],
 ): Promise<OwnGrant | null> {
   let best: { grant: Grant; bundle: MemberBundle } | null = null;
@@ -39,6 +41,7 @@ export async function openOwnGrant(
   }
   if (!best) return null;
   const { grant, bundle } = best;
+  const chain = await chainFrom(grant.teamKeyVersion);
   checkOwnerRule(grant, chain);
   const { suite } = ports;
   const ownKeys =
@@ -49,5 +52,5 @@ export async function openOwnGrant(
   // Opening the link with the granted key confirms it is the key that record was made with (§4.5).
   const record = chain.records.find((r) => r.version === grant.teamKeyVersion)!;
   if (record.version > 1) suite.wipe(openPreviousKey(record, teamKey));
-  return { grant, bundle, teamKey };
+  return { grant, bundle, teamKey, chain };
 }

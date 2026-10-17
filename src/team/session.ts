@@ -11,7 +11,7 @@ import type { OpenedItem, OpenedSubmission } from "../content/opened.js";
 import { encodeLinkKey } from "../encoding/link.js";
 import { itemToJson, openItemKey, parseItem, sealItem, type Item } from "../records/item.js";
 import { advanceAnchor } from "./anchors.js";
-import { loadChain } from "./load.js";
+import { chainFrom, loadChain } from "./load.js";
 import { isOwner, type OwnerChange, type VerifiedChain } from "./chain.js";
 import { commitTeam, type MemberBundle, type TeamPorts } from "./context.js";
 import { checkOwnerRule, listGrants, openOwnGrant, type OwnGrant } from "./grants.js";
@@ -345,8 +345,8 @@ export class TeamSession {
 
   async #grantsFor(accountId: string): Promise<Grant[]> {
     return this.#guard(async () => {
-      const chain = this.#requireChain();
       const grants = await listGrants(this.#ports, this.teamId, { accountId });
+      const chain = await this.#chainFrom(Math.min(...grants.map((g) => g.teamKeyVersion)));
       for (const grant of grants) checkOwnerRule(grant, chain);
       return grants;
     });
@@ -361,6 +361,7 @@ export class TeamSession {
     this.#requireUsable();
     const own = this.#own;
     if (!own || version > own.grant.teamKeyVersion || version < 1) throw new ConvoyError("NOT_GRANTED");
+    await this.#guard(() => this.#chainFrom(version));
     for (let k = own.grant.teamKeyVersion; k > version; k--) {
       if (!this.#keys.has(k - 1)) this.#keys.set(k - 1, openPreviousKey(this.#record(k), this.#keys.get(k)!));
     }
@@ -403,9 +404,9 @@ export class TeamSession {
 
   async #verify(): Promise<void> {
     const { chain, server } = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles, this.#invite);
-    const own = await openOwnGrant(this.#ports, this.teamId, this.accountId, chain, this.#bundles);
+    const own = await openOwnGrant(this.#ports, this.teamId, this.accountId, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
 
-    this.#chain = chain;
+    this.#chain = own?.chain ?? chain;
     this.#ownerChanges = [...chain.ownerChanges];
     this.close();
     this.#own = own ?? undefined;
@@ -442,6 +443,13 @@ export class TeamSession {
     throw trustFailure("not_an_owner");
   }
 
+  /** The verified chain reaching down to `version` (older records are fetched on demand). Throws `TRUST_FAILURE`. */
+  async #chainFrom(version: number): Promise<VerifiedChain> {
+    const chain = await chainFrom(this.#ports, this.teamId, this.#requireChain(), version);
+    this.#chain = chain;
+    return chain;
+  }
+
   async #guard<T>(run: () => Promise<T>): Promise<T> {
     try {
       return await run();
@@ -453,7 +461,7 @@ export class TeamSession {
 
   async #grantsOf(version: number): Promise<Grant[]> {
     return this.#guard(async () => {
-      const chain = this.#requireChain();
+      const chain = await this.#chainFrom(version);
       const grants = await listGrants(this.#ports, this.teamId, { teamKeyVersion: version });
       for (const grant of grants) checkOwnerRule(grant, chain);
       return grants;

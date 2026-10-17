@@ -585,6 +585,8 @@ Any `TRUST_FAILURE` puts the team in the `unverified` state for this session.
 
 To open version m below the granted version n: for k = n down to m+1, unwrap `wrappedPreviousKey` of record k (already checked in §6.1) with `teamKey_k` to get `teamKey_{k−1}`. Opened versions are cached for the session.
 
+Records below the lowest anchor aren't fetched by §6.1. When a version below it is needed (to open an older key, or to check the owner rule of an older grant), the client fetches the missing records and checks only that each one's record hash equals the `prevHash` of the record above it, down to version 1's all-zero `prevHash` if reached. Any mismatch is `TRUST_FAILURE` (`chain_conflict`); missing records are `rollback`. The hash links pin them to a record already verified, so their signatures and owner lists need no new check.
+
 ### 6.3 Creating a team
 
 1. The vault creates the creator's member keys (§5.9), `memberKeysVersion` 1.

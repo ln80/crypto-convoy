@@ -8,6 +8,7 @@ import { cc1 } from "../../src/suites/cc1/index.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { bundleOf, forgeVersion } from "../support/forge.js";
 import { team } from "../support/teams.js";
+import { ContentStore, addParts, read } from "../support/content-store.js";
 
 const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
 const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as const;
@@ -22,6 +23,44 @@ async function threeVersions() {
 }
 
 describe("SP-07: a client never goes back", () => {
+  it("an anchored client fetches the chain from its anchor, never below it", async () => {
+    const { bob } = await threeVersions();
+    const inner = bob.store.inner;
+    const from: number[] = [];
+    bob.store.inner = {
+      get: (key) => inner.get(key),
+      list: (query) => {
+        if (query.type === "team-key-version") from.push(query.fromVersion);
+        return inner.list(query);
+      },
+      getAccountKeyVersion: (accountId) => inner.getAccountKeyVersion(accountId),
+      commit: (ops) => inner.commit(ops),
+    };
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    expect(from).toEqual([3]);
+  });
+
+  it("older versions are fetched on demand, pinned by the hash links of the verified chain", async () => {
+    const t = await team("bob");
+    const content = new ContentStore();
+    await addParts(t.aliceTeam.beginItem(), content, "old", ["from version 1"]).seal("old");
+    await t.aliceTeam.rotate({ keep: ["bob"] });
+    await (await t.members.alice!.vault.openTeam("team-1")).rotate({ keep: ["bob"] });
+    const bob = t.members.bob!;
+    expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(3);
+
+    const session = await bob.vault.openTeam("team-1");
+    expect(read(await (await session.openItem("old")).part(0, content.get("old", 0)))).toBe("from version 1");
+
+    // A server that swaps a record below the anchor is caught by the hash link.
+    const alice = await bundleOf(t.members.alice!.vault);
+    bob.store.fork("team-1", 2, await forgeVersion(bob.store, { version: 2, owners: [{ accountId: "alice", keys: alice.pairs }], signer: { accountId: "alice", keys: alice.pairs } }));
+    const later = await bob.vault.openTeam("team-1");
+    expect(later.state).toBe("ready");
+    await expect(later.openItem("old")).rejects.toEqual(trust("chain_conflict"));
+    expect(later.state).toBe("unverified");
+  });
+
   it("refuses a chain cut before its anchor", async () => {
     const { bob } = await threeVersions();
     bob.store.rollback("team-1", 2);
