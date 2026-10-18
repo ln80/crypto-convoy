@@ -4,7 +4,6 @@
  * Chain and owner-rule cases are replayed in team-chain.vectors.test.ts.
  */
 import { describe, expect, it } from "vitest";
-import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { openItemKey, openManifest, openPart, parseItem } from "../../src/records/item.js";
 import { parseMemberKeys } from "../../src/records/member-keys.js";
 import { openEnvelope, openSubmissionPart, parseSubmission } from "../../src/records/submission.js";
@@ -19,7 +18,6 @@ interface TeamKeys {
   teamKeys: Record<string, string>;
   memberKeys: Json[];
   versions: Record<string, { record: Json; payload: string; recordHash: string }>;
-  grantCases: { name: string; grant: Json; member: string; expect: { teamKey?: string; error?: string } }[];
   recordCases: { name: string; record: Json; expect: { error: string; reason?: string } }[];
 }
 interface Items {
@@ -60,13 +58,6 @@ describe("team-key.v1: records", () => {
 
   it.each(team.recordCases)("refuses $name", ({ record, expect: e }) => {
     expect(() => parseTeamKeyVersion(record, { teamId: team.teamId })).toThrow(failure(e));
-  });
-
-  it.each(team.grantCases.filter((c) => c.expect.teamKey))("$name opens the team key", ({ grant, member, expect: e }) => {
-    const encryptionSecretKey = unhex(team.accounts[member]!.encryptionSecretKey);
-    const record = parseGrant(grant, { teamId: team.teamId, accountId: member });
-    const teamKey = openGrant(record, { publicKey: cc1.encryptionPublicKey(encryptionSecretKey), secretKey: encryptionSecretKey });
-    expect(tohex(teamKey)).toBe(e.teamKey);
   });
 });
 

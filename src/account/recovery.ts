@@ -49,8 +49,8 @@ export async function accountTeams(ports: AccountPorts, account: OpenAccount): P
 }
 
 /**
- * New member keys in one team (§6.8): continuity by the current keys, and a recovery signature
- * when `signer` is given. Throws `NOT_GRANTED` without keys for the team.
+ * New member keys in one team (§6.8), with a recovery signature when `signer` is given. Throws
+ * `NOT_GRANTED` without keys for the team.
  */
 export async function rekeyTeam(
   ports: AccountPorts,
@@ -61,11 +61,7 @@ export async function rekeyTeam(
 ): Promise<void> {
   const [newest] = await openBundles(ports, account, teamId);
   if (!newest) throw new ConvoyError("NOT_GRANTED");
-  const options = {
-    recoveryPublicKey,
-    previous: newest,
-    ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}),
-  };
+  const options = { recoveryPublicKey, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}) };
   await commit(ports, newMemberKeys(ports, account, teamId, newest.memberKeysVersion + 1, options).ops);
 }
 

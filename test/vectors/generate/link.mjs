@@ -1,19 +1,15 @@
 // link.v1.json: link values with their version prefix (§3.5).
-import { b64u, encode, fixed, hex, sodium, writeVectors } from "./common.mjs";
+import { b64u, fixed, hex, sodium, writeVectors } from "./common.mjs";
 
 const itemKey = fixed("link item key", 32);
 const inboxPublicKey = sodium.crypto_scalarmult_base(fixed("link inbox secret", 32));
 const anchorHash = fixed("link anchor hash", 32);
 const anchorBody = Buffer.concat([Buffer.from([0, 0, 0, 7]), Buffer.from([0, 0, 0, 32]), anchorHash]);
-const joinSecret = fixed("link join secret", 32);
-const inviteBody = (inviteId, secret = joinSecret) =>
-  Buffer.concat([anchorBody, Buffer.from(encode([["string", inviteId]])), Buffer.from(encode([["bytes", hex(secret)]]))]);
+
 
 const valid = [
   { name: "item key", kind: "key", value: "1" + b64u(itemKey), bytes: hex(itemKey) },
   { name: "inbox public key", kind: "inbox-key", value: "1" + b64u(inboxPublicKey), bytes: hex(inboxPublicKey) },
-  { name: "invite anchor", kind: "anchor", value: "1" + b64u(anchorBody), version: 7, hash: hex(anchorHash) },
-  { name: "invite", kind: "invite", value: "1" + b64u(inviteBody("invite-1")), version: 7, hash: hex(anchorHash), inviteId: "invite-1", secret: hex(joinSecret) },
 ];
 
 const key = b64u(itemKey);
@@ -38,11 +34,6 @@ const refused = [
   { name: "anchor with trailing byte", kind: "anchor", value: "1" + b64u(Buffer.concat([anchorBody, Buffer.from([0])])), error: "MALFORMED_RECORD" },
   { name: "anchor hash of 31 bytes", kind: "anchor", value: "1" + b64u(Buffer.concat([Buffer.from([0, 0, 0, 7, 0, 0, 0, 31]), anchorHash.subarray(0, 31)])), error: "MALFORMED_RECORD" },
   { name: "anchor prefix 2", kind: "anchor", value: "2" + b64u(anchorBody), error: "UNSUPPORTED_VERSION" },
-  { name: "invite prefix 2", kind: "invite", value: "2" + b64u(inviteBody("invite-1")), error: "UNSUPPORTED_VERSION" },
-  { name: "invite with an empty id", kind: "invite", value: "1" + b64u(inviteBody("")), error: "MALFORMED_RECORD" },
-  { name: "invite secret of 31 bytes", kind: "invite", value: "1" + b64u(inviteBody("invite-1", joinSecret.subarray(0, 31))), error: "MALFORMED_RECORD" },
-  { name: "invite with trailing byte", kind: "invite", value: "1" + b64u(Buffer.concat([inviteBody("invite-1"), Buffer.from([0])])), error: "MALFORMED_RECORD" },
-  { name: "invite without its secret", kind: "invite", value: "1" + b64u(anchorBody), error: "MALFORMED_RECORD" },
 ];
 
 writeVectors("link.v1.json", { file: "link.v1", covers: "Protocol §3.5 link values, §2 low-order inbox keys", valid, refused });

@@ -10,7 +10,7 @@ import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/fo
 import { requestOf, team } from "../support/teams.js";
 
 describe("SP-12: compromised member keys can be replaced", () => {
-  it("a routine re-key is reported as such, and receives nothing until an owner rotates", async () => {
+  it("a re-key without the phrase is unproven, and receives nothing until an owner rotates", async () => {
     const { members, aliceTeam } = await team("bob");
     const bob = members.bob!;
     await bob.vault.rekey("team-1");
@@ -19,21 +19,21 @@ describe("SP-12: compromised member keys can be replaced", () => {
     expect(await requestOf(aliceTeam.owner(), "bob")).toMatchObject({
       status: "rekey-awaiting-approval",
       keys: { accountId: "bob", memberKeysVersion: 2 },
-      proof: "continuity",
+      proof: "none",
     });
-    expect(await bob.store.list({ type: "grant", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 })).toEqual([]);
+    expect((await accessOf(bob.store, "bob", aliceTeam.currentVersion))!.memberKeysVersion).toBe(1);
   });
 
-  it("old keys signing their own replacement is a hint, never an approval", async () => {
+  it("keys only their own holder vouches for are never approved by a rotation that doesn't name them", async () => {
     const { members, aliceTeam } = await team("bob");
     const stolen = await bundleOf(members.bob!.vault);
     const attacker = strangerKeys();
     await members.bob!.store.commit([
-      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, attacker, stolen.pairs) },
+      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, attacker) },
     ]);
-    expect((await requestOf(aliceTeam.owner(), "bob")).proof).toBe("continuity");
-    await aliceTeam.owner().rotate({ keep: ["bob"] });
-    expect((await accessOf(members.alice!.store, "bob", 2))!.memberKeysVersion).toBe(1);
+    expect((await requestOf(aliceTeam.owner(), "bob")).proof).toBe("none");
+    const { version } = await aliceTeam.owner().rotate({ keep: ["bob"] });
+    expect((await accessOf(members.alice!.store, "bob", version))!.memberKeysVersion).toBe(1);
   });
 
   it("an approving rotation seals the new version to the new keys only", async () => {
@@ -41,15 +41,15 @@ describe("SP-12: compromised member keys can be replaced", () => {
     const bob = members.bob!;
     const old = await bundleOf(bob.vault);
     await bob.vault.rekey("team-1");
-    await aliceTeam.owner().rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    const { version } = await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
 
-    const access = (await accessOf(bob.store, "bob", 2))!;
+    const access = (await accessOf(bob.store, "bob", version))!;
     expect(access.memberKeysVersion).toBe(2);
     const session = await bob.vault.openTeam("team-1");
     expect(session.state).toBe("ready");
-    expect(session.currentVersion).toBe(2);
+    expect(session.currentVersion).toBe(version);
 
-    // The old keys hold nothing for version 2: the roster seals it to the new keys only.
+    // The old keys hold nothing for the new version: the roster seals it to the new keys only.
     expect(() => access.open(old.pairs.encryption)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
   });
 
@@ -66,11 +66,11 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob"] });
     const bob = members.bob!;
     await bob.vault.rekey("team-1");
-    await aliceTeam.owner().rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
     const session = await bob.vault.openTeam("team-1");
-    expect(session.ownerChanges.at(-1)).toEqual({ version: 3, signer: "alice", added: [], removed: [], rekeyed: ["bob"] });
+    expect(session.ownerChanges.at(-1)).toEqual({ version: 4, signer: "alice", added: [], removed: [], rekeyed: ["bob"] });
     await session.owner().rotate({ keep: ["alice"] });
-    expect(session.currentVersion).toBe(4);
+    expect(session.currentVersion).toBe(5);
   });
 
   it("an approval holds only for the keys the owner reviewed", async () => {
@@ -83,8 +83,8 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await bob.store.commit([
       { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 3 }, record: forgeMemberKeys("bob", 3, strangerKeys()) },
     ]);
-    await expect(aliceTeam.owner().rotate({ keep: ["bob"], approveRekeys: [reviewed] })).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
-    expect(aliceTeam.currentVersion).toBe(1);
+    await expect(aliceTeam.owner().rotate({ keep: ["bob"], approve: [reviewed] })).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    expect(aliceTeam.currentVersion).toBe(2);
   });
 
   it("an owner's own approval is pinned too, so newer keys can't take over their owner key", async () => {
@@ -94,10 +94,10 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await alice.store.commit([
       { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "alice", memberKeysVersion: 3 }, record: forgeMemberKeys("alice", 3, strangerKeys()) },
     ]);
-    await expect(aliceTeam.owner().rotate({ keep: ["bob"], approveRekeys: [{ accountId: "alice", memberKeysVersion: 2 }] })).rejects.toSatisfy((e) =>
+    await expect(aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "alice", memberKeysVersion: 2 }] })).rejects.toSatisfy((e) =>
       isConvoyError(e, "STALE_VERSION"),
     );
-    expect(aliceTeam.currentVersion).toBe(1);
+    expect(aliceTeam.currentVersion).toBe(2);
   });
 
   it("a re-key with the recovery phrase carries the proof; another phrase is refused (SP-23)", async () => {

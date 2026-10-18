@@ -2,8 +2,8 @@
  * The library through its public entry points only, shaped like a product's pipelines:
  * a value encrypted before the server assigns an id, files uploaded one by one, the key record
  * sealed at finalize; per-part reveal; an intake from outside; a vault and a page in separate
- * contexts; invites, the owner's reconcile and securing an account. Doubles as executable
- * documentation. Covers SP-02, SP-06, SP-12, SP-14, SP-15, SP-22, SP-23, SP-24 end to end.
+ * contexts; approvals as rotations, writes retried across them, the owner's reconcile and securing
+ * an account. Doubles as executable documentation. Covers SP-02, SP-06, SP-12, SP-14, SP-15, SP-22, SP-23 end to end.
  */
 import { describe, expect, it } from "vitest";
 import { createLinkClient, createTeamKeyReceiver, createVault, isConvoyError, type Settings } from "../../src/index.js";
@@ -49,8 +49,8 @@ describe("scenario", () => {
     const vault = (accountId: string, keys = local()) =>
       createVault({ store: keyStore.as(accountId), oprf, deviceKeys: keys, anchors: keys, clock, settings }, accountId);
 
-    // 1. Encryption setup: recovery first; the owner creates the team and invites a member, who
-    //    joins with the invite link; the owner's reconcile admits them because the product opts in.
+    // 1. Encryption setup: recovery first; the owner creates the team and invites a member with
+    //    the team's anchor; the member joins, and the owner approves after checking the request.
     const alice = await vault("alice");
     expect((await alice.status()).account).toBe("not-set-up");
     await alice.setup("1234");
@@ -63,22 +63,21 @@ describe("scenario", () => {
     const team = await alice.openTeam("team-1");
     const owner = team.owner();
     expect((await owner.overview(["alice"])).warnings.map((w) => w.code)).toEqual(["single-owner"]);
-    const { invite } = await owner.createInvite("invite-bob", { inviteeRef: "ref-bob" }); // in the invite link's fragment
+    const anchor = team.inviteAnchor(); // in the invite link's fragment
 
     const bob = await vault("bob");
     await bob.setup("5678");
     await bob.confirmRecoveryPhrase(bob.beginRecoverySetup().recoveryPhrase);
     expect((await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!.status).toBe("no-keys");
-    await bob.joinTeam("team-1", { invite });
-    expect((await bob.openTeam("team-1", { invite })).state).toBe("pending");
+    await bob.joinTeam("team-1");
+    expect((await bob.openTeam("team-1", { anchor })).state).toBe("pending");
     const bobView = (await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!;
-    expect(bobView).toMatchObject({ status: "awaiting-approval", proof: "invite", inviteId: "invite-bob", inviteeRef: "ref-bob" });
-    // Without the opt-in, an invite proof is a hint: a human approves.
+    expect(bobView).toMatchObject({ status: "awaiting-approval", proof: "none" });
+    // A first join is never automatic: a human approves.
     expect((await owner.reconcile(["alice", "bob"])).needsHuman).toEqual([
-      { accountId: "bob", reason: "invite-not-accepted", keys: bobView.keys, proof: "invite" },
+      { accountId: "bob", reason: "awaiting-approval", keys: bobView.keys, proof: "none" },
     ]);
-    const admitted = await owner.reconcile(["alice", "bob"], { autoApproveInvites: ({ inviteeRef }) => inviteeRef === "ref-bob" });
-    expect(admitted).toMatchObject({ admitted: ["bob"], needsHuman: [] });
+    expect(await owner.approve([bobView.keys!])).toEqual({ rotatedTo: 2, approved: ["bob"] });
     expect((await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!.status).toBe("approved");
 
     // 2. Secret creation: the value is encrypted before the server assigns the id, files are
@@ -89,7 +88,9 @@ describe("scenario", () => {
     const file = Uint8Array.from({ length: 5 * 1024 * 1024 + 7 }, (_, i) => i % 251);
     const ref = draft.partRef(file); // safe to send the server, e.g. for deduplication
     product.upload(id, 1, await collect(draft.addPartStream(chunks(file), { meta: text("report.pdf") })));
-    await draft.seal(id);
+    await owner.rotate({ keep: ["bob"] }); // an owner rotates while bob uploads (D-37)
+    await draft.seal(id); // refused at the old version, sealed again at the new one
+    expect(bobTeam.currentVersion).toBe(3);
     expect(ref).toHaveLength(43);
 
     // 3. Reveal per attachment: a member, then a link holder given the record by the product.
@@ -127,8 +128,8 @@ describe("scenario", () => {
     // 6. Alice re-keys; bob sees the continuity hint and grants her new keys (never the replaced ones).
     await alice.rekey("team-1");
     const aliceView2 = (await bobOwner.owner().overview(["alice", "bob"])).accounts.find((a) => a.accountId === "alice")!;
-    expect(aliceView2).toMatchObject({ status: "outdated", proof: "continuity", keys: { accountId: "alice", memberKeysVersion: 2 } });
-    await expect(bobOwner.owner().grant({ accountId: "alice", memberKeysVersion: 1 })).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    expect(aliceView2).toMatchObject({ status: "outdated", proof: "none", keys: { accountId: "alice", memberKeysVersion: 2 } });
+    await expect(bobOwner.owner().approve([{ accountId: "alice", memberKeysVersion: 1 }])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
     await bobOwner.owner().approve([aliceView2.keys!]);
     expect((await alice.openTeam("team-1")).state).toBe("ready");
 

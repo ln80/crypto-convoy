@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 import { openAccountKeyWrap, parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
 import { replacePhrase, world } from "../support/fixtures.js";
-import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";

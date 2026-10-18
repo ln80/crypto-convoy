@@ -63,17 +63,17 @@ describe("SP-03: wrap", () => {
 describe("SP-03: seal", () => {
   const pair = cc1.generateEncryptionKeyPair();
   test.prop([data, fc.nat(), fc.nat(7)])("round-trips and refuses any flipped bit", (body, index, bit) => {
-    const sealed = seal(cc1, pair.publicKey, "grant-seal", [string("t")], body);
-    expect([...open(cc1, pair, "grant-seal", [string("t")], sealed)]).toEqual([...body]);
-    expect(() => open(cc1, pair, "grant-seal", [string("t")], flipped(sealed, index, bit))).toThrow(
+    const sealed = seal(cc1, pair.publicKey, "roster-seal", [string("t")], body);
+    expect([...open(cc1, pair, "roster-seal", [string("t")], sealed)]).toEqual([...body]);
+    expect(() => open(cc1, pair, "roster-seal", [string("t")], flipped(sealed, index, bit))).toThrow(
       fails("DECRYPTION_FAILED"),
     );
   });
 
   test.prop([data, id])("refuses another context", (body, team) => {
     fc.pre(team !== "t");
-    const sealed = seal(cc1, pair.publicKey, "grant-seal", [string("t")], body);
-    expect(() => open(cc1, pair, "grant-seal", [string(team)], sealed)).toThrow(fails("DECRYPTION_FAILED"));
+    const sealed = seal(cc1, pair.publicKey, "roster-seal", [string("t")], body);
+    expect(() => open(cc1, pair, "roster-seal", [string(team)], sealed)).toThrow(fails("DECRYPTION_FAILED"));
   });
 });
 

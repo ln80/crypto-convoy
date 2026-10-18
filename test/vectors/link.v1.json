@@ -13,22 +13,6 @@
       "kind": "inbox-key",
       "value": "1w4LlPidfrieugL9n64GzlfPBl1vqpKDGhm5VxB3hzTI",
       "bytes": "c382e53e275fae27ae80bf67eb81b395f3c1975beaa4a0c6866e55c41de1cd32"
-    },
-    {
-      "name": "invite anchor",
-      "kind": "anchor",
-      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3Gg",
-      "version": 7,
-      "hash": "f9f1651d20ea10d06ec5473bf6c00b3098aa440544d3fcb96a2cc21badc1371a"
-    },
-    {
-      "name": "invite",
-      "kind": "invite",
-      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3GgAAAAhpbnZpdGUtMQAAACALsp2YNNMjiXUBaPrZ2bLMtILYNODhtLXK6W3q51krFg",
-      "version": 7,
-      "hash": "f9f1651d20ea10d06ec5473bf6c00b3098aa440544d3fcb96a2cc21badc1371a",
-      "inviteId": "invite-1",
-      "secret": "0bb29d9834d32389750168fad9d9b2ccb482d834e0e1b4b5cae96deae7592b16"
     }
   ],
   "refused": [
@@ -121,36 +105,6 @@
       "kind": "anchor",
       "value": "2AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3Gg",
       "error": "UNSUPPORTED_VERSION"
-    },
-    {
-      "name": "invite prefix 2",
-      "kind": "invite",
-      "value": "2AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3GgAAAAhpbnZpdGUtMQAAACALsp2YNNMjiXUBaPrZ2bLMtILYNODhtLXK6W3q51krFg",
-      "error": "UNSUPPORTED_VERSION"
-    },
-    {
-      "name": "invite with an empty id",
-      "kind": "invite",
-      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3GgAAAAAAAAAgC7KdmDTTI4l1AWj62dmyzLSC2DTg4bS1yult6udZKxY",
-      "error": "MALFORMED_RECORD"
-    },
-    {
-      "name": "invite secret of 31 bytes",
-      "kind": "invite",
-      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3GgAAAAhpbnZpdGUtMQAAAB8Lsp2YNNMjiXUBaPrZ2bLMtILYNODhtLXK6W3q51kr",
-      "error": "MALFORMED_RECORD"
-    },
-    {
-      "name": "invite with trailing byte",
-      "kind": "invite",
-      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3GgAAAAhpbnZpdGUtMQAAACALsp2YNNMjiXUBaPrZ2bLMtILYNODhtLXK6W3q51krFgA",
-      "error": "MALFORMED_RECORD"
-    },
-    {
-      "name": "invite without its secret",
-      "kind": "invite",
-      "value": "1AAAABwAAACD58WUdIOoQ0G7FRzv2wAswmKpEBUTT_LlqLMIbrcE3Gg",
-      "error": "MALFORMED_RECORD"
     }
   ]
 }

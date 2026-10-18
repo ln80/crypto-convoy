@@ -1,5 +1,5 @@
 // The account vault (§5, D-03): the only holder of the account key.
-import { decodeAnchor, decodeInvite } from "../encoding/link.js";
+import { decodeAnchor } from "../encoding/link.js";
 import { ConvoyError, trustFailure } from "../errors.js";
 import {
   callPort,
@@ -332,30 +332,23 @@ export class Vault {
 
   /**
    * Creates this account's member keys for a team, if it has none; it stays `pending` until an
-   * owner grants it (§6.4). With the `invite` link value, the keys carry the invite's proof
-   * (D-32). Open the team then, here or in another context. Throws `RECOVERY_NOT_SET_UP`, `MALFORMED_RECORD`.
+   * owner approves them (§6.4). Open the team then, here or in another context. Throws `RECOVERY_NOT_SET_UP`.
    */
-  async joinTeam(teamId: string, options: { invite?: string } = {}): Promise<void> {
+  async joinTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
-    const invite = options.invite !== undefined ? decodeInvite(options.invite) : undefined;
     if ((await openBundles(this.#ports, account, teamId)).length === 0) {
-      const keys = {
-        recoveryPublicKey: await recoveryPublicKey(this.#ports, account),
-        ...(invite ? { invite: { inviteId: invite.inviteId, secret: invite.secret } } : {}),
-      };
+      const keys = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account) };
       await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1, keys).ops);
     }
-    if (invite) this.#ports.suite.wipe(invite.secret);
   }
 
   /**
    * Opens a team in the vault's own context: hands the session only this team's member keys
-   * (§5.8, SP-02). Needs `anchors`. On a first join, pass the `invite` link value (or a bare
-   * `anchor`): the chain must contain its anchor (§6.4).
+   * (§5.8, SP-02). Needs `anchors`. On a first open, pass the invite link's `anchor`: the chain
+   * must contain it (§6.4).
    */
-  async openTeam(teamId: string, options: { invite?: string; anchor?: string } = {}): Promise<TeamSession> {
-    const anchor =
-      options.invite !== undefined ? decodeInvite(options.invite).anchor : options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
+  async openTeam(teamId: string, options: { anchor?: string } = {}): Promise<TeamSession> {
+    const anchor = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
     return openSession(this.#ports, this.#requireAccount(), teamId, anchor);
   }
 
@@ -368,8 +361,8 @@ export class Vault {
   }
 
   /**
-   * New member keys for a team (§6.8 step 1), signed for continuity by the current ones and,
-   * with the recovery `phrase`, proven: owners' `reconcile` then approves them (SP-23). They
+   * New member keys for a team (§6.8 step 1). With the recovery `phrase` they are proven:
+   * owners' `reconcile` then approves them (SP-23); otherwise an owner approves by hand. They
    * receive nothing until an owner approves them by rotating. Throws `NOT_GRANTED`,
    * `RECOVERY_NOT_SET_UP`, `WRONG_CREDENTIAL` (not the current phrase).
    */

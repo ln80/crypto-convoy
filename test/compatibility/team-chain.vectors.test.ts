@@ -1,16 +1,14 @@
 /**
- * Replay of the chain, roster and grant cases of team-key.v1.json (§4.2, §4.5, §4.6).
+ * Replay of the chain and roster cases of team-key.v1.json (§4.2, §4.5).
  * SP-05: only a current owner changes the chain. SP-07: anchors refuse rollback and forks.
- * SP-04: a grant opens only for the member's own keys, signed by an owner of its version.
+ * SP-04: a roster entry opens only for the member's own keys.
  */
 import { describe, expect, it } from "vitest";
 import { trustFailure } from "../../src/errors.js";
-import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { keysHash, parseMemberKeys } from "../../src/records/member-keys.js";
 import { openRosterEntry, parseTeamKeyVersion, rosterEntryOf } from "../../src/records/team-key-version.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { verifyChain } from "../../src/team/chain.js";
-import { checkOwnerRule } from "../../src/team/grants.js";
 import { loadVectors, tohex, unhex } from "../support/vectors.js";
 
 type Json = Record<string, unknown>;
@@ -22,7 +20,6 @@ interface TeamKeys {
   versions: Record<string, { record: Json; recordHash: string }>;
   variants: Record<string, Json>;
   chainCases: { name: string; chain: (number | string)[]; anchors: [number, string][]; expect: { current?: number; error?: string; reason?: string } }[];
-  grantCases: { name: string; grant: Json; member: string; expect: { teamKey?: string; error?: string; reason?: string } }[];
   rosterCases: { name: string; version: number; member: string; expect: { teamKey?: string; error?: string } }[];
 }
 
@@ -68,19 +65,6 @@ describe("team-key.v1: rosters", () => {
       return openRosterEntry(record, entry, pairOf(member));
     };
     if (e.error) expect(run).toThrow(e.error);
-    else expect(tohex(run())).toBe(e.teamKey);
-  });
-});
-
-describe("team-key.v1: grants", () => {
-  it.each(v.grantCases)("$name", ({ grant, member, expect: e }) => {
-    const run = () => {
-      const parsed = parseGrant(grant, { teamId: v.teamId, accountId: member });
-      checkOwnerRule(parsed, honest);
-      if (!cc1.equal(parsed.keysHash, ownHash(member))) throw trustFailure("key_mismatch");
-      return openGrant(parsed, pairOf(member));
-    };
-    if (e.error) expect(run).toThrow(expect.objectContaining({ code: e.error, reason: e.reason }));
     else expect(tohex(run())).toBe(e.teamKey);
   });
 });

@@ -87,7 +87,7 @@ Status: Accepted.
 
 Problem: in the earlier implementation, a new member receives every earlier team key version one by one ("backfill"), and a cleanup job deletes versions no longer needed. Both are a large share of the lifecycle code.
 
-Decision: each new team key version stores the previous version encrypted under itself. A member granted the current version can open every earlier one by walking back. New members receive one grant.
+Decision: each new team key version stores the previous version encrypted under itself. A member given the current version can open every earlier one by walking back. New members receive one version, in its roster (D-37).
 
 Consequence: no backfill and no cleanup job. Access to history is all or nothing: a member who receives the current version can open all earlier ones. A member re-admitted after removal can also open the versions created while they were away. Removed members still can't open versions created after their removal.
 
@@ -145,7 +145,7 @@ Problem: a removed owner keeps every team key up to the removal and could keep s
 
 Decision: adding, removing or replacing an owner is a rotation whose new version carries the new owner list (D-19). The version record carries the new owner list and the roster of members receiving it (D-34), in one write, so an owner change is never half applied. A removed owner isn't in the owner list of any later version, so their signatures are refused for all of them. Members whose current access the removed owner signed are listed as a warning for the rotating owner; it isn't a guarantee, since access re-signed later by another owner hides the origin.
 
-Consequence: one rotation per owner change. Owner changes are rare, so the cost is small. Removal of a regular member doesn't force a rotation; the integration decides when.
+Consequence: one rotation per owner change. Owner changes are rare, so the cost is small. Every other access change is a rotation too (D-37).
 
 ## D-14: Inbox submissions always use a content key
 
@@ -203,7 +203,7 @@ Status: Accepted.
 
 Problem: a first draft kept two chains: an owner history, and the team key versions. Each owner history entry declared "the current team key version" as a number, and the rule for which versions an owner could sign was computed from those numbers. A stolen owner key could write a huge number and make every later removal ineffective. Keeping two chains consistent is where that bug came from.
 
-Decision: one chain. Each team key version record lists the owners for that version and the hash of the previous record, and is signed by an owner of the previous version. A grant for version n is valid only if its signer is in the owner list of version n. Version numbers are consecutive and write-once, so nobody chooses them.
+Decision: one chain. Each team key version record lists the owners for that version and the hash of the previous record, and is signed by an owner of the previous version. Who receives version n is its roster, signed with it (D-34, D-37). Version numbers are consecutive and write-once, so nobody chooses them.
 
 Rejected: keeping two chains and adding rules to keep them in step (an atomic batch, a check that the declared number matches a real version, a "greater than or equal" rule). It works, but it keeps the duplication that caused the bug.
 
@@ -286,7 +286,7 @@ Status: Accepted.
 
 Problem: the first implementation stored and fetched item parts and submissions through `RecordStore`, beside the key records. That pulls the integration's content storage (upload sessions, view limits, quotas, cleanup) into the library's server contract, and mixes two backends an integration usually keeps apart.
 
-Decision: the server contract and `RecordStore` cover **key records** only: account key wraps, member keys and their wraps, team states, the team key chain, grants, and each resource's key record (`item`, `inbox`). Item parts, submission envelopes and submission parts are **content**: the library produces and consumes them, and the integration stores and serves them as it wants (protocol §7, §11).
+Decision: the server contract and `RecordStore` cover **key records** only: account key wraps, member keys and their wraps, team states, the team key chain, and each resource's key record (`item`, `inbox`). Item parts, submission envelopes and submission parts are **content**: the library produces and consumes them, and the integration stores and serves them as it wants (protocol §7, §11).
 
 Rejected: one store for everything. Simpler to describe, but it forces the integration's content pipeline into the library's shape.
 
@@ -358,18 +358,19 @@ Problem: owners must turn warnings into the right operation themselves: rotate a
 
 Decision: an owner's session offers `reconcile(activeAccountIds)`, meant to run at every owner session. It does what needs no human judgement and reports the rest:
 - rotates the team key without accounts that hold the current version but are no longer active;
-- approves re-keys proven by the member's recovery key (D-33), for members who aren't owners;
-- admits joiners proven by an invite, only if the integration opts in (D-32).
+- approves re-keys proven by the member's recovery key (D-33), for members who aren't owners.
 
-Everything else (first joins without an accepted proof, members granted only an older version, unproven re-keys, owners' re-keys) is returned as needing a human. **Automatic actions only reduce access; widening it needs a cryptographic proof or a human.** Owner operations live on a separate owner object, so code paths that aren't an owner's can't reach them. A dry run returns the plan without writing.
+Everything else (first joins, members who held only an older version, unproven re-keys, owners' re-keys, inactive owners) is returned as needing a human. **Automatic actions only reduce access; widening it needs a cryptographic proof or a human.** Owner operations live on a separate owner object, so code paths that aren't an owner's can't reach them. A dry run returns the plan without writing.
 
-Rejected: re-granting accounts whose keys an owner approved in the past (`outdated`). The active list comes from the integration's server; a server listing a removed member as active would undo the removal.
+Rejected: giving the version again to accounts whose keys an owner approved in the past (`outdated`). The active list comes from the integration's server; a server listing a removed member as active would undo the removal.
 
 Consequence: one call keeps a team in order. A server that lies about the active list can only cut access (denial of service), never add a reader. Removed members stop receiving new versions at the next owner session, not at an integration's discretion.
 
 ## D-32: Invite links carry a join proof
 
-Status: Accepted.
+Status: Deferred. Not in v1: the design below is recorded for a later version (D-11 addresses the same identity problem). Invites in v1 carry only the team's anchor (§6.4).
+
+Why deferred: when the integration's own server delivers the invite (the usual case), the proof shows only that the joiner held a link the server also saw, so it stays a hint; making it act alone (an `autoApproveInvites` flag) would hand admission to mail delivery. Its cost (a record type, a link format, three labels, single-use rules) outweighs that.
 
 Problem: an owner confirming a join must check, out of band, that the published keys are the invitee's (AS-06). In practice owners click approve, so a session thief who publishes keys under the invitee's account first (TH-37) is admitted.
 
@@ -387,6 +388,8 @@ Problem: replacing compromised member keys needs an owner to verify the request 
 
 Decision: the recovery phrase also derives an Ed25519 **recovery signing key**. Its public key is in every `member-keys` record, so an owner's approval pins it with the keys. A re-key signed by the recovery key of the keys an account currently holds is **proven**: the phrase isn't stored anywhere, so a stolen device or session doesn't have it. `reconcile` approves proven re-keys of members automatically. An owner's re-key still needs another owner's (human) approval, so a leaked phrase can't silently change the owner list. Replacing the phrase re-keys every team with the new recovery key: proven when the user still has the old phrase, a human approval otherwise.
 
+Proofs are `recovery` or none: the continuity signature is gone (D-38).
+
 Rejected:
 - Continuity signatures by the old member keys as proof: the attacker holds them.
 - Auto-approving owners' proven re-keys: a leaked owner phrase would become a silent takeover of the owner list.
@@ -400,7 +403,7 @@ Status: Accepted.
 
 Problem: a rotation wrote the version record with the signer's grant, then one grant per other member. Interrupted, it left members without the new version (`completeRotation`). Large teams didn't fit one database transaction. And what members held a version was only what the server chose to list, so hidden grants could suppress the "rotation needed" signal (TH-42).
 
-Decision: each team key version record carries its **roster**: for every account that receives the version, its keys (as a hash) and the version sealed to them. The owner signs it with the record. A rotation is one record; grants remain only for members admitted between rotations. At most 1,000 accounts per roster (D-18).
+Decision: each team key version record carries its **roster**: for every account that receives the version, its keys (as a hash) and the version sealed to them. The owner signs it with the record. A rotation is one record. At most 1,000 accounts per roster (D-18). Since D-37 the roster is the only way to hold a version.
 
 Rejected: keeping the roster in a separate record committed with its hash. Smaller chain records, but one more record type and batch rule. Clients fetch the chain from their anchor (§6.1), so old rosters are downloaded only at first contact.
 
@@ -429,4 +432,28 @@ Decision: `vault.secureAccount({ phrase, newPin })` rotates the account key with
 Rejected: one atomic batch for everything: it doesn't fit common database transaction limits. A stored resume marker: a retry per failed team is enough.
 
 Consequence: the full remedy is one call plus the owners' routine `reconcile`. Until an owner of a team runs it, the copied keys still open what that team writes.
+
+## D-37: Roster-only: every access change is a rotation
+
+Status: Accepted.
+
+Problem: D-34 kept grants for members admitted between rotations. That made two ways to hold a version: every reader, the owner overview and `reconcile` had to accept "roster or grant"; the server could hide a grant from other owners (TH-42); and a removed owner could still sign grants of versions they owned (TH-33).
+
+Decision: there is no grant record. Approving a joiner, approving a re-key and removing a member are all rotations: a new team key version whose roster lists exactly the accounts that receive it (§6.6). Several approvals share one rotation. Writers whose item or inbox write is refused because the version moved reload and retry once at the new version (§7.1, §7.4).
+
+Rejected: grants between rotations, an optimisation for frequent joins that costs every reader a second path; a version record without a new key for joins, which breaks "one version, one key".
+
+Consequence: one record type, one rule and one list of holders, signed in the chain. Every join creates a new team key version; a new device downloads one roster per access change since the team began, about 360 bytes per member each.
+
+## D-38: No continuity signature
+
+Status: Accepted.
+
+Problem: a continuity signature by a member's previous keys over their new keys was shown to owners as a hint. Whoever copied the previous keys can produce it too, so it never distinguished the member from a thief, and with recovery proofs (D-33) it added a third proof class for no protection.
+
+Decision: a re-key is either proven by the recovery key the account's held keys carry, or approved by a human after an out-of-band check (AS-06). There is no continuity signature.
+
+Rejected: keeping it as a UI hint: a hint that an attacker can forge teaches owners to trust it.
+
+Consequence: proofs are `recovery` or none, in records, the owner overview and `reconcile`.
 

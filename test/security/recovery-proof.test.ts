@@ -24,8 +24,8 @@ describe("SP-23: recovery-proven re-keys", () => {
     await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
     expect((await aliceTeam.owner().overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!.proof).toBe("recovery");
 
-    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ rotatedTo: 2, approvedRekeys: ["bob"], needsHuman: [] });
-    const access = (await accessOf(bob.store, "bob", 2))!;
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ rotatedTo: 3, approvedRekeys: ["bob"], needsHuman: [] });
+    const access = (await accessOf(bob.store, "bob", 3))!;
     expect(access.memberKeysVersion).toBe(2);
     expect(() => access.open(old.pairs.encryption)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
@@ -34,16 +34,16 @@ describe("SP-23: recovery-proven re-keys", () => {
   it("a session thief without the phrase gets a hint at most", async () => {
     const { members, aliceTeam } = await team("bob");
     const stolen = await bundleOf(members.bob!.vault);
-    await members.bob!.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys(), stolen.pairs))]);
+    await members.bob!.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys()))]);
     const report = await aliceTeam.owner().reconcile(["alice", "bob"]);
-    expect(report).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven", proof: "continuity" }] });
+    expect(report).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven", proof: "none" }] });
   });
 
   it("a recovery signature by a key other than the held keys' one proves nothing", async () => {
     const { members, aliceTeam } = await team("bob");
     // The thief signs with a recovery key of its own, and names it in the record.
     const own = cc1.signingKeyPair(cc1.randomBytes(32));
-    await members.bob!.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys(), undefined, { recoverySigner: own }))]);
+    await members.bob!.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys(), { recoverySigner: own }))]);
     expect((await aliceTeam.owner().reconcile(["alice", "bob"])).needsHuman).toEqual([
       { accountId: "bob", reason: "rekey-unproven", keys: { accountId: "bob", memberKeysVersion: 2 }, proof: "none" },
     ]);
@@ -64,7 +64,7 @@ describe("SP-23: recovery-proven re-keys", () => {
     const bob = members.bob!;
     const held = await bundleOf(bob.vault);
     const { signing } = deriveRecoveryKeys(cc1, "bob", bob.recoveryPhrase);
-    await bob.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys(), undefined, { recovery: held.published.recoveryPublicKey, recoverySigner: signing }))]);
+    await bob.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys(), { recovery: held.published.recoveryPublicKey, recoverySigner: signing }))]);
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
     // Detected, not prevented: bob's own keys hold nothing current any more.
     expect((await bob.vault.openTeam("team-1")).state).toBe("pending");

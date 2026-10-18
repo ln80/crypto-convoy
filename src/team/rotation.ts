@@ -2,7 +2,6 @@
 import { trustFailure } from "../errors.js";
 import type { WriteOp } from "../ports.js";
 import type { SignerRef } from "../records/common.js";
-import { createGrant, grantToJson } from "../records/grant.js";
 import { keysHash, type MemberKeys } from "../records/member-keys.js";
 import { createTeamKeyVersion, teamKeyVersionToJson, type TeamKeyVersion } from "../records/team-key-version.js";
 import type { Suite } from "../suites/suite.js";
@@ -30,33 +29,6 @@ export function recipientFromKeys(suite: Suite, keys: MemberKeys): Recipient {
 export interface Signer {
   readonly ref: SignerRef;
   readonly secretKey: Uint8Array;
-}
-
-/** A grant between rotations (§4.6). */
-export function grantOp(
-  ports: TeamPorts,
-  teamId: string,
-  version: number,
-  teamKey: Uint8Array,
-  to: Recipient,
-  signer: Signer,
-  inviteId?: string,
-): WriteOp {
-  const grant = createGrant(ports.suite, {
-    teamId,
-    accountId: to.accountId,
-    memberKeysVersion: to.memberKeysVersion,
-    teamKeyVersion: version,
-    keysHash: to.keysHash,
-    encryptionPublicKey: to.encryptionPublicKey,
-    ...(inviteId !== undefined ? { inviteId } : {}),
-    teamKey,
-    signer: signer.ref,
-    signerSecretKey: signer.secretKey,
-    createdAt: ports.clock.now(),
-  });
-  const key = { type: "grant", teamId, accountId: to.accountId, memberKeysVersion: to.memberKeysVersion, teamKeyVersion: version } as const;
-  return { op: "create", key, record: grantToJson(grant) };
 }
 
 /**

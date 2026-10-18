@@ -6,7 +6,7 @@ import { fc, test } from "@fast-check/vitest";
 import { describe, expect } from "vitest";
 import { fromBase64url } from "../../src/encoding/base64url.js";
 import { Reader } from "../../src/encoding/canonical.js";
-import { decodeAnchor, decodeInvite, decodeLinkKey } from "../../src/encoding/link.js";
+import { decodeAnchor, decodeLinkKey } from "../../src/encoding/link.js";
 import { ConvoyError } from "../../src/errors.js";
 import { decodeRequest, openTransfer } from "../../src/records/transfer.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
@@ -34,9 +34,6 @@ describe("SP-18: decoders", () => {
   });
   test.prop([text], RUNS)("anchor", (value) => {
     onlyTypedErrors(() => decodeAnchor(value));
-  });
-  test.prop([text], RUNS)("invite", (value) => {
-    onlyTypedErrors(() => decodeInvite(value));
   });
   const receiver = cc1.generateEncryptionKeyPair();
   test.prop([text], RUNS)("transfer request", (value) => {
@@ -69,8 +66,8 @@ describe("SP-18: record parsers", () => {
     fc.jsonValue(),
   );
 
-  // Proofs aren't covered by the self-signature: stripping one leaves a valid record without that proof (§4.2).
-  const OPTIONAL: Record<string, readonly string[]> = { "member-keys": ["continuitySignature", "recoverySignature", "inviteProof"] };
+  // The recovery proof isn't covered by the self-signature: stripping it leaves a valid record without proof (§4.2).
+  const OPTIONAL: Record<string, readonly string[]> = { "member-keys": ["recoverySignature"] };
 
   for (const [type, json] of Object.entries(sample.records)) {
     const keys = Object.keys(json);

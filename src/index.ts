@@ -13,7 +13,6 @@ export type {
   AccountOverview,
   AccountStatus,
   HumanReason,
-  InvitePolicy,
   KeysHandle,
   NeedsHuman,
   OwnerWarning,

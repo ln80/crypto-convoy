@@ -3,7 +3,10 @@ import type { AccountOverview } from "../../src/team/membership.js";
 import type { TeamOwner } from "../../src/team/owner.js";
 import { world } from "./fixtures.js";
 
-/** alice creates team-1; each other name joins and is granted by alice. */
+/**
+ * alice creates team-1 (version 1); the other names join and alice approves them all in one
+ * rotation (version 2, D-37). Without others, the team stays at version 1.
+ */
 export async function team(...others: string[]) {
   const w = world();
   const alice = await w.account("alice");
@@ -15,9 +18,11 @@ export async function team(...others: string[]) {
     await member.vault.joinTeam("team-1");
     // The joiner's first open: first contact, anchored from here on (§6.1).
     (await member.vault.openTeam("team-1")).close();
-    const request = await requestOf(aliceTeam.owner(), name);
-    await aliceTeam.owner().grant(request.keys!);
     members[name] = member;
+  }
+  if (others.length > 0) {
+    const { accounts } = await aliceTeam.owner().overview(others);
+    await aliceTeam.owner().approve(others.map((name) => accounts.find((a) => a.accountId === name)!.keys!));
   }
   return { w, members, aliceTeam };
 }

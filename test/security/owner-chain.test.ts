@@ -3,12 +3,12 @@
  * Threats: TH-03, TH-17, TH-33.
  */
 import { describe, expect, it } from "vitest";
-import { bundleOf, forgeGrant, forgeVersion, strangerKeys } from "../support/forge.js";
+import { bundleOf, forgeVersion, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
 
-/** v1 owners [alice]; v2 owners [alice, bob]; v3 owners [bob]: alice removed, carol kept. */
+/** v1 owners [alice]; v2 bob and carol approved; v3 owners [alice, bob]; v4 owners [bob]: alice removed, carol kept. */
 async function removedOwner() {
   const t = await team("bob", "carol");
   await t.aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob", "carol"] });
@@ -31,28 +31,17 @@ describe("SP-05: only a current owner can change the owner list", () => {
   it("refuses a version signed by a member who is not an owner", async () => {
     const { members } = await team("bob");
     const bobKeys = await bundleOf(members.bob!.vault);
-    const forged = await forgeVersion(members.bob!.store, { version: 2, owners: [{ accountId: "bob", keys: bobKeys.pairs }], signer: { accountId: "bob", keys: bobKeys.pairs } });
+    const forged = await forgeVersion(members.bob!.store, { version: 3, owners: [{ accountId: "bob", keys: bobKeys.pairs }], signer: { accountId: "bob", keys: bobKeys.pairs } });
     const alice = members.alice!;
-    alice.store.fork("team-1", 2, forged);
+    alice.store.fork("team-1", 3, forged);
     expect((await alice.vault.openTeam("team-1")).failure).toEqual(trust("not_an_owner"));
   });
 
-  it("refuses a version signed by a removed owner", async () => {
+  it("refuses a version signed by a removed owner: they can't give anyone a later version (TH-33)", async () => {
     const { members, alice } = await removedOwner();
     const carol = members.carol!;
-    carol.store.fork("team-1", 4, await forgeVersion(carol.store, { version: 4, owners: [{ accountId: "alice", keys: alice.pairs }], signer: { accountId: "alice", keys: alice.pairs } }));
+    carol.store.fork("team-1", 5, await forgeVersion(carol.store, { version: 5, owners: [{ accountId: "alice", keys: alice.pairs }], signer: { accountId: "alice", keys: alice.pairs } }));
     expect((await carol.vault.openTeam("team-1")).failure).toEqual(trust("not_an_owner"));
-  });
-
-  it("refuses a grant of a later version signed by a removed owner (TH-33)", async () => {
-    const { members, alice } = await removedOwner();
-    const carol = members.carol!;
-    const session = await carol.vault.openTeam("team-1");
-    expect(session.state).toBe("ready");
-    const forged = forgeGrant({ member: { accountId: "mallory", memberKeysVersion: 1, keys: strangerKeys() }, teamKeyVersion: 3, signer: { accountId: "alice", keys: alice.pairs } });
-    await carol.store.commit([{ op: "create", key: { type: "grant", teamId: "team-1", accountId: "mallory", memberKeysVersion: 1, teamKeyVersion: 3 }, record: forged }]);
-    await expect(session.members()).rejects.toEqual(trust("not_an_owner"));
-    expect(session.state).toBe("unverified");
   });
 
   it("refuses a gap in the chain", async () => {
@@ -68,7 +57,7 @@ describe("SP-05: only a current owner can change the owner list", () => {
     const aliceKeys = await bundleOf(alice.vault);
     await (await alice.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
     const named = { accountId: "alice", keys: aliceKeys.pairs, published: aliceKeys.published };
-    alice.store.fork("team-1", 2, await forgeVersion(alice.store, { version: 2, owners: [named], signer: named }));
+    alice.store.fork("team-1", 3, await forgeVersion(alice.store, { version: 3, owners: [named], signer: named }));
     expect((await alice.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
   });
 

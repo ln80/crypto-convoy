@@ -16,10 +16,8 @@ const IDENTITY: Record<RecordKey["type"], readonly string[]> = {
   "member-keys-wrap": ["accountId", "teamId", "memberKeysVersion", "accountKeyVersion"],
   "team-state": ["accountId", "teamId"],
   "team-key-version": ["teamId", "version"],
-  grant: ["teamId", "accountId", "memberKeysVersion", "teamKeyVersion"],
   item: ["teamId", "itemId"],
   inbox: ["teamId", "inboxId"],
-  invite: ["teamId", "inviteId"],
 };
 
 /** Writers keep a version record within this size (§2, D-34); a server refuses larger ones. */
@@ -145,7 +143,7 @@ export class MemoryRecordStore {
             if (new TextEncoder().encode(JSON.stringify(op.record)).length > VERSION_RECORD_BYTES) throw conflict("record too large");
             newVersions.push({ teamId, version });
           }
-          if (op.key.type === "grant" || op.key.type === "item" || op.key.type === "inbox" || op.key.type === "invite") {
+          if (op.key.type === "item" || op.key.type === "inbox") {
             atCurrentVersion.push({ teamId: op.key.teamId, version: op.record["teamKeyVersion"] });
           }
           records.set(keyString(op.key), { key: clone(op.key), record: clone(op.record), deleted: false });
@@ -183,7 +181,7 @@ export class MemoryRecordStore {
       }
     }
 
-    // Grants, items, inboxes and invites only at the current version, the batch's new version included (§11).
+    // Items and inboxes only at the current version, the batch's new version included (§11).
     for (const { teamId, version } of atCurrentVersion) {
       if (version !== this.#currentTeamKeyVersion(teamId, records)) throw conflict("not the current team key version");
     }

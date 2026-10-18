@@ -1,8 +1,6 @@
 // One parse call per record type, with the context the samples were made for.
 import { parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
-import { parseGrant } from "../../src/records/grant.js";
 import { parseInbox } from "../../src/records/inbox.js";
-import { parseInvite } from "../../src/records/invite.js";
 import { parseItem } from "../../src/records/item.js";
 import { parseMemberKeys } from "../../src/records/member-keys.js";
 import { parseMemberKeysWrap } from "../../src/records/member-keys-wrap.js";
@@ -18,10 +16,8 @@ export function parsers(submissionId: string): Record<SampleType, (json: unknown
     "member-keys-wrap": (j) => parseMemberKeysWrap(j, { accountId: "alice", teamId: "team-1", accountKeyVersion: 1 }),
     "team-state": (j) => parseTeamState(j, { accountId: "alice", teamId: "team-1" }),
     "team-key-version": (j) => parseTeamKeyVersion(j, { teamId: "team-1" }),
-    grant: (j) => parseGrant(j, { teamId: "team-1" }),
     item: (j) => parseItem(j, { teamId: "team-1", itemId: "item-1" }),
     inbox: (j) => parseInbox(j, { teamId: "team-1", inboxId: "inbox-1" }),
-    invite: (j) => parseInvite(j, { teamId: "team-1", inviteId: "invite-1" }),
     submission: (j) => parseSubmission(j, { teamId: "team-1", inboxId: "inbox-1", submissionId }),
   };
 }

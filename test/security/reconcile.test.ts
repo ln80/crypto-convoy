@@ -11,12 +11,12 @@ describe("SP-22: reconcile only narrows access by itself", () => {
   it("rotates out a holder who is no longer active", async () => {
     const { members, aliceTeam } = await team("bob", "carol");
     const report = await aliceTeam.owner().reconcile(["alice", "bob"]);
-    expect(report).toEqual({ dryRun: false, rotatedTo: 2, removed: ["carol"], approvedRekeys: [], admitted: [], needsHuman: [] });
+    expect(report).toEqual({ dryRun: false, rotatedTo: 3, removed: ["carol"], approvedRekeys: [], needsHuman: [] });
     expect((await members.carol!.vault.openTeam("team-1")).state).toBe("pending");
-    expect(await accessOf(members.alice!.store, "carol", 2)).toBeNull();
+    expect(await accessOf(members.alice!.store, "carol", 3)).toBeNull();
     // Nothing left to do: a second run writes nothing.
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ removed: [], needsHuman: [] });
-    expect(aliceTeam.currentVersion).toBe(2);
+    expect(aliceTeam.currentVersion).toBe(3);
   });
 
   it("never re-grants a removed member the server lists as active again", async () => {
@@ -51,19 +51,19 @@ describe("SP-22: reconcile only narrows access by itself", () => {
     const { members, aliceTeam } = await team("bob");
     const stolen = await bundleOf(members.bob!.vault);
     await members.bob!.store.commit([
-      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys(), stolen.pairs) },
+      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) },
     ]);
     const report = await aliceTeam.owner().reconcile(["alice", "bob"]);
-    expect(report).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven", proof: "continuity" }] });
-    expect(aliceTeam.currentVersion).toBe(1);
+    expect(report).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven", proof: "none" }] });
+    expect(aliceTeam.currentVersion).toBe(2);
   });
 
   it("a join without an accepted proof waits for a human", async () => {
     const { aliceTeam, w } = await team();
     const dave = await w.account("dave");
     await dave.vault.joinTeam("team-1");
-    const report = await aliceTeam.owner().reconcile(["alice", "dave"], { autoApproveInvites: true });
-    expect(report).toMatchObject({ admitted: [], needsHuman: [{ accountId: "dave", reason: "awaiting-approval", proof: "none" }] });
+    const report = await aliceTeam.owner().reconcile(["alice", "dave"]);
+    expect(report).toMatchObject({ needsHuman: [{ accountId: "dave", reason: "awaiting-approval", proof: "none" }] });
   });
 
   it("a dry run returns the plan and writes nothing", async () => {
@@ -71,10 +71,9 @@ describe("SP-22: reconcile only narrows access by itself", () => {
     const before = members.alice!.store.commits.length;
     expect(await aliceTeam.owner().reconcile(["alice"], { dryRun: true })).toEqual({
       dryRun: true,
-      rotatedTo: 2,
+      rotatedTo: 3,
       removed: ["bob"],
       approvedRekeys: [],
-      admitted: [],
       needsHuman: [],
     });
     expect(members.alice!.store.commits.length).toBe(before);
@@ -90,7 +89,7 @@ describe("SP-22: reconcile only narrows access by itself", () => {
         throw new StoreConflictError("version must be current + 1");
       }
     });
-    expect(await aliceTeam.owner().reconcile(["alice"])).toMatchObject({ rotatedTo: 2, removed: ["bob"] });
+    expect(await aliceTeam.owner().reconcile(["alice"])).toMatchObject({ rotatedTo: 3, removed: ["bob"] });
     expect(refused).toBe(true);
   });
 

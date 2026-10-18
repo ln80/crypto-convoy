@@ -13,7 +13,7 @@ import { advanceAnchor } from "./anchors.js";
 import { chainFrom, loadChain } from "./load.js";
 import { isOwner, type OwnerChange, type VerifiedChain } from "./chain.js";
 import { commitTeam, type MemberBundle, type TeamPorts } from "./context.js";
-import { holdersOf, listGrants, openOwnAccess, type Holder, type OwnAccess } from "./grants.js";
+import { holdersOf, openOwnAccess, type Holder, type OwnAccess } from "./access.js";
 import { TeamOwner } from "./owner.js";
 import type { Signer } from "./rotation.js";
 
@@ -135,7 +135,7 @@ export class TeamSession {
     return encodeAnchor({ version, hash: chain.hashes.get(version)! });
   }
 
-  /** Holders of the current version (its roster, then grants since), each with who gave it (§6.5, SP-15). Throws `TRUST_FAILURE`. */
+  /** Holders of the current version (its roster), each with who signed it (§6.5, SP-15). Throws `TRUST_FAILURE`. */
   async members(): Promise<Member[]> {
     const holders = await this.#currentHolders();
     return holders.map((h) => ({ accountId: h.accountId, memberKeysVersion: h.memberKeysVersion, grantedBy: h.signer.accountId }));
@@ -152,22 +152,23 @@ export class TeamSession {
 
   /**
    * Starts an item (§7.1, D-27): add parts, store their ciphertext yourself, then `seal(itemId)`
-   * stores the `item` record at the version current then. Throws `NOT_GRANTED`; `seal` throws
-   * `NOT_GRANTED` or `STALE_VERSION` (id used, version changed while sealing).
+   * stores the `item` record at the version current then, retrying once if an owner rotated
+   * meanwhile. Throws `NOT_GRANTED`; `seal` throws `NOT_GRANTED` or `STALE_VERSION` (id used).
    */
   beginItem(): ItemDraft {
     this.#writeVersion();
-    return newItemDraft(this.#ports, async (itemKey, manifest, itemId) => {
-      const version = this.#writeVersion();
-      const record = sealItem(
-        this.#ports.suite,
-        { teamId: this.teamId, itemId, teamKeyVersion: version, createdBy: this.accountId, createdAt: this.#ports.clock.now() },
-        await this.#teamKey(version),
-        itemKey,
-        manifest,
-      );
-      await commitTeam(this.#ports.store, [{ op: "create", key: { type: "item", teamId: this.teamId, itemId }, record: itemToJson(record) }]);
-    });
+    return newItemDraft(this.#ports, (itemKey, manifest, itemId) =>
+      this.#atCurrentVersion(async (version) => {
+        const record = sealItem(
+          this.#ports.suite,
+          { teamId: this.teamId, itemId, teamKeyVersion: version, createdBy: this.accountId, createdAt: this.#ports.clock.now() },
+          await this.#teamKey(version),
+          itemKey,
+          manifest,
+        );
+        await commitTeam(this.#ports.store, [{ op: "create", key: { type: "item", teamId: this.teamId, itemId }, record: itemToJson(record) }]);
+      }),
+    );
   }
 
   /**
@@ -189,10 +190,11 @@ export class TeamSession {
     }
   }
 
-  /** Creates an inbox at the current version; the link key goes in the inbox link's fragment (§7.4). */
+  /** Creates an inbox at the current version, retrying once if it moved; the link key goes in the inbox link's fragment (§7.4). */
   async createInbox(inboxId: string): Promise<{ linkKey: string }> {
-    const version = this.#writeVersion();
-    return storeInbox(this.#ports, this.#ports.store, { teamId: this.teamId, inboxId, teamKeyVersion: version, createdBy: this.accountId }, await this.#teamKey(version));
+    return this.#atCurrentVersion(async (version) =>
+      storeInbox(this.#ports, this.#ports.store, { teamId: this.teamId, inboxId, teamKeyVersion: version, createdBy: this.accountId }, await this.#teamKey(version)),
+    );
   }
 
   /**
@@ -235,6 +237,23 @@ export class TeamSession {
     return this.#keys.get(version)!;
   }
 
+  /**
+   * Runs a write at the current version. If the server refuses it and the version moved (an owner
+   * rotated, D-37), reloads and writes once more at the new one; otherwise the refusal stands
+   * (§7.1, §7.4). Throws `NOT_GRANTED`, `STALE_VERSION`.
+   */
+  async #atCurrentVersion<T>(write: (version: number) => Promise<T>): Promise<T> {
+    const version = this.#writeVersion();
+    try {
+      return await write(version);
+    } catch (error) {
+      if (!isConvoyError(error, "STALE_VERSION")) throw error;
+      await this.#load();
+      if (this.currentVersion === version) throw error;
+      return write(this.#writeVersion());
+    }
+  }
+
   /** Writes need the current version (§7.1). Throws `NOT_GRANTED`. */
   #writeVersion(): number {
     this.#requireUsable();
@@ -271,7 +290,7 @@ export class TeamSession {
 
   async #verify(): Promise<void> {
     const { chain, server } = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles, this.#invite);
-    const own = await openOwnAccess(this.#ports, this.teamId, this.accountId, chain, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
+    const own = await openOwnAccess(this.#ports, this.accountId, chain, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
 
     this.#chain = own?.chain ?? chain;
     this.#ownerChanges = [...chain.ownerChanges];
@@ -327,12 +346,11 @@ export class TeamSession {
     }
   }
 
-  /** Who holds `version`: its roster and its grants, owner rule checked (§6.5). Throws `TRUST_FAILURE`. */
+  /** Who holds `version`: its roster (D-37). Throws `TRUST_FAILURE`. */
   async #holdersOf(version: number): Promise<Holder[]> {
     return this.#guard(async () => {
-      const chain = await this.#chainFrom(version);
-      const grants = await listGrants(this.#ports, this.teamId, { teamKeyVersion: version });
-      return holdersOf(this.#record(version), grants, chain);
+      await this.#chainFrom(version);
+      return holdersOf(this.#record(version));
     });
   }
 

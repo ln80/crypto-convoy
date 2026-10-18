@@ -1,9 +1,7 @@
 // Valid records of every type, built with the library, for round-trip, downgrade and fuzz tests.
 import { accountKeyWrapToJson, createAccountKeyWrap } from "../../src/records/account-key-wrap.js";
-import { createGrant, grantToJson } from "../../src/records/grant.js";
 import { createInbox, inboxToJson } from "../../src/records/inbox.js";
 import { createItem, itemToJson } from "../../src/records/item.js";
-import { createInvite, inviteToJson } from "../../src/records/invite.js";
 import { createMemberKeys, keysHash, memberKeysToJson } from "../../src/records/member-keys.js";
 import { bundleKeyPairs, createMemberKeysWrap, generateBundle, memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
 import { createSubmission, submissionToJson } from "../../src/records/submission.js";
@@ -26,22 +24,13 @@ export function sampleRecords() {
       encryptionPublicKey: pairs.encryption.publicKey, recoveryPublicKey: recovery.publicKey, createdAt: 1,
     },
     pairs.signing.secretKey,
-    { recoverySigningSecretKey: recovery.secretKey, invite: { inviteId: "invite-1", secret: suite.randomBytes(32) } },
+    { recoverySigningSecretKey: recovery.secretKey },
   );
   const hash = keysHash(suite, memberKeys);
   const version = createTeamKeyVersion(suite, {
     teamId: "team-1", version: 1, prevHash: new Uint8Array(32), owners: [signer], createdAt: 1,
     roster: [{ accountId: "alice", memberKeysVersion: 1, keysHash: hash, encryptionPublicKey: pairs.encryption.publicKey }],
     signer, signerSecretKey: pairs.signing.secretKey, teamKey,
-  });
-  const grant = createGrant(suite, {
-    teamId: "team-1", accountId: "alice", memberKeysVersion: 1, teamKeyVersion: 1, keysHash: hash,
-    encryptionPublicKey: pairs.encryption.publicKey, inviteId: "invite-1",
-    teamKey, signer, signerSecretKey: pairs.signing.secretKey, createdAt: 1,
-  });
-  const invite = createInvite(suite, {
-    teamId: "team-1", inviteId: "invite-1", teamKeyVersion: 1, inviteeRef: "ref", teamKey, secret: suite.randomBytes(32),
-    signer, signerSecretKey: pairs.signing.secretKey, createdAt: 1,
   });
   const item = createItem(suite, { teamId: "team-1", itemId: "item-1", teamKeyVersion: 1, createdBy: "alice", createdAt: 1 }, teamKey, [
     { content: new TextEncoder().encode("hi"), meta: new Uint8Array([1]) },
@@ -64,8 +53,6 @@ export function sampleRecords() {
         createTeamState(suite, { accountId: "alice", teamId: "team-1" }, 1, bundle.teamStateKey, { version: 1, hash: new Uint8Array(32) }),
       ),
       "team-key-version": teamKeyVersionToJson(version),
-      grant: grantToJson(grant),
-      invite: inviteToJson(invite),
       item: itemToJson(item.record),
       inbox: inboxToJson(inbox),
       submission: submissionToJson(submission.record),

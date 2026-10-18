@@ -1,7 +1,6 @@
 // Records an attacker could build: with stolen or own keys, outside the library's checks.
 import { openBundles } from "../../src/account/member-custody.js";
 import { vaultInternals, type Vault } from "../../src/account/vault.js";
-import { createGrant, grantToJson, openGrant, parseGrant } from "../../src/records/grant.js";
 import { createMemberKeys, keysHash, memberKeysToJson, type MemberKeys } from "../../src/records/member-keys.js";
 import { bundleKeyPairs, generateBundle } from "../../src/records/member-keys-wrap.js";
 import {
@@ -80,40 +79,15 @@ export async function forgeVersion(
   return teamKeyVersionToJson(record);
 }
 
-export function forgeGrant(input: {
-  teamId?: string;
-  member: Named & { memberKeysVersion: number };
-  teamKeyVersion: number;
-  signer: { accountId: string; keys: Pairs };
-  teamKey?: Uint8Array;
-}) {
-  const teamId = input.teamId ?? "team-1";
-  return grantToJson(
-    createGrant(cc1, {
-      teamId,
-      accountId: input.member.accountId,
-      memberKeysVersion: input.member.memberKeysVersion,
-      teamKeyVersion: input.teamKeyVersion,
-      keysHash: hashOf(teamId, input.member),
-      encryptionPublicKey: input.member.keys.encryption.publicKey,
-      teamKey: input.teamKey ?? cc1.randomBytes(32),
-      signer: { accountId: input.signer.accountId, signingPublicKey: input.signer.keys.signing.publicKey },
-      signerSecretKey: input.signer.keys.signing.secretKey,
-      createdAt: 1,
-    }),
-  );
-}
-
 /**
- * A member keys record claiming `accountId`, self-signed by keys the attacker made. `previous`
- * signs for continuity; `recovery` sets the recovery key and, with `recoverySigner`, a recovery signature.
+ * A member keys record claiming `accountId`, self-signed by keys the attacker made. `recovery`
+ * sets the recovery key and, with `recoverySigner`, a recovery signature.
  */
 export function forgeMemberKeys(
   accountId: string,
   memberKeysVersion: number,
   keys: Pairs,
-  previous?: Pairs,
-  options: { recovery?: Uint8Array; recoverySigner?: KeyPair; invite?: { inviteId: string; secret: Uint8Array } } = {},
+  options: { recovery?: Uint8Array; recoverySigner?: KeyPair } = {},
 ) {
   const recovery = options.recovery ?? options.recoverySigner?.publicKey ?? cc1.signingKeyPair(cc1.randomBytes(32)).publicKey;
   return memberKeysToJson(
@@ -124,24 +98,17 @@ export function forgeMemberKeys(
         encryptionPublicKey: keys.encryption.publicKey, recoveryPublicKey: recovery, createdAt: 1,
       },
       keys.signing.secretKey,
-      {
-        ...(previous ? { previousSigningSecretKey: previous.signing.secretKey } : {}),
-        ...(options.recoverySigner ? { recoverySigningSecretKey: options.recoverySigner.secretKey } : {}),
-        ...(options.invite ? { invite: options.invite } : {}),
-      },
+      options.recoverySigner ? { recoverySigningSecretKey: options.recoverySigner.secretKey } : {},
     ),
   );
 }
 
 /**
- * What gives `accountId` team key `version`, as the store serves it: its roster entry, else its
- * newest grant (§4.5, §4.6). `open` uses the given encryption keys; `null` when it holds nothing.
+ * What gives `accountId` team key `version`, as the store serves it: its roster entry (§4.5,
+ * D-37). `open` uses the given encryption keys; `null` when it holds nothing.
  */
 export async function accessOf(store: RecordStore, accountId: string, version: number, teamId = "team-1") {
   const record = await versionRecord(store, teamId, version);
   const entry = rosterEntryOf(record, accountId);
-  if (entry) return { memberKeysVersion: entry.memberKeysVersion, open: (pair: KeyPair) => openRosterEntry(record, entry, pair) };
-  const grants = (await store.list({ type: "grant", teamId, accountId, teamKeyVersion: version })).map((g) => parseGrant(g, { teamId }));
-  const grant = grants.at(-1);
-  return grant ? { memberKeysVersion: grant.memberKeysVersion, open: (pair: KeyPair) => openGrant(grant, pair) } : null;
+  return entry ? { memberKeysVersion: entry.memberKeysVersion, open: (pair: KeyPair) => openRosterEntry(record, entry, pair) } : null;
 }

@@ -27,10 +27,8 @@ Each record is stored under its identity (§11). A natural key, in identity orde
 | `member-keys-wrap` | account, team, member keys version, account key version |
 | `team-state` | account, team |
 | `team-key-version` | team, version |
-| `grant` | team, account, member keys version, team key version |
 | `item` | team, item |
 | `inbox` | team, inbox |
-| `invite` | team, invite |
 
 Store the record's JSON as the library sent it. Refuse a record whose identity fields differ from the key it is written under.
 
@@ -48,7 +46,7 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | --- | --- |
 | `create` | No live record under that key (write-once, rule 3) |
 | `create` of `team-key-version` | Version = current + 1 (§11). Accept records up to 384 KiB: the roster of a team of up to 1,000 members (D-34); DynamoDB's 400 KB item limit fits |
-| `create` of `grant`, `item`, `inbox`, `invite` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6) |
+| `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6) |
 | `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4) |
 | `delete` | A soft delete: stop serving, keep for the restore window (rule 7, TH-36) |
 | `set-account-key-version` | The current version equals `expected`; then stop serving every wrap of the old version (rule 7) |
@@ -67,8 +65,8 @@ The library produces content and takes it back; the integration stores and serve
 
 ## Invites and team administration
 
-- **Invite links are join proofs** (D-32). Deliver them, but never show them back in your own UI, log them, or keep them in a stored outbox (TH-43). Delete an `invite` record when the invite expires or is withdrawn.
-- **`autoApproveInvites`** lets owners' `reconcile` admit joiners proven by an invite. Leave it off unless you trust your server and mail delivery with joins: whoever saw the link can make the proof.
+- **Invite links carry the team's anchor** (`team.inviteAnchor()`), so a joiner can't be shown a forged team (§6.4). They hold no secret: approving a joiner is an owner's decision, checked out of band (AS-06).
+- **Every access change is one version record** (D-37): accept records up to 384 KiB, and expect one per join, re-key and removal.
 - **Run `reconcile` at every owner session** with the accounts your product considers members (§6.9). It rotates out removed accounts and approves re-keys proven by the recovery phrase; it never widens access otherwise (SP-22). Show its `needsHuman` list in your admin screens, with `overview()` for the details.
 - **Lost device or leaked credential:** offer `secureAccount` (D-36), and end the account's other sign-in sessions.
 
@@ -105,7 +103,6 @@ Servers verify signatures only as defence in depth, but should do it exactly as 
 | File | For |
 | --- | --- |
 | `canonical.v1.json`, `link.v1.json` | Encodings |
-| `invite.v1.json` | Invite records and proofs, if the server checks them |
 | `team-key.v1.json` | Signature checks and chain rules, if the server checks them |
 | `pin-key.v1.json` | The OPRF evaluation |
 | `wrap.v1.json`, `seal.v1.json`, `stream.v1.json`, `item.v1.json`, `submission.v1.json`, `recovery-key.v1.json` | Clients in other languages |

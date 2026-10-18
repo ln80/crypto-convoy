@@ -26,8 +26,8 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
     await expect((await w.device("bob")).vault.unlockWithPin("1111")).rejects.toEqual(code("WRONG_CREDENTIAL"));
 
     const report = await aliceTeam.owner().reconcile(["alice", "bob"]);
-    expect(report).toMatchObject({ rotatedTo: 2, approvedRekeys: ["bob"], needsHuman: [] });
-    const access = (await accessOf(clean.store, "bob", 2))!;
+    expect(report).toMatchObject({ rotatedTo: 3, approvedRekeys: ["bob"], needsHuman: [] });
+    const access = (await accessOf(clean.store, "bob", 3))!;
     expect(() => access.open(copied.bundle.pairs.encryption)).toThrow(code("DECRYPTION_FAILED"));
     expect((await clean.vault.openTeam("team-1")).state).toBe("ready");
     expect(Buffer.from(vaultInternals(clean.vault).account().key).equals(Buffer.from(copied.accountKey))).toBe(false);

@@ -15,16 +15,16 @@ describe("SP-16: another owner keeps the team running", () => {
     await bob.owner().setOwners(["bob"], { keep: [] });
     const dave = await w.account("dave");
     await dave.vault.joinTeam("team-1");
-    await bob.owner().grant({ accountId: "dave", memberKeysVersion: 1 });
+    await bob.owner().approve([{ accountId: "dave", memberKeysVersion: 1 }]);
     await bob.owner().rotate({ keep: ["dave"] });
-    expect(bob.currentVersion).toBe(4);
+    expect(bob.currentVersion).toBe(6);
 
     // alice comes back with a new account on the same id and new member keys.
     const back = await w.device("alice");
     await back.vault.recover(members.alice!.recoveryPhrase, "2468");
     await back.vault.rekey("team-1");
     const request = await requestOf(bob.owner(), "alice");
-    expect(request).toMatchObject({ status: "outdated", proof: "continuity" });
+    expect(request).toMatchObject({ status: "outdated", proof: "none" });
     await bob.owner().approve([request.keys!]);
     await bob.owner().setOwners(["alice", "bob"], { keep: ["alice", "dave"] });
     const alice = await back.vault.openTeam("team-1");

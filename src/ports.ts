@@ -8,10 +8,8 @@ export type RecordKey =
   | { type: "member-keys-wrap"; accountId: string; teamId: string; memberKeysVersion: number; accountKeyVersion: number }
   | TeamStateKey
   | { type: "team-key-version"; teamId: string; version: number }
-  | { type: "grant"; teamId: string; accountId: string; memberKeysVersion: number; teamKeyVersion: number }
   | { type: "item"; teamId: string; itemId: string }
-  | { type: "inbox"; teamId: string; inboxId: string }
-  | { type: "invite"; teamId: string; inviteId: string };
+  | { type: "inbox"; teamId: string; inboxId: string };
 
 export type TeamStateKey = { type: "team-state"; accountId: string; teamId: string };
 
@@ -20,9 +18,8 @@ export type RecordQuery =
   | { type: "account-key-wrap"; accountId: string; accountKeyVersion: number }
   | { type: "member-keys-wrap"; accountId: string; accountKeyVersion: number }
   | { type: "member-keys"; teamId: string; accountId?: string }
-  | { type: "team-key-version"; teamId: string; fromVersion: number }
-  | { type: "grant"; teamId: string; teamKeyVersion?: number; accountId?: string; memberKeysVersion?: number }
-  | { type: "invite"; teamId: string };
+  | { type: "team-key-version"; teamId: string; fromVersion: number };
+
 
 /** A record as JSON: the library writes and parses it, the store keeps it as is. */
 export type WireRecord = { readonly [key: string]: unknown };

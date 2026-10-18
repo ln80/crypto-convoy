@@ -5,7 +5,6 @@
 import { vaultInternals } from "../../src/account/vault.js";
 import { describe, expect, it } from "vitest";
 import { world } from "../support/fixtures.js";
-import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
@@ -57,17 +56,17 @@ describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full reme
     const stolenBundle = await bundleOf(bob.vault);
 
     // Revocation alone: the copied member keys still open a version granted afterwards.
-    await aliceTeam.owner().rotate({ keep: ["bob"] });
-    expect((await accessOf(bob.store, "bob", 2))!.open(stolenBundle.pairs.encryption)).toHaveLength(32);
+    const { version: revoked } = await aliceTeam.owner().rotate({ keep: ["bob"] });
+    expect((await accessOf(bob.store, "bob", revoked))!.open(stolenBundle.pairs.encryption)).toHaveLength(32);
 
     // The full remedy (D-21).
     await bob.vault.rotate({ pin: bob.pin, phrase: bob.recoveryPhrase });
     await bob.vault.rekey("team-1");
-    await aliceTeam.owner().rotate({ keep: ["bob"], approveRekeys: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    const { version } = await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
 
-    const v3 = (await accessOf(bob.store, "bob", 3))!;
-    expect(v3.memberKeysVersion).toBe(2);
-    expect(() => v3.open(stolenBundle.pairs.encryption)).toThrow(code("DECRYPTION_FAILED"));
+    const after = (await accessOf(bob.store, "bob", version))!;
+    expect(after.memberKeysVersion).toBe(2);
+    expect(() => after.open(stolenBundle.pairs.encryption)).toThrow(code("DECRYPTION_FAILED"));
     const wraps = await bob.store.list({ type: "member-keys-wrap", accountId: "bob", accountKeyVersion: 2 });
     expect(wraps.length).toBeGreaterThan(0);
     expect(Buffer.from(stolenAccountKey).equals(Buffer.from(vaultInternals(bob.vault).account().key))).toBe(false);

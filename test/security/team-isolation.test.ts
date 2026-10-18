@@ -5,7 +5,6 @@
 import { vaultInternals } from "../../src/account/vault.js";
 import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
-import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { openPreviousKey, parseTeamKeyVersion } from "../../src/records/team-key-version.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";

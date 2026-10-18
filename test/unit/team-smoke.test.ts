@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { team } from "../support/teams.js";
 
 describe("team lifecycle", () => {
-  it("creates, joins, grants, rotates and changes owners", async () => {
+  it("creates, joins, approves, rotates and changes owners", async () => {
     const { members, aliceTeam } = await team("bob", "carol");
     expect(aliceTeam.state).toBe("ready");
     expect(aliceTeam.owners()).toEqual(["alice"]);
@@ -17,10 +17,10 @@ describe("team lifecycle", () => {
     ]);
 
     await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob", "carol"] });
-    expect(aliceTeam.currentVersion).toBe(2);
+    expect(aliceTeam.currentVersion).toBe(3);
     await bob.close();
     const bob2 = await members.bob!.vault.openTeam("team-1");
-    expect(bob2.ownerChanges).toEqual([{ version: 2, signer: "alice", added: ["bob"], removed: [], rekeyed: [] }]);
+    expect(bob2.ownerChanges).toEqual([{ version: 3, signer: "alice", added: ["bob"], removed: [], rekeyed: [] }]);
 
     await bob2.owner().setOwners(["bob"], { keep: ["carol"] });
     const aliceAgain = await members.alice!.vault.openTeam("team-1");
@@ -28,7 +28,7 @@ describe("team lifecycle", () => {
     expect(await sessionInternals(aliceAgain).teamKey(1)).toHaveLength(32);
     const carol = await members.carol!.vault.openTeam("team-1");
     expect(carol.state).toBe("ready");
-    expect(carol.currentVersion).toBe(3);
+    expect(carol.currentVersion).toBe(4);
     expect(await sessionInternals(carol).teamKey(1)).toEqual(await sessionInternals(aliceAgain).teamKey(1));
   });
 });

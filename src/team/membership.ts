@@ -1,7 +1,6 @@
-// What an owner sees and what `reconcile` may do on its own (§6.9, D-31, SP-22). Pure: no I/O, no keys
-// beyond invite secrets the caller opened.
-import { hasValidContinuity, hasValidInviteProof, hasValidRecoveryProof, type MemberKeys } from "../records/member-keys.js";
-import type { Holder } from "./grants.js";
+// What an owner sees and what `reconcile` may do on its own (§6.9, D-31, SP-22). Pure: no I/O, no keys.
+import { hasValidRecoveryProof, type MemberKeys } from "../records/member-keys.js";
+import type { Holder } from "./access.js";
 
 /** Keys an owner reviewed: an approval holds for exactly this version (§6.8). */
 export interface KeysHandle {
@@ -9,8 +8,8 @@ export interface KeysHandle {
   readonly memberKeysVersion: number;
 }
 
-/** What vouches for an account's newest keys (§6.8, §6.9). Only `recovery` and, by opt-in, `invite` act alone. */
-export type ProofKind = "recovery" | "invite" | "continuity" | "none";
+/** What vouches for an account's newest keys (§6.8, §6.9): only a recovery proof acts without a human (D-38). */
+export type ProofKind = "recovery" | "none";
 
 export type AccountStatus = "no-keys" | "awaiting-approval" | "approved" | "outdated" | "rekey-awaiting-approval";
 
@@ -22,9 +21,6 @@ export interface AccountOverview {
   readonly keys?: KeysHandle;
   /** What vouches for `keys`. Absent for `no-keys`. */
   readonly proof?: ProofKind;
-  /** For an `invite` proof: the invite and the integration's reference to the invitee. */
-  readonly inviteId?: string;
-  readonly inviteeRef?: string;
   readonly isOwner: boolean;
   /** Whether the integration listed the account as active. */
   readonly active: boolean;
@@ -44,7 +40,7 @@ export interface TeamOverview {
   readonly warnings: readonly OwnerWarning[];
 }
 
-export type HumanReason = "awaiting-approval" | "invite-not-accepted" | "outdated" | "rekey-unproven" | "owner-rekey" | "inactive-owner";
+export type HumanReason = "awaiting-approval" | "outdated" | "rekey-unproven" | "owner-rekey" | "inactive-owner";
 
 /** What `reconcile` leaves to a human, with the handle to approve if that's the answer. */
 export interface NeedsHuman {
@@ -54,36 +50,24 @@ export interface NeedsHuman {
   readonly proof?: ProofKind;
 }
 
-/** An invite whose secret the owner opened (§4.11): only those count for proofs. */
-export interface OpenedInvite {
-  readonly inviteId: string;
-  readonly teamKeyVersion: number;
-  readonly inviteeRef?: string;
-  readonly secret: Uint8Array;
-}
-
 export interface MembershipSnapshot {
   readonly version: number;
   readonly owners: readonly string[];
   /** The calling owner: never removed. */
   readonly self: string;
-  /** Holders of the current version: its roster and grants since (§6.5). */
+  /** Holders of the current version: its roster (D-37). */
   readonly holders: readonly Holder[];
   /** Every published `member-keys` record of the team, by account, ascending versions. */
   readonly keys: ReadonlyMap<string, readonly MemberKeys[]>;
   /** Accounts without the current version that held an older one. */
   readonly heldBefore: ReadonlySet<string>;
-  readonly invites: ReadonlyMap<string, OpenedInvite>;
   readonly active: ReadonlySet<string>;
 }
-
-export type InvitePolicy = boolean | ((candidate: { accountId: string; inviteId: string; inviteeRef?: string }) => boolean);
 
 export interface ReconcilePlan {
   readonly rotate: boolean;
   readonly remove: readonly string[];
   readonly approveRekeys: readonly KeysHandle[];
-  readonly admit: readonly { readonly keys: KeysHandle; readonly inviteId: string }[];
   readonly needsHuman: readonly NeedsHuman[];
 }
 
@@ -93,18 +77,11 @@ function heldKeys(snapshot: MembershipSnapshot, accountId: string): MemberKeys |
   return held && snapshot.keys.get(accountId)?.find((k) => k.memberKeysVersion === held.memberKeysVersion);
 }
 
-function proofOf(snapshot: MembershipSnapshot, newest: MemberKeys): { proof: ProofKind; invite?: OpenedInvite } {
-  const all = snapshot.keys.get(newest.accountId) ?? [];
+function proofOf(snapshot: MembershipSnapshot, newest: MemberKeys): ProofKind {
   const held = heldKeys(snapshot, newest.accountId);
   // Recovery proves a re-key only against the recovery key of the keys held now (§4.2).
-  if (held && newest.memberKeysVersion > held.memberKeysVersion && hasValidRecoveryProof(newest, held.recoveryPublicKey)) {
-    return { proof: "recovery" };
-  }
-  const invite = newest.inviteProof && snapshot.invites.get(newest.inviteProof.inviteId);
-  if (invite && hasValidInviteProof(newest, invite.inviteId, invite.secret)) return { proof: "invite", invite };
-  const previous = all.find((k) => k.memberKeysVersion === newest.memberKeysVersion - 1);
-  if (previous && hasValidContinuity(newest, previous)) return { proof: "continuity" };
-  return { proof: "none" };
+  const proven = held && newest.memberKeysVersion > held.memberKeysVersion && hasValidRecoveryProof(newest, held.recoveryPublicKey);
+  return proven ? "recovery" : "none";
 }
 
 function statusOf(snapshot: MembershipSnapshot, accountId: string, newest: MemberKeys | undefined): AccountStatus {
@@ -123,13 +100,7 @@ export function overviewOf(snapshot: MembershipSnapshot): TeamOverview {
     const status = statusOf(snapshot, accountId, newest);
     const base = { accountId, status, isOwner: snapshot.owners.includes(accountId), active: snapshot.active.has(accountId) };
     if (!newest) return base;
-    const { proof, invite } = proofOf(snapshot, newest);
-    return {
-      ...base,
-      keys: { accountId, memberKeysVersion: newest.memberKeysVersion },
-      proof,
-      ...(invite ? { inviteId: invite.inviteId, ...(invite.inviteeRef !== undefined ? { inviteeRef: invite.inviteeRef } : {}) } : {}),
-    };
+    return { ...base, keys: { accountId, memberKeysVersion: newest.memberKeysVersion }, proof: proofOf(snapshot, newest) };
   });
 
   const warnings: OwnerWarning[] = [];
@@ -144,25 +115,17 @@ export function overviewOf(snapshot: MembershipSnapshot): TeamOverview {
   return { version: snapshot.version, owners: [...snapshot.owners], accounts, warnings };
 }
 
-function allows(policy: InvitePolicy | undefined, account: AccountOverview): boolean {
-  if (policy === undefined || policy === false) return false;
-  if (policy === true) return true;
-  return policy({ accountId: account.accountId, inviteId: account.inviteId!, ...(account.inviteeRef !== undefined ? { inviteeRef: account.inviteeRef } : {}) });
-}
-
 /**
- * What `reconcile` may do alone (§6.9, SP-22): remove inactive holders, approve recovery-proven
- * re-keys of members who aren't owners, and admit invite-proven first joiners if `invites`
- * allows it. Everything that would widen access otherwise, or change the owner list, needs a human.
+ * What `reconcile` may do alone (§6.9, SP-22): remove inactive holders who aren't owners, and
+ * approve recovery-proven re-keys of members who aren't owners. Everything that would widen
+ * access otherwise, or change the owner list, needs a human.
  */
-export function planReconcile(snapshot: MembershipSnapshot, invites?: InvitePolicy): ReconcilePlan {
+export function planReconcile(snapshot: MembershipSnapshot): ReconcilePlan {
   const { accounts } = overviewOf(snapshot);
   const holding = new Set(snapshot.holders.map((h) => h.accountId));
-  const usedInvites = new Set(snapshot.holders.flatMap((h) => (h.grant?.inviteId !== undefined ? [h.grant.inviteId] : [])));
 
   const remove: string[] = [];
   const approveRekeys: KeysHandle[] = [];
-  const admit: { keys: KeysHandle; inviteId: string }[] = [];
   const needsHuman: NeedsHuman[] = [];
   const human = (a: AccountOverview, reason: HumanReason) =>
     needsHuman.push({ accountId: a.accountId, reason, ...(a.keys ? { keys: a.keys } : {}), ...(a.proof ? { proof: a.proof } : {}) });
@@ -181,18 +144,9 @@ export function planReconcile(snapshot: MembershipSnapshot, invites?: InvitePoli
         else if (a.proof === "recovery") approveRekeys.push(a.keys!);
         else human(a, "rekey-unproven");
         break;
-      case "awaiting-approval": {
-        const invite = a.proof === "invite" ? snapshot.invites.get(a.inviteId!) : undefined;
-        const current = invite !== undefined && invite.teamKeyVersion === snapshot.version;
-        if (current && !usedInvites.has(invite.inviteId) && allows(invites, a)) {
-          // One account per invite (§6.9 step 3).
-          usedInvites.add(invite.inviteId);
-          admit.push({ keys: a.keys!, inviteId: invite.inviteId });
-        } else {
-          human(a, a.proof === "invite" ? "invite-not-accepted" : "awaiting-approval");
-        }
+      case "awaiting-approval":
+        human(a, "awaiting-approval");
         break;
-      }
       case "outdated":
         human(a, "outdated");
         break;
@@ -200,5 +154,5 @@ export function planReconcile(snapshot: MembershipSnapshot, invites?: InvitePoli
         break;
     }
   }
-  return { rotate: remove.length > 0 || approveRekeys.length > 0, remove, approveRekeys, admit, needsHuman };
+  return { rotate: remove.length > 0 || approveRekeys.length > 0, remove, approveRekeys, needsHuman };
 }

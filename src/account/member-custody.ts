@@ -39,13 +39,11 @@ export async function openBundles(ports: AccountPorts, account: OpenAccount, tea
 export interface NewMemberKeysOptions {
   /** The account's recovery public key, read authenticated from its recovery wrap (§4.1). */
   readonly recoveryPublicKey: Uint8Array;
-  /** On a re-key: the previous keys sign for continuity (a hint). */
-  readonly previous?: MemberBundle;
-  readonly recoverySigningSecretKey?: Uint8Array;
-  readonly invite?: MemberKeysProofs["invite"];
+  /** On a re-key with the phrase: the recovery signing key proves the new keys (D-33). */
+  readonly recoverySigningSecretKey?: MemberKeysProofs["recoverySigningSecretKey"];
 }
 
-/** New member keys: the published record, with its proofs, and its wrap (§5.9). */
+/** New member keys: the published record, with its proof, and its wrap (§5.9). */
 export function newMemberKeys(
   ports: AccountPorts,
   account: OpenAccount,
@@ -69,11 +67,7 @@ export function newMemberKeys(
       createdAt: clock.now(),
     },
     pairs.signing.secretKey,
-    {
-      ...(options.previous ? { previousSigningSecretKey: options.previous.pairs.signing.secretKey } : {}),
-      ...(options.recoverySigningSecretKey ? { recoverySigningSecretKey: options.recoverySigningSecretKey } : {}),
-      ...(options.invite ? { invite: options.invite } : {}),
-    },
+    options.recoverySigningSecretKey ? { recoverySigningSecretKey: options.recoverySigningSecretKey } : {},
   );
   const context = { accountId, teamId, memberKeysVersion, accountKeyVersion: account.version };
   const wrap = createMemberKeysWrap(suite, context, account.key, raw);

@@ -15,10 +15,8 @@ const keyOf = (record: WireRecord): RecordKey => {
   const pick = (...fields: string[]) => Object.fromEntries([["type", type], ...fields.map((f) => [f, record[f]])]);
   switch (type) {
     case "team-key-version": return pick("teamId", "version") as RecordKey;
-    case "grant": return pick("teamId", "accountId", "memberKeysVersion", "teamKeyVersion") as RecordKey;
     case "item": return pick("teamId", "itemId") as RecordKey;
     case "inbox": return pick("teamId", "inboxId") as RecordKey;
-    case "invite": return pick("teamId", "inviteId") as RecordKey;
     case "member-keys": return pick("teamId", "accountId", "memberKeysVersion") as RecordKey;
     case "account-key-wrap": return pick("accountId", "accountKeyVersion", "method") as RecordKey;
     default: throw new Error(type);
@@ -38,8 +36,6 @@ describe("server contract (§11)", () => {
     await expect(alice.commit([create({ ...r["team-key-version"], version: 2 })])).rejects.toEqual(conflict);
     await alice.commit([create(r["team-key-version"])]);
     expect(await alice.list({ type: "team-key-version", teamId: "team-1", fromVersion: 1 })).toHaveLength(1);
-    await alice.commit([create(r.invite)]);
-    expect(await alice.list({ type: "invite", teamId: "team-1" })).toHaveLength(1);
   });
 
   it("refuses a version record over 384 KiB", async () => {
@@ -57,15 +53,15 @@ describe("server contract (§11)", () => {
   it("accepts a new version only as current + 1", async () => {
     const { alice } = teamStore();
     const v3 = { ...r["team-key-version"], version: 3 };
-    await expect(alice.commit([create(v3), create({ ...r.grant, teamKeyVersion: 3 })])).rejects.toEqual(conflict);
+    await expect(alice.commit([create(v3)])).rejects.toEqual(conflict);
   });
 
-  it("accepts grants, items and inboxes only at the current version", async () => {
+  it("accepts items and inboxes only at the current version", async () => {
     const { alice } = teamStore();
-    await alice.commit([create(r["team-key-version"]), create(r.grant)]);
+    await alice.commit([create(r["team-key-version"])]);
     await alice.commit([create(r.item), create(r.inbox)]);
     await expect(alice.commit([create({ ...r.item, itemId: "item-2", teamKeyVersion: 2 })])).rejects.toEqual(conflict);
-    await expect(alice.commit([create({ ...r.grant, accountId: "bob", teamKeyVersion: 2 })])).rejects.toEqual(conflict);
+    await expect(alice.commit([create({ ...r.inbox, inboxId: "inbox-2", teamKeyVersion: 2 })])).rejects.toEqual(conflict);
   });
 
   it("stores a record only under its own identity", async () => {

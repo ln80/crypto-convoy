@@ -17,8 +17,8 @@ describe("SP-15: owner and membership changes are visible", () => {
 
     const seen = await carol.vault.openTeam("team-1");
     expect(seen.ownerChanges).toEqual([
-      { version: 2, signer: "alice", added: ["bob"], removed: [], rekeyed: [] },
-      { version: 3, signer: "bob", added: [], removed: ["alice"], rekeyed: [] },
+      { version: 3, signer: "alice", added: ["bob"], removed: [], rekeyed: [] },
+      { version: 4, signer: "bob", added: [], removed: ["alice"], rekeyed: [] },
     ]);
     // Already seen: not reported again.
     expect((await carol.vault.openTeam("team-1")).ownerChanges).toEqual([]);
@@ -36,7 +36,7 @@ describe("SP-15: owner and membership changes are visible", () => {
     const dave = await w.account("dave");
     await dave.vault.joinTeam("team-1");
     const bobTeam = await members.bob!.vault.openTeam("team-1");
-    await bobTeam.owner().grant({ accountId: "dave", memberKeysVersion: 1 });
+    await bobTeam.owner().approve([{ accountId: "dave", memberKeysVersion: 1 }]);
     const view = await members.alice!.vault.openTeam("team-1");
     expect(await view.members()).toContainEqual({ accountId: "dave", memberKeysVersion: 1, grantedBy: "bob" });
   });
@@ -65,11 +65,11 @@ describe("SP-15: owners see each member's access and what needs their action", (
     expect(await view("carol")).toEqual([{ accountId: "carol", status: "approved", proof: "none" }]);
 
     await members.bob!.vault.rekey("team-1");
-    expect(await view("bob")).toEqual([{ accountId: "bob", status: "rekey-awaiting-approval", proof: "continuity" }]);
-    expect(await owner.approve([{ accountId: "bob", memberKeysVersion: 2 }])).toEqual({ rotatedTo: 2, granted: ["bob"] });
+    expect(await view("bob")).toEqual([{ accountId: "bob", status: "rekey-awaiting-approval", proof: "none" }]);
+    expect(await owner.approve([{ accountId: "bob", memberKeysVersion: 2 }])).toEqual({ rotatedTo: 4, approved: ["bob"] });
     expect(await view("bob", "carol")).toEqual([
-      { accountId: "bob", status: "approved", proof: "continuity" },
-      // approve() kept every holder: carol holds version 2 too.
+      { accountId: "bob", status: "approved", proof: "none" },
+      // approve() kept every holder: carol holds version 4 too.
       { accountId: "carol", status: "approved", proof: "none" },
     ]);
     await owner.remove(["carol"]);
@@ -95,7 +95,7 @@ describe("SP-15: owners see each member's access and what needs their action", (
     await expect(aliceTeam.owner().rotate({ keep: ["bob"] })).rejects.toEqual(expect.objectContaining({ code: "STORE_ERROR" }));
     members.alice!.store.reset();
     const reopened = await members.alice!.vault.openTeam("team-1");
-    expect(reopened.currentVersion).toBe(1);
+    expect(reopened.currentVersion).toBe(2);
     expect((await reopened.members()).map((m) => m.accountId).sort()).toEqual(["alice", "bob"]);
   });
 });

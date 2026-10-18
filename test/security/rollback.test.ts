@@ -14,9 +14,9 @@ const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE
 const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as const;
 
 async function threeVersions() {
+  // Version 1 (alice), 2 (bob approved), 3 (a rotation).
   const t = await team("bob");
   await t.aliceTeam.owner().rotate({ keep: ["bob"] });
-  await (await t.members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
   const bob = t.members.bob!;
   expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(3);
   return { ...t, bob };
@@ -43,18 +43,18 @@ describe("SP-07: a client never goes back", () => {
   it("older versions are fetched on demand, pinned by the hash links of the verified chain", async () => {
     const t = await team("bob");
     const content = new ContentStore();
-    await addParts(t.aliceTeam.beginItem(), content, "old", ["from version 1"]).seal("old");
+    await addParts(t.aliceTeam.beginItem(), content, "old", ["from version 2"]).seal("old");
     await t.aliceTeam.owner().rotate({ keep: ["bob"] });
     await (await t.members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
     const bob = t.members.bob!;
-    expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(3);
+    expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(4);
 
     const session = await bob.vault.openTeam("team-1");
-    expect(read(await (await session.openItem("old")).part(0, content.get("old", 0)))).toBe("from version 1");
+    expect(read(await (await session.openItem("old")).part(0, content.get("old", 0)))).toBe("from version 2");
 
     // A server that swaps a record below the anchor is caught by the hash link.
     const alice = await bundleOf(t.members.alice!.vault);
-    bob.store.fork("team-1", 2, await forgeVersion(bob.store, { version: 2, owners: [{ ...alice, accountId: "alice", keys: alice.pairs }], signer: { ...alice, accountId: "alice", keys: alice.pairs } }));
+    bob.store.fork("team-1", 3, await forgeVersion(bob.store, { version: 3, owners: [{ ...alice, accountId: "alice", keys: alice.pairs }], signer: { ...alice, accountId: "alice", keys: alice.pairs } }));
     const later = await bob.vault.openTeam("team-1");
     expect(later.state).toBe("ready");
     await expect(later.openItem("old")).rejects.toEqual(trust("chain_conflict"));

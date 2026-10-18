@@ -21,7 +21,7 @@ const entries = read("docs/security-properties.md")
 
 describe("traceability", () => {
   it("finds the properties", () => {
-    expect(entries.length).toBe(22);
+    expect(entries.length).toBe(21);
     for (const entry of entries) expect(entry.files.length, entry.id).toBeGreaterThan(0);
   });
 

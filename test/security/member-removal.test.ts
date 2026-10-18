@@ -6,7 +6,6 @@ import { vaultInternals } from "../../src/account/vault.js";
 import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { openItemKey, parseItem } from "../../src/records/item.js";
-import { openGrant, parseGrant } from "../../src/records/grant.js";
 import { ContentStore, addParts, read } from "../support/content-store.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
@@ -20,7 +19,7 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     const bobSession = await bob.vault.openTeam("team-1");
     const held = { v1: await sessionInternals(bobSession).teamKey(1), bundle: await bundleOf(bob.vault), accountKey: vaultInternals(bob.vault).account().key };
 
-    await aliceTeam.owner().rotate({ keep: ["carol"] });
+    const { version } = await aliceTeam.owner().rotate({ keep: ["carol"] });
     await addParts(aliceTeam.beginItem(), new ContentStore(), "after", ["new secret"]).seal("after");
 
     // Bob's session and every key he held.
@@ -30,8 +29,8 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     for (const key of [held.v1, held.accountKey, held.bundle.pairs.teamStateKey]) {
       expect(() => openItemKey(item, key)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
     }
-    expect(await accessOf(bob.store, "bob", 2)).toBeNull();
-    const carolAccess = (await accessOf(bob.store, "carol", 2))!;
+    expect(await accessOf(bob.store, "bob", version)).toBeNull();
+    const carolAccess = (await accessOf(bob.store, "carol", version))!;
     expect(() => carolAccess.open(held.bundle.pairs.encryption)).toThrow();
 
     // Items from before stay readable: history is not protected (AS-07).
@@ -52,12 +51,12 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     expect(await codes(["alice"])).toContain("rotation-needed");
   });
 
-  it("Limit: re-admitting the member with a later grant opens the gap", async () => {
+  it("Limit: re-admitting the member in a later rotation opens the gap", async () => {
     const { members, aliceTeam } = await team("bob");
     await aliceTeam.owner().rotate({ keep: [] });
     const content = new ContentStore();
     await addParts(aliceTeam.beginItem(), content, "while-away", ["gap"]).seal("while-away");
-    await aliceTeam.owner().grant({ accountId: "bob", memberKeysVersion: 1 });
+    await aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: 1 }]);
     const bob = await members.bob!.vault.openTeam("team-1");
     expect(bob.state).toBe("ready");
     expect(read(await (await bob.openItem("while-away")).part(0, content.get("while-away", 0)))).toBe("gap");

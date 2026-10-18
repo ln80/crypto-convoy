@@ -1,5 +1,5 @@
-// team-key.v1.json: member keys, team key version records with their rosters and chain, grants
-// (§4.2, §4.5, §4.6), with the attack cases of SP-04 and SP-05, and strict Ed25519 edge cases (§2).
+// team-key.v1.json: member keys, team key version records with their rosters and chain (§4.2, §4.5),
+// with the attack cases of SP-04 and SP-05, and strict Ed25519 edge cases (§2).
 import {
   account, b64u, blake, encode, fixed, hex, label, listOf, optionalOf, sodium,
   wrapWith, wrappedHashOf, wrappedJson, writeVectors,
@@ -13,7 +13,7 @@ const sign = (who, message) => sodium.crypto_sign_detached(message, who.signingS
 const recoveryOf = (who) => sodium.crypto_sign_seed_keypair(fixed(`${who.accountId} recovery seed`, 32)).publicKey;
 const keysFields = (who, version = 1) => [["string", TEAM], ["string", who.accountId], ["u32", version],
   ["bytes", hex(who.signingPublicKey)], ["bytes", hex(who.encryptionPublicKey)], ["bytes", hex(recoveryOf(who))]];
-/** §4.2: the hash grants and rosters pin. */
+/** §4.2: the hash rosters pin. */
 const keysHashOf = (who, version = 1) => blake(encode([label("member-keys-hash"), ...keysFields(who, version)]));
 
 function memberKeys(who, version = 1) {
@@ -64,22 +64,6 @@ function versionRecord({ version, prevHash, owners, roster, signer, signerKey = 
   };
 }
 
-function grantRecord({ member, teamKeyVersion, signer, memberKeysVersion = 1, teamKey = teamKeys[teamKeyVersion], keysHash = keysHashOf(member), inviteId = null }) {
-  const sealContext = [["string", TEAM], ["string", member.accountId], ["u32", memberKeysVersion], ["u32", teamKeyVersion]];
-  const sealed = sodium.crypto_box_seal(encode([label("grant-seal"), ...sealContext, ["bytes", hex(teamKey)]]), member.encryptionPublicKey);
-  const createdAt = T0 + 100 + teamKeyVersion;
-  const message = encode([label("grant"), ["string", TEAM], ["string", member.accountId], ["u32", memberKeysVersion],
-    ["bytes", hex(keysHash)], ["u32", teamKeyVersion], ["bytes", hex(blake(sealed))],
-    optionalOf(inviteId === null ? null : [["string", inviteId]]),
-    ["string", signer.accountId], ["bytes", hex(signer.signingPublicKey)], ["u64", createdAt]]);
-  return {
-    v: 1, suite: "cc1", type: "grant", teamId: TEAM, accountId: member.accountId, memberKeysVersion,
-    keysHash: b64u(keysHash), teamKeyVersion, sealedTeamKey: b64u(sealed), ...(inviteId === null ? {} : { inviteId }),
-    signer: { accountId: signer.accountId, signingPublicKey: b64u(signer.signingPublicKey) },
-    createdAt, signature: b64u(sign(signer, message)),
-  };
-}
-
 const zero = new Uint8Array(32);
 const fromHex = (text) => new Uint8Array(Buffer.from(text, "hex"));
 // The honest chain: v1 owners [alice]; v2 adds bob (signed by alice); v3 removes alice (signed by bob)
@@ -89,11 +73,6 @@ const v2 = versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners:
 const v3 = versionRecord({ version: 3, prevHash: fromHex(v2.recordHash), owners: [ownerRef(bob)], roster: [bob, carol], signer: bob });
 
 const members = [alice, bob, carol].map((who) => memberKeys(who));
-const grants = {
-  bobV1: grantRecord({ member: bob, teamKeyVersion: 1, signer: alice }),
-  carolV2: grantRecord({ member: carol, teamKeyVersion: 2, signer: alice, inviteId: "invite-1" }),
-  carolV3: grantRecord({ member: carol, teamKeyVersion: 3, signer: bob }),
-};
 
 // Strict Ed25519 cases on v1's signature (§2).
 const L = 2n ** 252n + 27742317777372353535851937790883648493n;
@@ -144,14 +123,6 @@ variants.aliceOtherKeyV2 = (() => {
   return versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice), ownerRef(bob)], roster: [alice, bob], signer: payloadSigner }).record;
 })();
 
-const grantCases = [
-  { name: "grant of v1 to bob by alice", grant: grants.bobV1, member: "bob", expect: { teamKey: hex(teamKeys[1]) } },
-  { name: "grant of v2 to carol by alice, naming an invite", grant: grants.carolV2, member: "carol", expect: { teamKey: hex(teamKeys[2]) } },
-  { name: "grant of v3 to carol by bob", grant: grants.carolV3, member: "carol", expect: { teamKey: hex(teamKeys[3]) } },
-  { name: "grant of v3 signed by the removed owner", grant: grantRecord({ member: carol, teamKeyVersion: 3, signer: alice }), member: "carol", expect: { error: "TRUST_FAILURE", reason: "not_an_owner" } },
-  { name: "grant of v2 signed by a non-owner", grant: grantRecord({ member: carol, teamKeyVersion: 2, signer: carol }), member: "carol", expect: { error: "TRUST_FAILURE", reason: "not_an_owner" } },
-  { name: "grant naming other member keys", grant: grantRecord({ member: { ...carol, encryptionPublicKey: mallory.encryptionPublicKey, encryptionSecretKey: mallory.encryptionSecretKey }, teamKeyVersion: 3, signer: bob }), member: "carol", expect: { error: "TRUST_FAILURE", reason: "key_mismatch" } },
-];
 
 // Opening one's own roster entry (§4.5): the keys hash names the reader's keys, the box opens with them.
 const rosterCases = [
@@ -182,7 +153,7 @@ const recordCases = [
 
 writeVectors("team-key.v1.json", {
   file: "team-key.v1",
-  covers: "Protocol §4.2 member keys and keys hash, §4.5 team key versions, rosters and chain, §4.6 grants, §2 strict Ed25519",
+  covers: "Protocol §4.2 member keys and keys hash, §4.5 team key versions, rosters and chain, §2 strict Ed25519",
   teamId: TEAM,
   accounts: Object.fromEntries([alice, bob, carol, mallory].map((a) => [a.accountId, {
     signingSeed: hex(fixed(`${a.accountId} signing seed`, 32)),
@@ -195,7 +166,6 @@ writeVectors("team-key.v1.json", {
   versions: { 1: v1, 2: v2, 3: v3 },
   variants,
   chainCases,
-  grantCases,
   rosterCases,
   recordCases,
 });
