@@ -95,17 +95,17 @@ What to render:
 **At every owner session**, run the autopilot with the accounts your product considers members:
 
 ```ts
-const report = await team.owner().reconcile(activeIds, { autoApproveInvites: false });
-// report.removed, approvedRekeys, admitted: done. report.needsHuman: show these, with their reason.
+const report = await team.owner().reconcile(activeIds);
+// report.removed, approvedRekeys: done. report.needsHuman: show these, with their reason.
 ```
 
-It rotates out holders no longer active, approves re-keys proven by the member's recovery phrase, and, only if you opt in, admits joiners proven by an invite. It never widens access otherwise, never changes owners, and leaves `awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey` and `inactive-owner` to a human (SP-22). `{ dryRun: true }` returns the plan for a preview.
+It rotates out holders no longer active (never owners), and approves re-keys proven by the member's recovery phrase. It never widens access otherwise, never changes owners, and leaves `awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey` and `inactive-owner` to a human (SP-22). `{ dryRun: true }` returns the plan for a preview.
 
 | Situation | Calls |
 | --- | --- |
 | **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack)` |
-| **Invite someone** | `owner.createInvite(inviteId, { inviteeRef })` → put `invite` in the link fragment; the joiner calls `vault.joinTeam(teamId, { invite })` and `vault.openTeam(teamId, { invite })` |
-| **Approve someone** | `owner.approve([account.keys])` with the handle from `overview`: a grant for a joiner, a rotation for a re-key. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
+| **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId)`, then `vault.openTeam(teamId, { anchor })` on the first open |
+| **Approve someone** | Check the request out of band, then `owner.approve([account.keys])` with the handles from `overview`: one rotation for all of them, joiners and re-keys alike. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
 | **Someone leaves** | Drop them from `activeIds`; the next `reconcile` rotates. Or `owner.remove([accountId])` now |
 | **Device lost, never used by anyone** | `vault.revokeDevice(deviceId)` from another device |
 | **Device possibly misused, or PIN leaked** | `vault.secureAccount({ phrase, newPin })` from a clean device: new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Retry any `failed` team with `vault.rekey(teamId, { phrase })` |
@@ -113,7 +113,7 @@ It rotates out holders no longer active, approves re-keys proven by the member's
 | **Hand over or add an owner** | `owner.setOwners([...])`: a rotation with the new owner list; keeps every holder |
 | **Single owner warning** | Add a co-owner with `setOwners`: a team whose only owner loses every credential is frozen (TH-18) |
 
-Invite links are join proofs: deliver them, but keep them out of your own UI, logs and stored outbox (TH-43). Leave `autoApproveInvites` off unless you trust your server and mail delivery with joins.
+Every access change is a rotation (D-37), so the team key version moves often. `draft.seal` and `createInbox` retry once by themselves when it moved; `STALE_VERSION` after that means the id is taken or writes keep racing.
 
 ### Errors
 

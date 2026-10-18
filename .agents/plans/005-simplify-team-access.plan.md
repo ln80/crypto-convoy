@@ -223,3 +223,11 @@ The user favours a smaller protocol. Decisions:
   4. removal through `reconcile`;
   5. `secureAccount` and a proven re-key approved by `reconcile`;
   6. the split-context transfer.
+
+## Execution notes
+
+- **Phases A–D landed in one commit:** the label test ties `src/encoding/labels.ts` to the §1 table, so the spec and the code had to change together to keep the gate green.
+- **`team()` test fixture** approves all members in one rotation (version 2), the "several approvals share one rotation" path. Tests that hard-coded versions now read the version a rotation returns.
+- **`approve`** returns `{ rotatedTo, approved }`; `rotate` and `setOwners` return `{ version, recipients }`.
+- **Writer retry** lives in `TeamSession.#atCurrentVersion` (`seal`, `createInbox`). It rethrows when the version didn't move (an id already taken).
+- **Size:** `src/` went from 6,482 to about 6,000 lines; 6 labels, 2 record types and the invite link format are gone; non-deferred properties 22 → 21; tests 697 → 648 (the invite suites removed, roster-cap and writer-retry cases added).
