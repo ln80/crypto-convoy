@@ -11,4 +11,4 @@ test/fuzz/corpus/
 *.tgz
 
 # Private learning notes
-.learning/
+learning/

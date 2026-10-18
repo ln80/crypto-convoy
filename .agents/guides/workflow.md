@@ -22,4 +22,4 @@
 
 ## Learning notes
 
-When a change teaches a new pattern, concept or lesson, record it in `.learning/` (local, not tracked) with [capture-learning](../workflows/capture-learning.md).
+When a change teaches a new pattern, concept or lesson, record it in `learning/` (local, not tracked) with [capture-learning](../workflows/capture-learning.md).

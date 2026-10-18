@@ -2,7 +2,7 @@
 
 **Use when** a session produced a reusable pattern, an important concept, or a lesson from a mistake made or caught.
 
-Notes live in `.learning/` (local, ignored by git), one short file per note, with an index in `.learning/README.md`.
+Notes live in `learning/` (local, ignored by git), one short file per note, with an index in `learning/README.md`.
 
 ## Steps
 
@@ -18,7 +18,7 @@ Notes live in `.learning/` (local, ignored by git), one short file per note, wit
    **Pitfall:** …
    **Related:** links to other notes
    ```
-4. **Index:** add one line to the matching section of `.learning/README.md`: `- [Name](kind/file.md): the one-liner`.
+4. **Index:** add one line to the matching section of `learning/README.md`: `- [Name](kind/file.md): the one-liner`.
 5. **Check** that every link resolves and every cited id exists in `docs/`.
 
 ## Done when

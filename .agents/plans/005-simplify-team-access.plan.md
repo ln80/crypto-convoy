@@ -203,7 +203,7 @@ The user favours a smaller protocol. Decisions:
   - replace the invite bullets with "the invite link carries `team.inviteAnchor()`";
   - Go server: no `grant`/`invite` records; one version record per access change (≤ 384 KiB).
 - **`.agents/plans/005-…`:** execution notes.
-- **`.learning/`** (local):
+- **`learning/`** (local):
   - `join-secret-proof.md` → note it was deferred and why (server-delivered secret);
   - `signed-roster.md` → roster-only;
   - new lesson `second-path-tax.md` ("a second way to do the same job costs every reader").
