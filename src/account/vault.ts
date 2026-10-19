@@ -60,14 +60,16 @@ export interface VaultStatus {
   readonly deviceRegistered: boolean;
   /** Recovery is set up when a recovery wrap exists at the current account key version (D-35). */
   readonly recovery: "not-set-up" | "set-up";
+  /** No PIN after a rotation with the phrase alone, until `changePin` sets one (D-40). */
+  readonly pin: "not-set-up" | "set-up";
 }
 
 /** Something about the account the user should act on, with the operation that clears it (§12). */
 export interface VaultWarning {
-  readonly code: "recovery-not-set-up" | "rekey-needed";
+  readonly code: "recovery-not-set-up" | "pin-not-set-up" | "rekey-needed";
   /** For `rekey-needed`: teams whose member keys don't carry the current recovery key. */
   readonly teamIds: readonly string[];
-  readonly action: "beginRecoverySetup" | "rekey";
+  readonly action: "beginRecoverySetup" | "changePin" | "rekey";
 }
 
 export type { RekeyReport };
@@ -197,12 +199,14 @@ export class Vault {
 
   /**
    * Unlocks with the PIN (§5.4), registers this device if needed, and upgrades an
-   * outdated PIN wrap. Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `MALFORMED_RECORD`.
+   * outdated PIN wrap. Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `PIN_NOT_SET_UP` (no PIN, D-40),
+   * `MALFORMED_RECORD`.
    */
   async unlockWithPin(pin: string): Promise<void> {
     const version = await this.#requireVersion();
     const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "pin" });
-    if (!wrap) throw new ConvoyError("STORE_ERROR");
+    // Rotated with the phrase alone (D-40): no PIN until one is set, and no evaluation spent.
+    if (!wrap) throw new ConvoyError("PIN_NOT_SET_UP");
     const account = { accountId: this.accountId, version, key: await openWithPin(this.#ports, wrap, pin, "unlock") };
 
     const { ops, device } = await this.#registration(account);
@@ -243,10 +247,15 @@ export class Vault {
     await this.changePin(newPin);
   }
 
-  /** Replaces the PIN wrap (§5.6). Throws `PIN_RATE_LIMITED`, `STALE_VERSION`. */
+  /**
+   * Sets the PIN (§5.6): replaces the PIN wrap, or creates it when the account has none (D-40).
+   * Throws `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   */
   async changePin(newPin: string): Promise<void> {
     const account = this.#requireAccount();
-    await commit(this.#ports, replaceWrap(await pinWrap(this.#ports, account, newPin)));
+    const wrap = await pinWrap(this.#ports, account, newPin);
+    const current = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
+    await commit(this.#ports, current ? replaceWrap(wrap) : [createWrap(wrap)]);
   }
 
   /** The `deviceId` of every device wrap at the current version (§5.5). */
@@ -271,10 +280,11 @@ export class Vault {
 
   /**
    * Rotates the account key (§5.7). Pass the current `phrase` to keep it; without it, recovery
-   * must be set up again (D-35), which re-keys every team. Other devices must register again.
-   * Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   * must be set up again (D-35), which re-keys every team. Without a `pin`, the account has no PIN
+   * until `changePin` (D-40): at least one is required. Other devices must register again.
+   * Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `STALE_VERSION`, `MALFORMED_RECORD` (neither).
    */
-  async rotate(input: { pin: string; phrase?: string }): Promise<void> {
+  async rotate(input: { pin?: string; phrase?: string }): Promise<void> {
     const current = this.#requireAccount();
     const { account } = await rotateAccount(this.#ports, current, input);
     this.lock();
@@ -283,18 +293,19 @@ export class Vault {
 
   /**
    * After a device that may have been misused, or a leaked PIN (§5.11, D-36): rotates the account
-   * key with a new PIN, which cuts every other device, then re-keys every team with a recovery
+   * key with a new PIN, or none when the PIN budget is spent (D-40, TH-44), which cuts every other device, then re-keys every team with a recovery
    * proof that owners' `reconcile` approves. Run it on a device the attacker didn't control.
    * Retry a failed team with `rekey(teamId, { phrase })`. Throws `WRONG_CREDENTIAL`,
    * `RECOVERY_NOT_SET_UP`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
    */
-  async secureAccount(input: { phrase: string; newPin: string }): Promise<RekeyReport> {
+  async secureAccount(input: { phrase: string; newPin?: string }): Promise<RekeyReport> {
     const current = this.#requireAccount();
     const recoveryPublicKey = await currentRecoveryKey(this.#ports, current);
     if (!recoveryPublicKey) throw new ConvoyError("RECOVERY_NOT_SET_UP");
     const signer = recoverySigner(this.#ports, this.accountId, input.phrase, recoveryPublicKey);
     try {
-      const { account } = await rotateAccount(this.#ports, current, { pin: input.newPin, phrase: input.phrase });
+      const pin = input.newPin !== undefined ? { pin: input.newPin } : {};
+      const { account } = await rotateAccount(this.#ports, current, { ...pin, phrase: input.phrase });
       this.lock();
       this.#account = account;
       return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), recoveryPublicKey, signer);
@@ -306,22 +317,29 @@ export class Vault {
   /** Whether the account is set up, the vault unlocked, and this device registered (§12). Never calls the OPRF. */
   async status(): Promise<VaultStatus> {
     const version = await callPort(() => this.#ports.store.getAccountKeyVersion(this.accountId));
-    if (version === null) return { account: "not-set-up", deviceRegistered: false, recovery: "not-set-up" };
-    const recovery = (await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "recovery" })) ? "set-up" : "not-set-up";
+    if (version === null) return { account: "not-set-up", deviceRegistered: false, recovery: "not-set-up", pin: "not-set-up" };
+    const has = async (method: "recovery" | "pin") =>
+      (await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method })) ? "set-up" : "not-set-up";
+    const [recovery, pin] = await Promise.all([has("recovery"), has("pin")]);
     const device = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
     const wrap = device
       ? await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId })
       : null;
-    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null, recovery };
+    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null, recovery, pin };
   }
 
   /** What the user should act on (§12): recovery not set up, teams whose keys predate the current phrase. */
   async warnings(): Promise<VaultWarning[]> {
     const account = this.#requireAccount();
+    const warnings: VaultWarning[] = [];
+    if (!(await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" }))) {
+      warnings.push({ code: "pin-not-set-up", teamIds: [], action: "changePin" });
+    }
     const recovery = await currentRecoveryKey(this.#ports, account);
-    if (!recovery) return [{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }];
+    if (!recovery) return [{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }, ...warnings];
     const stale = await teamsWithOldRecoveryKey(this.#ports, account, recovery);
-    return stale.length > 0 ? [{ code: "rekey-needed", teamIds: stale, action: "rekey" }] : [];
+    if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
+    return warnings;
   }
 
   /** Creates a team with this account as its first owner (§6.3). Throws `STALE_VERSION` if it exists. */

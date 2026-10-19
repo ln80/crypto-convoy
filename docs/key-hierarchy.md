@@ -328,7 +328,7 @@ A copy of the old wrap taken before the deletion still opens the current `accoun
 Two cases:
 
 - **Not used by anyone** (locked, wiped, or nobody opened the app). From another device, or after recovery, revoke it. The server deletes its wrap, and the device can't unlock again (SP-10). Nothing else is needed.
-- **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. From another device, the user runs `secureAccount` with the recovery phrase and a new PIN:
+- **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. From another device, the user runs `secureAccount` with the recovery phrase and a new PIN, or the phrase alone when the PIN budget is spent (D-40, TH-44):
   1. the account key is rotated (SP-11), which cuts every other device (D-10);
   2. every team is re-keyed, each re-key signed by the recovery key (SP-23);
   3. each team's owners approve the new keys at their next `reconcile`, by rotating; an owner's own re-key waits for another owner.
@@ -340,7 +340,7 @@ Two cases:
 1. Open the current `accountKey`.
 2. The user enters the PIN (one server evaluation), and enters the recovery phrase or not.
 3. Generate the next `accountKey` version and re-wrap every member keys bundle under it.
-4. Store the new PIN and current-device wraps, and the recovery wrap if the phrase was entered; switch the account to the new version in one atomic step.
+4. Store the current-device wrap, the new PIN wrap if a PIN was entered, and the recovery wrap if the phrase was entered; switch the account to the new version in one atomic step. Without a PIN, the account has none until the user sets one (D-40).
 5. The server deletes every wrap of the old version. Other devices ask for the PIN once to register again. Without the phrase, the user sets up a new one next (D-35), which re-keys every team as when replacing a lost phrase.
 
 Member keys don't change, so teams see nothing. The old `accountKey` only opens records that the server has deleted (SP-11). For the same reason, rotation alone doesn't end team access for someone who already copied a member keys bundle; that takes a re-key in each team (`secureAccount` does both).

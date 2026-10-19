@@ -469,3 +469,15 @@ Decision: each identity has at most one **live** record. `delete`, the new `repl
 Rejected: keeping `delete` then `create` and having servers collapse the pair, a batch rule every backend would have to discover; a new identity for each generation, which breaks `get` by identity.
 
 Consequence: one more write operation, which every backend maps one to one. The identity is unique among live records only; archived records live beside them (an archive table, or a separate item with an expiry).
+
+## D-40: The PIN is optional when rotating with the recovery phrase
+
+Status: Accepted.
+
+Problem: every rotation of the account key made a new PIN wrap, so it needed a server evaluation from the account's PIN budget. A session thief (A11) can spend that budget on purpose: until it resets, `secureAccount` can't run, `recover` unlocks but can't replace the PIN, and a PIN the thief set keeps opening the account (TH-44).
+
+Decision: a rotation needs the PIN or the recovery phrase, and the PIN is optional when the phrase is given. Without a PIN, the new account key version has no PIN wrap: the rotation still retires every wrap of the old version, the thief's PIN and devices included. The account then reports `pin: "not-set-up"` and the `pin-not-set-up` warning; unlocking with a PIN answers `PIN_NOT_SET_UP` before any evaluation, and `changePin` creates the PIN wrap once the budget allows. `secureAccount` takes the phrase and an optional new PIN.
+
+Rejected: a PIN wrap made without the server evaluation, which would let a stolen wrap test PINs offline (SP-08); relying only on the integration resetting the budget, which leaves the thief's PIN working until someone acts.
+
+Consequence: an account can exist without a PIN wrap, at the current version, after a phrase-only rotation. It unlocks with the phrase or a registered device until a PIN is set. The integration may still reset a spent budget through its support process.

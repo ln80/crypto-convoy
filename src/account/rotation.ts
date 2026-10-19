@@ -15,17 +15,20 @@ import { deriveRecoveryKey } from "./recovery-key.js";
 import { commit, deviceWrap, fetchWrap, pinWrap, recoveryWrap } from "./unlock-methods.js";
 
 /**
- * Re-wraps every member keys bundle under a new account key version, with new PIN and
- * current-device wraps, and the recovery wrap if the phrase is given (else recovery must be set
- * up again, D-35), switched in one atomic batch. Member keys don't change.
+ * Re-wraps every member keys bundle under a new account key version, with the current-device
+ * wrap, the PIN wrap if a PIN is given (else no PIN until one is set, D-40), and the recovery
+ * wrap if the phrase is given (else recovery must be set up again, D-35), switched in one atomic
+ * batch. At least one of the two is required. Member keys don't change.
  */
 export async function rotateAccount(
   ports: AccountPorts,
   current: OpenAccount,
-  input: { pin: string; phrase?: string },
+  input: { pin?: string; phrase?: string },
 ): Promise<{ account: OpenAccount }> {
   const { suite, store, deviceKeys } = ports;
   const { accountId } = current;
+  // Neither would leave this device as the only way in.
+  if (input.pin === undefined && input.phrase === undefined) throw new ConvoyError("MALFORMED_RECORD");
 
   if (input.phrase !== undefined) {
     // A typo here would leave the account without a working phrase: check it opens today's wrap.
@@ -56,7 +59,7 @@ export async function rotateAccount(
     ops.push({ op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(rewrapped) });
   }
 
-  ops.push(createWrap(await pinWrap(ports, next, input.pin)));
+  if (input.pin !== undefined) ops.push(createWrap(await pinWrap(ports, next, input.pin)));
   if (input.phrase !== undefined) ops.push(createWrap(recoveryWrap(ports, next, input.phrase)));
   const device = await callPort(() => deviceKeys.getDevice(accountId));
   if (device) ops.push(createWrap(deviceWrap(ports, next, device)));

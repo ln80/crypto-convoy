@@ -209,7 +209,7 @@ Assumptions: AS-01. The server deletes the wrap ([server contract](scope.md#serv
 
 Verification:
 - `test/security/device-revocation.test.ts`: revoke a device, then try to unlock with its device key (refused). Then run the full remedy and check that keys copied from the device open nothing written afterwards.
-- `test/security/secure-account.test.ts`: a misused device; after `secureAccount` and an owner's `reconcile`, keys copied from it open nothing written afterwards; a team that failed to re-key is retried.
+- `test/security/secure-account.test.ts`: a misused device; after `secureAccount` and an owner's `reconcile`, keys copied from it open nothing written afterwards; a team that failed to re-key is retried. With the PIN budget spent, `secureAccount` with the phrase alone cuts the thief's PIN and devices, and a PIN is set later (D-40, TH-44).
 
 Related threats: TH-10.
 
@@ -217,7 +217,7 @@ Related threats: TH-10.
 
 Property: an account can replace its account key without leaving any team and without changing its member keys. After rotation, the old account key opens no record the account writes afterwards. The PIN and the recovery phrase (or its replacement) open the new key; other devices must register again (D-10).
 
-Limit: rotation retires the account key only. Member keys don't change, so anyone who already copied a member keys bundle (or the old account key and its wraps) keeps that team's access until the member re-keys in that team and the team key is rotated (SP-12); `secureAccount` does both (D-36). A rotation without the recovery phrase leaves the account without recovery until a new phrase is confirmed (D-35).
+Limit: rotation retires the account key only. Member keys don't change, so anyone who already copied a member keys bundle (or the old account key and its wraps) keeps that team's access until the member re-keys in that team and the team key is rotated (SP-12); `secureAccount` does both (D-36). A rotation without the recovery phrase leaves the account without recovery until a new phrase is confirmed (D-35); one without a PIN leaves it without a PIN until one is set (D-40).
 
 Assumptions: AS-01.
 

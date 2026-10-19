@@ -101,6 +101,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
 | TH-42 | The server hides grants to suppress a rotation | A2 | Mitigated: SP-15 (the signed roster is the only way to hold a version, D-37) |
 | TH-43 | An invite link leaks | A2, A11, A1 | Not applicable in v1: invite links carry no secret (D-32 deferred) |
+| TH-44 | Session thief spends the PIN budget | A11 | Mitigated: phrase-only rotation and securing (D-40); the integration may reset the budget |
 
 ---
 
@@ -570,3 +571,13 @@ Attack: uses a join secret in the invite link to publish keys with a valid invit
 Impact: the owner sees a proof that doesn't mean what it claims, or, with automatic approval, the attacker is admitted.
 
 Disposition: not applicable in v1: invite proofs are deferred (D-32), and an invite link carries only the team's anchor, which is not a secret (§6.4). The threat returns with D-32.
+
+### TH-44: Session thief spends the PIN budget
+
+Actor: session thief (A11).
+
+Attack: changes the PIN, then calls the OPRF until the account's budget is spent. Every operation that makes a PIN wrap needs an evaluation, so the user can't replace the PIN, and can't rotate the account key to cut the thief out, until the budget resets (up to the integration's longest window).
+
+Impact: the thief's PIN keeps opening the account, and the thief's devices stay registered, while the user waits.
+
+Disposition: mitigated by D-40: `secureAccount` and `rotate` run with the recovery phrase alone, retire every wrap of the old version (the thief's PIN and devices), and leave the PIN to be set once the budget allows. The integration may also reset the budget through its support process. Residual, accepted: until the budget resets or is reset, the account has no PIN and unlocks with the phrase or a registered device only.

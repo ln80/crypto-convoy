@@ -7,6 +7,7 @@ export type ErrorCode =
   | "WRONG_CREDENTIAL"
   | "PIN_RATE_LIMITED"
   | "DEVICE_NOT_REGISTERED"
+  | "PIN_NOT_SET_UP"
   | "NOT_GRANTED"
   | "STALE_VERSION"
   | "LAST_OWNER"
@@ -33,6 +34,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   WRONG_CREDENTIAL: "The PIN or recovery phrase is wrong.",
   PIN_RATE_LIMITED: "The server refused another PIN attempt.",
   DEVICE_NOT_REGISTERED: "This device is not registered for the account.",
+  PIN_NOT_SET_UP: "The account has no PIN: unlock with the recovery phrase or a device, then set one.",
   NOT_GRANTED: "No grant for the required team key version.",
   STALE_VERSION: "The write used a version that is no longer current.",
   LAST_OWNER: "The only owner can't leave the team.",

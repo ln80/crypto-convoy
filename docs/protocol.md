@@ -523,9 +523,9 @@ Both are derived when the user types the phrase, used for the one operation that
 The account key opens only through one of these three paths (SP-19).
 
 - **Same device.** Read the `deviceKey` and `deviceId` from `LocalKeyStore`, fetch that device's wrap at the current version, and unwrap. If the wrap is gone (revoked, or removed by a rotation), the device must register again: `DEVICE_NOT_REGISTERED`.
-- **PIN.** Fetch the PIN wrap, derive the `pinKey` (purpose `unlock`), unwrap. Then register the device (§5.5).
+- **PIN.** Fetch the PIN wrap, derive the `pinKey` (purpose `unlock`), unwrap. Then register the device (§5.5). With no PIN wrap at the current version (after a rotation without a PIN, D-40): `PIN_NOT_SET_UP`, before any server evaluation.
   - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the server's current one, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget.
-- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6). Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it.
+- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6). Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it. They happen first: if setting the PIN is refused (`PIN_RATE_LIMITED`), the account stays unlocked on this device with its previous PIN wrap. If someone else may have set that PIN, secure the account with the phrase alone (§5.11).
 
 ### 5.5 Registering and revoking a device
 
@@ -538,7 +538,7 @@ If the device may have been used by an attacker while unlocked, revocation isn't
 
 ### 5.6 Changing the PIN, replacing the recovery phrase
 
-**PIN.** With the `accountKey` open, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
+**PIN.** With the `accountKey` open, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12), or as a new wrap when the current version has none (D-40). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
 
 **Recovery phrase.** Set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new `recoveryPublicKey`:
 - if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the current recovery key: proven, and approved by owners' `reconcile` unless the account is an owner of that team (SP-23);
@@ -549,10 +549,10 @@ Each team is re-keyed in its own write. The operation reports the teams re-keyed
 ### 5.7 Rotating the account key (D-10)
 
 1. Open the current `accountKey` (version a).
-2. Derive the `pinKey` (purpose `enroll`) from the PIN the user enters (the current one or a new one). If the user enters the recovery phrase, derive the `recoveryKey` and recovery signing key, and check them against the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`; with no recovery wrap, `RECOVERY_NOT_SET_UP`.
+2. Derive the `pinKey` (purpose `enroll`) from the PIN the user enters (the current one or a new one), if any: the PIN is optional when the phrase is given, and at least one of them is required, else `MALFORMED_RECORD` (D-40). If the user enters the recovery phrase, derive the `recoveryKey` and recovery signing key, and check them against the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`; with no recovery wrap, `RECOVERY_NOT_SET_UP`.
 3. Generate `accountKey` version a+1.
 4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1.
-5. Create the PIN and current-device wraps for version a+1, and the recovery wrap if the phrase was entered.
+5. Create the current-device wrap for version a+1, the PIN wrap if a PIN was entered, and the recovery wrap if the phrase was entered. Without a PIN, version a+1 has no PIN wrap until `changePin` sets one (D-40).
 6. Store everything and switch the current version to a+1, in one atomic batch.
 7. The server deletes every record of version a. Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
 
@@ -584,9 +584,9 @@ Recovery is set up when a recovery wrap exists at the current account key versio
 
 ### 5.11 Securing an account (D-36)
 
-For a device that may have been used while unlocked, or a leaked PIN, run from a device the attacker didn't control. Input: the recovery phrase and a new PIN. Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one: `WRONG_CREDENTIAL`, before anything is written.
+For a device that may have been used while unlocked, or a leaked PIN, run from a device the attacker didn't control. Input: the recovery phrase and, optionally, a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one: `WRONG_CREDENTIAL`, before anything is written.
 
-1. Rotate the account key (§5.7) with the new PIN and the phrase. This cuts every other device: their wraps belong to the retired version (D-10).
+1. Rotate the account key (§5.7) with the phrase and the new PIN, if given. This cuts every other device: their wraps belong to the retired version (D-10).
 2. For every team the account has member keys for, in its own write: create new member keys (§5.9) whose record carries a `recoverySignature` by the recovery signing key (§4.2).
 3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase.
 4. Wipe the phrase and the keys derived from it.
@@ -807,6 +807,7 @@ What a team session reports to the integration after loading (§6.1):
 | `WRONG_CREDENTIAL` | The PIN or recovery phrase didn't open the account key. | Yes, by the user |
 | `PIN_RATE_LIMITED` | The server refused another PIN evaluation. | Later, or use the recovery phrase |
 | `DEVICE_NOT_REGISTERED` | This device has no current wrap (revoked or rotated). | After a PIN unlock |
+| `PIN_NOT_SET_UP` | The account has no PIN at its current version (rotated with the phrase alone, D-40). | Unlock with the phrase or a device, then set a PIN |
 | `NOT_GRANTED` | The member doesn't hold the version required. | After an owner approves |
 | `STALE_VERSION` | A write used a version that is no longer current. | After reloading team state |
 | `LAST_OWNER` | The account is the only owner: it can't leave the team until another owner is added. | After adding an owner |
@@ -859,19 +860,19 @@ Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyErr
 ```ts
 // Account vault: holds the account key; only what needs it runs here (scope, "Key custody").
 vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered,
-                                          //   recovery: "not-set-up" | "set-up" }
-vault.warnings()                          → recovery not set up; teams whose keys need re-keying
+                                          //   recovery: "not-set-up" | "set-up", pin: "not-set-up" | "set-up" }
+vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying
 vault.setup(pin)                          // then set up recovery before any team work
 vault.beginRecoverySetup()                → { recoveryPhrase }   // held in memory until confirmed (§5.10)
 vault.confirmRecoveryPhrase(phrase, { currentPhrase? }) → { rekeyed, failed }   // a replacement re-keys teams (§5.6)
 vault.unlock()                            // device; throws DEVICE_NOT_REGISTERED
-vault.unlockWithPin(pin)                  // upgrades an outdated PIN wrap (§5.4)
-vault.recover(phrase, newPin)
-vault.changePin(newPin)
+vault.unlockWithPin(pin)                  // upgrades an outdated PIN wrap (§5.4); throws PIN_NOT_SET_UP
+vault.recover(phrase, newPin)             // unlocked even if setting the PIN is refused (§5.4)
+vault.changePin(newPin)                   // creates the PIN wrap when there is none (D-40)
 vault.listDevices()                       → deviceId[]
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
-vault.rotate({ pin, phrase? })            // without the phrase, recovery must be set up again
-vault.secureAccount({ phrase, newPin })   → { rekeyed: teamId[], failed: teamId[] }   // §5.11
+vault.rotate({ pin?, phrase? })           // at least one; without the phrase, recovery must be set up again (D-40)
+vault.secureAccount({ phrase, newPin? })  → { rekeyed: teamId[], failed: teamId[] }   // §5.11, D-40
 vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
 vault.joinTeam(teamId)                    // "pending" until an owner approves the keys
 vault.rekey(teamId, { phrase? })          // new member keys; with the phrase, proven (§6.8)

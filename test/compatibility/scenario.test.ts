@@ -54,7 +54,7 @@ describe("scenario", () => {
     const alice = await vault("alice");
     expect((await alice.status()).account).toBe("not-set-up");
     await alice.setup("1234");
-    expect(await alice.status()).toEqual({ account: "unlocked", deviceRegistered: true, recovery: "not-set-up" });
+    expect(await alice.status()).toEqual({ account: "unlocked", deviceRegistered: true, recovery: "not-set-up", pin: "set-up" });
     await expect(alice.createTeam("team-1")).rejects.toSatisfy((e) => isConvoyError(e, "RECOVERY_NOT_SET_UP"));
     const { recoveryPhrase } = alice.beginRecoverySetup(); // shown to the user, then typed back
     await alice.confirmRecoveryPhrase(recoveryPhrase);
