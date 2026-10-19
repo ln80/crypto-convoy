@@ -53,6 +53,26 @@ describe("SP-12: compromised member keys can be replaced", () => {
     expect(() => access.open(old.pairs.encryption)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
   });
 
+  it("the vault deletes the replaced keys once the new ones are approved, and the team still opens (§6.8 step 4)", async () => {
+    const { w, members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    const wraps = async () =>
+      (await bob.store.list({ type: "member-keys-wrap", accountId: "bob", accountKeyVersion: 1 })).map((j) => (j as { memberKeysVersion: number }).memberKeysVersion);
+    await bob.vault.rekey("team-1");
+    (await bob.vault.openTeam("team-1")).close();
+    expect(await wraps()).toEqual([1, 2]); // not approved yet: the old keys still read
+
+    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    const session = await bob.vault.openTeam("team-1");
+    expect(session.state).toBe("ready");
+    expect(await wraps()).toEqual([2]);
+    // The team state was rewritten under the remaining keys: every later open still verifies.
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    const phone = await w.device("bob");
+    await phone.vault.unlockWithPin("1234");
+    expect((await phone.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
   it("keys replaced without proof from the current ones are flagged as unproven", async () => {
     const { members, aliceTeam } = await team("bob");
     await members.bob!.store.commit([

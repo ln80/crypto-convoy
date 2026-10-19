@@ -38,6 +38,7 @@ export {
 } from "./errors.js";
 
 export type {
+  AccountKeyWrapKey,
   AnchorStore,
   Argon2Cost,
   Clock,

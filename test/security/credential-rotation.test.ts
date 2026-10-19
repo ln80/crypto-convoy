@@ -1,6 +1,6 @@
 /**
  * SP-09: A replaced PIN or recovery phrase stops working.
- * Threats: TH-11.
+ * Threats: TH-11, TH-36.
  */
 import { describe, expect, it } from "vitest";
 import { hasValidRecoveryProof } from "../../src/records/member-keys.js";
@@ -39,6 +39,21 @@ describe("SP-09: a replaced credential stops working", () => {
     other.store.replace(pinKey, oldWrap);
     await other.vault.unlockWithPin("1234");
     expect(other.vault.isUnlocked).toBe(true);
+  });
+
+  it("TH-36: support undoes a session thief's PIN changes by restoring the archived wrap (D-39)", async () => {
+    const w = world();
+    const alice = await w.account("alice");
+    // Someone holding the session changes the PIN twice.
+    await alice.vault.changePin("6666");
+    await alice.vault.changePin("7777");
+    const other = await w.device("alice");
+    await expect(other.vault.unlockWithPin("1234")).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    // Support picks the generation from before the theft.
+    w.server.restore(pinKey, 0);
+    await other.vault.unlockWithPin("1234");
+    expect(other.vault.isUnlocked).toBe(true);
+    expect(w.server.archived(pinKey)).toHaveLength(2);
   });
 
   it("a phrase confirmed with a typo is refused, and nothing is stored (D-35)", async () => {

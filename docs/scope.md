@@ -126,8 +126,8 @@ The library verifies everything it can on its own: signatures, the team key chai
 5. **Apply atomic batches** where the protocol requires them: team creation, the switch to a new account key version.
 6. **Accept new `item` and `inbox` records only at the current team key version**, and a new team key version only as current + 1.
 7. **Stop serving what revocation removes, but keep it for a while:** a revoked device's account key wrap, wraps of a replaced PIN or recovery phrase, and wraps of a retired account key version.
-   - The server stops serving them after a short delay at most; until then, the old credential still works.
-   - It keeps them for a **restore window** set by the integration, and restores them only through the integration's own support process. Someone holding the user's session could otherwise replace every wrap with garbage and destroy the account (TH-36).
+   - A replaced wrap stops being served as soon as its replacement is stored. A removed one (a revoked device) stops being served after a short delay at most; until then, the old credential still works.
+   - It keeps them in an **archive** for a **restore window** set by the integration, and restores them only through the integration's own support process. Someone holding the user's session could otherwise replace every wrap with garbage and destroy the account (TH-36). Each identity has at most one live record; restoring brings back a chosen archived record and archives the live one (D-39).
    - The integration may also have the server stop serving a device wrap that hasn't been used for a set period; the device then registers again with the PIN.
 8. **Check that signed changes come from people allowed to make them** (for example, that the owners listed in a new team key version hold the capability the integration maps to the cryptographic owner role, D-30). This is defence in depth: clients check the signatures regardless.
 

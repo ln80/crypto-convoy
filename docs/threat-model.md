@@ -93,7 +93,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-33 | Removed owner signs grants for versions they owned | A4, A6 | Not applicable in v1: no grants (D-37) |
 | TH-34 | PIN hashing cost set too low | Integration error, A2 | Mitigated: library hard floor (D-17, SP-08) |
 | TH-35 | A timestamp shown as proof of when something was sent | A5, A10 | Accepted; integration must not present it as trusted |
-| TH-36 | Session thief destroys the account | A11 | Mitigated: soft delete with a restore window (server contract) |
+| TH-36 | Session thief destroys the account | A11 | Mitigated: removed and replaced wraps archived for a restore window (server contract, D-39) |
 | TH-37 | Session thief injects member keys | A11 | Partly mitigated: SP-12 (pinned approvals), SP-23 (recovery proof); residual accepted |
 | TH-38 | Split view: two records for one version | A6 with A2 | Accepted (needs key transparency) |
 | TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
@@ -492,7 +492,7 @@ Attack: calls "change PIN", "replace recovery phrase" and "revoke device", suppl
 
 Impact: permanent loss of the account and of every team key only it could open.
 
-Disposition: mitigated by the server contract (rule 7): removing a wrap means the server **stops serving** it, and keeps it for a restore window set by the integration, restorable only through the integration's support process. The old credential stops working as soon as the wrap stops being served (SP-09). Residual, accepted: a data thief (A1) can find retained wraps, which still need the old PIN with a server evaluation, or the old phrase.
+Disposition: mitigated by the server contract (rule 7, D-39): removing or replacing a wrap means the server **stops serving** it and archives it for a restore window set by the integration, restorable only through the integration's support process. Every replacement is archived, so after several, support picks the generation from before the theft; restoring archives the live garbage rather than dropping it. The old credential stops working as soon as the wrap stops being served (SP-09). Residual, accepted: a data thief (A1) can find retained wraps, which still need the old PIN with a server evaluation, or the old phrase.
 
 ### TH-37: Session thief injects member keys
 

@@ -30,7 +30,7 @@ Each record is stored under its identity (§11). A natural key, in identity orde
 | `item` | team, item |
 | `inbox` | team, inbox |
 
-Store the record's JSON as the library sent it. Refuse a record whose identity fields differ from the key it is written under.
+Store the record's JSON as the library sent it. Refuse a record whose identity fields differ from the key it is written under. A key identifies the **live** record: removed and replaced records move to an archive (see [Archived records](#archived-records)).
 
 ### Reads
 
@@ -48,10 +48,43 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | `create` of `team-key-version` | Version = current + 1 (§11). Accept records up to 384 KiB: the roster of a team of up to 1,000 members (D-34); DynamoDB's 400 KB item limit fits |
 | `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6) |
 | `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4) |
-| `delete` | A soft delete: stop serving, keep for the restore window (rule 7, TH-36) |
+| `replace` (`account-key-wrap` only) | A live record exists under the key; archive it, then store the new one as live (D-39) |
+| `delete` | Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
 | `set-account-key-version` | The current version equals `expected`; then stop serving every wrap of the old version (rule 7) |
 
+Each operation in a batch names a different key: a batch never touches one key twice.
+
 The client reports a refused condition by throwing the library's `StoreConflictError`. Anything else it throws becomes `STORE_ERROR`. Defence in depth (rule 8): also check that the signer and owners of a new team key version hold the matching role in your product.
+
+### Archived records
+
+Rule 7 keeps every removed or replaced wrap for a restore window (TH-36, D-39). Each identity has at most one live record and any number of archived ones.
+
+- **Relational database:** an `archived_at` column, and a unique index on the identity over live rows only (a partial index in Postgres).
+- **DynamoDB:** the live item under its identity, with a generation counter `gen`. An archived record is a separate item (for example partition `archive#<accountId>`, sort key `<identity>#<gen>`) whose TTL is the archive time plus the restore window, so expiry needs no job.
+  - `replace`: read the live item, then one transaction: put the archive item, and put the new live item with `gen + 1`, on condition that `gen` is unchanged.
+  - `delete`: the same, deleting the live item instead.
+  - Retiring an account key version: serve wraps only at the current version (a read filter), so the switch writes one item. Set the TTL on the old version's items afterwards, best effort.
+- **Restoring** is your support process, not a route: list the archived generations of an identity, pick the one from before the incident, archive the live record and make the chosen one live, in one transaction. Never drop the live record: a mistaken restore must be reversible.
+
+### Sizing
+
+What the expensive writes cost, to set product limits against (teams per account, members per team):
+
+| Write | Size |
+| --- | --- |
+| Account key rotation (one atomic batch, §5.7) | one `member-keys-wrap` per team the account is in, plus 2–3 wraps and the version switch. The vault keeps one bundle per team once re-keys are approved (§6.8 step 4) |
+| `secureAccount` (§5.11) | that rotation, then one 2-record write per team |
+| Team key version record (§4.5) | about 360 bytes per roster entry: 36 KB for 100 members, 384 KiB at most. One per join, re-key and removal (D-37) |
+| Opening a team | the version records since its anchor, and every published `member-keys` record of the team |
+
+For DynamoDB, a rotation must fit `TransactWriteItems` (100 items): cap the teams per account well below that.
+
+### Leaving, removal and account deletion
+
+- **Removal by the product:** a removed member can't read the chain any more, so it can't run `leaveTeam`. Your server deletes that account's `member-keys-wrap` and `team-state` records for the team; owners' next `reconcile` rotates the member out (§6.9).
+- **Deleting an account** is your server's job, not one transaction: delete its records for each team as above, then archive its `account-key-wrap` records for the restore window (a session thief could otherwise delete the account, TH-36) and purge them after it. **Never delete records the team shares** (`member-keys`, `team-key-version`, `item`, `inbox`): other members verify old owners' signatures against published `member-keys` records.
+- **The last owner:** refuse to remove or delete an account that is the only owner in the newest team key version (`LAST_OWNER`, TH-18). The product's owner role may change before the chain's owner list does (D-30): check the list in the record.
 
 ## Content
 

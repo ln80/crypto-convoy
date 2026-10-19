@@ -1,4 +1,4 @@
-import type { AnchorStore, Clock, DeviceKeyStore, OprfService, RecordKey, RecordStore, ResolvedSettings, WriteOp } from "../ports.js";
+import type { AccountKeyWrapKey, AnchorStore, Clock, DeviceKeyStore, OprfService, RecordStore, ResolvedSettings, WriteOp } from "../ports.js";
 import { accountKeyWrapToJson, type AccountKeyWrap } from "../records/account-key-wrap.js";
 import type { Suite } from "../suites/suite.js";
 
@@ -21,7 +21,7 @@ export interface OpenAccount {
   readonly key: Uint8Array;
 }
 
-export function wrapKey(wrap: Pick<AccountKeyWrap, "accountId" | "accountKeyVersion" | "method" | "deviceId">): RecordKey {
+export function wrapKey(wrap: Pick<AccountKeyWrap, "accountId" | "accountKeyVersion" | "method" | "deviceId">): AccountKeyWrapKey {
   return {
     type: "account-key-wrap",
     accountId: wrap.accountId,
@@ -33,5 +33,5 @@ export function wrapKey(wrap: Pick<AccountKeyWrap, "accountId" | "accountKeyVers
 
 export const createWrap = (wrap: AccountKeyWrap): WriteOp => ({ op: "create", key: wrapKey(wrap), record: accountKeyWrapToJson(wrap) });
 
-/** Replacing a write-once wrap: delete then create, in one batch (§5.6). */
-export const replaceWrap = (wrap: AccountKeyWrap): WriteOp[] => [{ op: "delete", key: wrapKey(wrap) }, createWrap(wrap)];
+/** Replacing a wrap in place: the server archives the old one (§5.6, D-39). */
+export const replaceWrap = (wrap: AccountKeyWrap): WriteOp[] => [{ op: "replace", key: wrapKey(wrap), record: accountKeyWrapToJson(wrap) }];

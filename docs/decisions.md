@@ -457,3 +457,15 @@ Rejected: keeping it as a UI hint: a hint that an attacker can forge teaches own
 
 Consequence: proofs are `recovery` or none, in records, the owner overview and `reconcile`.
 
+
+## D-39: Removed key records are archived; a replacement is one operation
+
+Status: Accepted.
+
+Problem: a PIN change or a recovery phrase replacement was sent as a `delete` and a `create` of the same identity. A server keyed by identity either overwrote the removed wrap, losing the copy the restore window keeps (TH-36), or hit its unique key. Some databases refuse two actions on one item in a transaction (DynamoDB), so the pair couldn't even be mapped as sent. And restoring assumed one removed record per identity, when a session thief can replace a wrap several times.
+
+Decision: each identity has at most one **live** record. `delete`, the new `replace` (an `account-key-wrap` only, which must be live) and the retirement of an account key version move the live record to an **archive**: no longer served, kept for the restore window. A replacement takes effect at once. Restoring is a support action outside the `RecordStore` interface: it brings back a chosen archived record and archives the live one, so a restore can itself be undone. A conforming server may implement the retirement of a version as a read filter on the current version.
+
+Rejected: keeping `delete` then `create` and having servers collapse the pair, a batch rule every backend would have to discover; a new identity for each generation, which breaks `get` by identity.
+
+Consequence: one more write operation, which every backend maps one to one. The identity is unique among live records only; archived records live beside them (an archive table, or a separate item with an expiry).

@@ -131,7 +131,7 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 | Access | That team's session. |
 | Rotation | On re-key after a suspected leak (SP-12). An owner must approve the new keys, pinned to the version they reviewed; owners' clients approve a re-key proven by the recovery key automatically, except for owners (SP-23). |
 | Recovery | Through the `accountKey`. |
-| Destruction | The old bundle is deleted after a re-key. |
+| Destruction | The old bundle is deleted once the new keys are approved: at the next open or export of the team, the vault deletes it (protocol §6.8 step 4). |
 
 ### Member encryption key
 
@@ -312,7 +312,7 @@ Other devices are not affected.
 ### Changing the PIN
 
 1. Open the `accountKey` with any unlock method.
-2. Store the new wrap. The server deletes the old one after a short delay; the old credential works until then (SP-09).
+2. Store the new wrap in place of the old one (`replace`). The server archives the old one without serving it, so the old credential stops working at once (SP-09, D-39).
 
 A copy of the old wrap taken before the deletion still opens the current `accountKey` with the old credential. If that's a concern, also rotate the account key.
 

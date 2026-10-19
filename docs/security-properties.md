@@ -190,14 +190,14 @@ Related threats: TH-07, TH-08.
 
 ### SP-09: A replaced PIN or recovery phrase stops working
 
-Property: after a PIN change or a recovery phrase replacement, the old PIN or phrase opens no record written after the change. The old credential stops working when the server deletes the old wrap, which it must do after a short delay ([server contract](scope.md#server-contract), rule 7). Until then, it still opens the current account key.
+Property: after a PIN change or a recovery phrase replacement, the old PIN or phrase opens no record written after the change. The old credential stops working as soon as the new wrap is stored: the replacement takes the old wrap's place, which the server archives without serving it ([server contract](scope.md#server-contract), rule 7; D-39).
 
-Assumptions: the server honours rule 7. A copy of an old wrap taken before the deletion still opens with the old credential; SP-11 covers that case.
+Assumptions: the server honours rule 7. A copy of an old wrap taken before the replacement, or served again by the server from its archive, still opens with the old credential; SP-11 covers that case. That is also what lets support restore an account after TH-36.
 
 Verification:
-- `test/security/credential-rotation.test.ts`.
+- `test/security/credential-rotation.test.ts`: the old PIN and phrase fail right after a change; a garbage replacement is undone by restoring the archived wrap (TH-36).
 
-Related threats: TH-11.
+Related threats: TH-11, TH-36.
 
 ### SP-10: A revoked device can't unlock the account again
 
@@ -235,7 +235,7 @@ A recovery signature is the only proof (SP-23, D-38); any other re-key is shown 
 Assumptions: AS-01, AS-06 for the owner's check that the request is genuine.
 
 Verification:
-- `test/security/member-rekey.test.ts`: keys published without proof are reported as unproven and never approved by themselves; an owner approves by rotating (accepted); the old keys get no roster entry of the new version and open nothing created after it; keys published after the owner's review, including an owner's own, are refused.
+- `test/security/member-rekey.test.ts`: keys published without proof are reported as unproven and never approved by themselves; an owner approves by rotating (accepted); the old keys get no roster entry of the new version and open nothing created after it; keys published after the owner's review, including an owner's own, are refused; once the new keys are approved the vault deletes the old bundle, and the team still opens.
 - `test/security/key-substitution.test.ts`: approving keys a re-key replaced is refused.
 
 Related threats: TH-13.

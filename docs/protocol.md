@@ -538,7 +538,7 @@ If the device may have been used by an attacker while unlocked, revocation isn't
 
 ### 5.6 Changing the PIN, replacing the recovery phrase
 
-**PIN.** With the `accountKey` open, create the new wrap with a new `salt` and store it in place of the old one. The old credential keeps working until the server stops serving the old wrap, which it must do after a short delay ([server contract](scope.md#server-contract), rule 7; SP-09). The server keeps removed wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36).
+**PIN.** With the `accountKey` open, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
 
 **Recovery phrase.** Set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new `recoveryPublicKey`:
 - if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the current recovery key: proven, and approved by owners' `reconcile` unless the account is an owner of that team (SP-23);
@@ -564,7 +564,8 @@ Rotation retires the account key only. Member keys are unchanged, so anyone who 
 
 1. The vault fetches the `member-keys-wrap` for `teamId` at the current account key version and unwraps it.
 2. It checks the bundle against the `member-keys` record (§4.3).
-3. It hands the bundle to the team session, directly in the same context, or as a sealed transfer to a receiver in another context (§3.8). The `accountKey` never leaves the vault (SP-02).
+3. If it holds more than one bundle for the team, it runs the clean-up of §6.8 step 4.
+4. It hands the bundles to the team session, directly in the same context, or as a sealed transfer to a receiver in another context (§3.8). The `accountKey` never leaves the vault (SP-02).
 
 ### 5.9 Creating member keys, leaving a team, deleting an account
 
@@ -675,6 +676,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
    Whatever the class, the rotation is the approval: the new version is sealed to the new keys, and the old keys receive nothing (SP-12). The approval is pinned to the reviewed `memberKeysVersion`: keys published after the review, for example by someone holding the member's session (TH-37), are never approved by it, and for an owner never replace their signing key in the owner list.
 3. If the member is an owner, the same rotation replaces their signing key in the owner list (§6.7).
+4. **Clean-up (vault).** When the vault opens or exports the team (§5.8) and holds more than one bundle for it, it verifies the chain (§6.1 steps 1–2). If the newest version's roster has an entry for the newest bundle's keys, the older bundles open nothing the chain doesn't give: in one batch, the vault deletes their `member-keys-wrap` records and rewrites the server's `team-state` with the same anchor under the newest bundle's `teamStateKey`. Otherwise, or on any failure, it keeps every bundle. This runs once per approved re-key and keeps an account's wraps at one per team.
 
 The new keys receive the current version, and the chain gives every earlier one.
 
@@ -834,7 +836,7 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 
 | Record | Identity on the server | Rule |
 | --- | --- | --- |
-| `account-key-wrap` | account, version, method, deviceId | Write-once. Served only to the account. A recovery wrap may be created after the version's other wraps (§5.10). Removed on revocation, replacement, or retirement of the version, after a short delay at most: the server stops serving it, and keeps it for a restore window (rule 7). A device wrap may also stop being served after a period of inactivity. The switch of current version is atomic with the new wraps. |
+| `account-key-wrap` | account, version, method, deviceId | Write-once. Served only to the account. A recovery wrap may be created after the version's other wraps (§5.10). Replaced with `replace`, which needs a live record. Archived on replacement (at once), revocation (after a short delay at most) or retirement of the version: the server stops serving it and keeps it for a restore window (rule 7, D-39); the identity is unique among live records only. A device wrap may also stop being served after a period of inactivity. The switch of current version is atomic with the new wraps. |
 | `member-keys` | team, account, memberKeysVersion | Write-once. Readable by the team's members. |
 | `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Deleted with its account key version. |
 | `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. |
@@ -935,7 +937,7 @@ What the library expects from each interface. A conforming server enforces the r
 | `get(key)` | The record (a JSON value, parsed by the library) or `null`. |
 | `list(query)` | The records matching a query, in identity order: an account's wraps at one account key version, its member keys wraps at one version, a team's team key versions from a given version, a team's member keys records (optionally of one account). |
 | `getAccountKeyVersion(accountId)` | The current account key version, or `null` for an account that was never set up. |
-| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none), `delete`, and `setAccountKeyVersion` (with the expected current version). |
+| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none), `replace` (a live `account-key-wrap`, archiving it), `delete` (archiving the record), and `setAccountKeyVersion` (with the expected current version, archiving the old version's wraps) (D-39). |
 
 A write that a server rule refuses (write-once, current version, compare-and-set, ordering) is reported by throwing the library's `StoreConflictError`: the library turns it into `STALE_VERSION`, or reloads and retries for a `team-state` (§6.1 step 7). Any other failure is `STORE_ERROR`. Private records (§11) are served only to their account: the integration authenticates the caller, the library never sees how.
 

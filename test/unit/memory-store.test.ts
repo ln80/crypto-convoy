@@ -23,6 +23,7 @@ const keyOf = (record: WireRecord): RecordKey => {
   }
 };
 const create = (record: WireRecord): WriteOp => ({ op: "create", key: keyOf(record), record });
+const replace = (record: WireRecord): WriteOp => ({ op: "replace", key: keyOf(record) as Extract<RecordKey, { type: "account-key-wrap" }>, record });
 const conflict = expect.any(StoreConflictError);
 
 function teamStore() {
@@ -100,15 +101,60 @@ describe("server contract (§11)", () => {
     expect(await alice.get(keyOf(wrap))).toEqual(wrap);
   });
 
-  it("soft-deletes: a deleted record is no longer served, and can be restored (TH-36)", async () => {
+  it("archives a deleted record: no longer served, and restorable (TH-36)", async () => {
     const { server, alice } = teamStore();
     const wrap = r["account-key-wrap"];
     await alice.commit([create(wrap)]);
     await alice.commit([{ op: "delete", key: keyOf(wrap) }]);
     expect(await alice.get(keyOf(wrap))).toBeNull();
-    expect(server.dump()).toContainEqual(wrap);
-    await alice.commit([{ op: "delete", key: keyOf(wrap) }, create(wrap)]);
+    expect(server.archived(keyOf(wrap))).toEqual([wrap]);
+    server.restore(keyOf(wrap));
     expect(await alice.get(keyOf(wrap))).toEqual(wrap);
+    expect(server.archived(keyOf(wrap))).toEqual([]);
+  });
+
+  it("replaces a live wrap in place and archives the old one; restoring archives the live one (D-39)", async () => {
+    const { server, alice } = teamStore();
+    const wrap = r["account-key-wrap"];
+    const garbage = { ...wrap, createdAt: 1 };
+    await alice.commit([create(wrap)]);
+    await alice.commit([replace(garbage)]);
+    expect(await alice.get(keyOf(wrap))).toEqual(garbage);
+    expect(server.archived(keyOf(wrap))).toEqual([wrap]);
+    server.restore(keyOf(wrap));
+    expect(await alice.get(keyOf(wrap))).toEqual(wrap);
+    expect(server.archived(keyOf(wrap))).toEqual([garbage]);
+    expect(server.dump()).toEqual(expect.arrayContaining([wrap, garbage]));
+  });
+
+  it("restores a chosen generation after several replacements", async () => {
+    const { server, alice } = teamStore();
+    const wrap = r["account-key-wrap"];
+    await alice.commit([create(wrap)]);
+    await alice.commit([replace({ ...wrap, createdAt: 1 })]);
+    await alice.commit([replace({ ...wrap, createdAt: 2 })]);
+    server.restore(keyOf(wrap), 0);
+    expect(await alice.get(keyOf(wrap))).toEqual(wrap);
+    expect(server.archived(keyOf(wrap))).toEqual([{ ...wrap, createdAt: 1 }, { ...wrap, createdAt: 2 }]);
+  });
+
+  it("replaces only a live wrap, and only wraps", async () => {
+    const { alice } = teamStore();
+    const wrap = r["account-key-wrap"];
+    await expect(alice.commit([replace(wrap)])).rejects.toEqual(conflict);
+    const state = r["team-state"];
+    await expect(
+      alice.commit([{ op: "replace", key: { type: "team-state", accountId: "alice", teamId: "team-1" }, record: state } as unknown as WriteOp]),
+    ).rejects.toThrow();
+  });
+
+  it("refuses a batch that touches one key twice, and leaves the archive unchanged", async () => {
+    const { server, alice } = teamStore();
+    const wrap = r["account-key-wrap"];
+    await alice.commit([create(wrap)]);
+    await expect(alice.commit([{ op: "delete", key: keyOf(wrap) }, create(wrap)])).rejects.toEqual(conflict);
+    expect(await alice.get(keyOf(wrap))).toEqual(wrap);
+    expect(server.archived(keyOf(wrap))).toEqual([]);
   });
 });
 

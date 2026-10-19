@@ -1,6 +1,6 @@
 // Member keys live under the account key, so creating and opening them runs in the vault (§5.8, §5.9).
 import type { Anchor } from "../encoding/link.js";
-import { ConvoyError, isConvoyError } from "../errors.js";
+import { ConvoyError, StoreConflictError, isConvoyError } from "../errors.js";
 import { decodeRequest, sealTransfer } from "../records/transfer.js";
 import { loadChain } from "../team/load.js";
 import { callPort, type WriteOp } from "../ports.js";
@@ -14,6 +14,7 @@ import {
   parseMemberKeysWrap,
 } from "../records/member-keys-wrap.js";
 import { createTeamKeyVersion, teamKeyVersionToJson } from "../records/team-key-version.js";
+import { createTeamState, teamStateToJson } from "../records/team-state.js";
 import type { MemberBundle, TeamPorts } from "../team/context.js";
 import { TeamSession } from "../team/session.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
@@ -116,7 +117,7 @@ export async function openSession(ports: AccountPorts, account: OpenAccount, tea
   if (!ports.anchors) throw new Error("crypto-convoy: give the vault `anchors` to open teams in its context, or use exportTeamKeys");
   let bundles: MemberBundle[];
   try {
-    bundles = await openBundles(ports, account, teamId);
+    bundles = await dropReplacedBundles(ports, account, teamId, await openBundles(ports, account, teamId));
   } catch (error) {
     if (isConvoyError(error, "TRUST_FAILURE")) return TeamSession.failed(teamPorts(ports), account.accountId, teamId, error);
     throw error;
@@ -133,7 +134,7 @@ function teamPorts({ suite, store, anchors, clock, settings }: AccountPorts): Te
 export async function exportBundles(ports: AccountPorts, account: OpenAccount, teamId: string, request: string): Promise<string> {
   const { suite } = ports;
   const receiver = decodeRequest(suite, request);
-  const bundles = await openBundles(ports, account, teamId);
+  const bundles = await dropReplacedBundles(ports, account, teamId, await openBundles(ports, account, teamId));
   if (bundles.length === 0) throw new ConvoyError("NOT_GRANTED");
   return sealTransfer(
     suite,
@@ -154,4 +155,55 @@ export async function currentOwners(ports: AccountPorts, account: OpenAccount, t
   const bundles = await openBundles(ports, account, teamId);
   const { chain } = await loadChain(ports, account.accountId, teamId, bundles);
   return chain.records.at(-1)!.owners.map((o) => o.accountId);
+}
+
+/**
+ * Once the newest version's roster holds this account's newest keys, older bundles open nothing
+ * the chain doesn't (§6.8 step 4): delete their wraps, and rewrite the team state under the newest
+ * keys in the same batch, so it never stays readable only by a deleted bundle. Runs once per
+ * approved re-key; best effort: on any failure every bundle is kept.
+ */
+async function dropReplacedBundles(
+  ports: AccountPorts,
+  account: OpenAccount,
+  teamId: string,
+  bundles: MemberBundle[],
+): Promise<MemberBundle[]> {
+  const [newest, ...older] = bundles;
+  if (!newest || older.length === 0) return bundles;
+  const { suite } = ports;
+  const { accountId } = account;
+  try {
+    const { chain, server } = await loadChain(ports, accountId, teamId, bundles);
+    const tip = chain.records.at(-1)!;
+    const hash = keysHash(suite, newest.published);
+    const held = tip.roster.some(
+      (e) => e.accountId === accountId && e.memberKeysVersion === newest.memberKeysVersion && suite.equal(e.keysHash, hash),
+    );
+    if (!held) return bundles;
+    // The same anchor, under the newest keys: advancing it here would hide owner changes the session reports (§6.1 step 3).
+    const rewrap: WriteOp[] = server
+      ? [
+          {
+            op: "compare-and-set",
+            key: { type: "team-state", accountId, teamId },
+            expectedRevision: server.revision,
+            record: teamStateToJson(createTeamState(suite, { accountId, teamId }, server.revision + 1, newest.pairs.teamStateKey, server.anchor)),
+          },
+        ]
+      : [];
+    await callPort(() =>
+      ports.store.commit([
+        ...rewrap,
+        ...older.map((b): WriteOp => ({
+          op: "delete",
+          key: { type: "member-keys-wrap", accountId, teamId, memberKeysVersion: b.memberKeysVersion, accountKeyVersion: account.version },
+        })),
+      ]),
+    );
+    return [newest];
+  } catch (error) {
+    if (isConvoyError(error) || error instanceof StoreConflictError) return bundles;
+    throw error;
+  }
 }

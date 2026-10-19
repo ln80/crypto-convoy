@@ -5,8 +5,6 @@ import type { RecordKey, RecordQuery, RecordStore, WireRecord, WriteOp } from ".
 interface Entry {
   readonly key: RecordKey;
   readonly record: WireRecord;
-  /** Soft delete: no longer served, kept for the restore window (TH-36). */
-  deleted: boolean;
 }
 
 /** Identity fields of each record type, in identity order (§11). */
@@ -35,10 +33,15 @@ class Forbidden extends Error {}
 /**
  * The server: one shared state. Each client talks to it through a view bound to the
  * account it is signed in as (`as(accountId)`), or with no account (`anonymous()`).
+ *
+ * Each identity has at most one live record. Removed and replaced records go to an
+ * archive, no longer served and kept for the restore window (rule 7, TH-36, D-39).
  */
 export class MemoryRecordStore {
-  readonly #records = new Map<string, Entry>();
-  readonly #accountVersions = new Map<string, number>();
+  #live = new Map<string, Entry>();
+  /** Archived records per identity, oldest first. */
+  #archive = new Map<string, Entry[]>();
+  #accountVersions = new Map<string, number>();
 
   /** A client signed in as `accountId`. */
   as(accountId: string): RecordStore {
@@ -50,15 +53,29 @@ export class MemoryRecordStore {
     return this.#view(null);
   }
 
-  /** Brings back a soft-deleted record, as the integration's support process would (TH-36). */
-  restore(key: RecordKey): void {
-    const entry = this.#records.get(keyString(key));
-    if (entry) entry.deleted = false;
+  /** The archived records of one identity, oldest first, as the integration's support process would list them. */
+  archived(key: RecordKey): WireRecord[] {
+    return (this.#archive.get(keyString(key)) ?? []).map((e) => clone(e.record));
   }
 
-  /** Every record ever written, deleted ones included: what a database thief would get. */
+  /**
+   * Brings back an archived record (by default the newest), as the integration's support
+   * process would (TH-36). The live record, if any, is archived, never dropped.
+   */
+  restore(key: RecordKey, index?: number): void {
+    const id = keyString(key);
+    const archived = this.#archive.get(id) ?? [];
+    const at = index ?? archived.length - 1;
+    const chosen = archived[at];
+    if (!chosen) return;
+    archived.splice(at, 1);
+    archiveLive(this.#live, this.#archive, id);
+    this.#live.set(id, chosen);
+  }
+
+  /** Every record ever written, archived ones included: what a database thief would get. */
   dump(): WireRecord[] {
-    return [...this.#records.values()].map((e) => clone(e.record));
+    return [...this.#live.values(), ...[...this.#archive.values()].flat()].map((e) => clone(e.record));
   }
 
   #view(caller: string | null): RecordStore {
@@ -66,8 +83,8 @@ export class MemoryRecordStore {
     return {
       get: async (key) => {
         if (!canRead(key)) throw new Forbidden("private record");
-        const entry = this.#records.get(keyString(key));
-        return entry && !entry.deleted ? clone(entry.record) : null;
+        const entry = this.#live.get(keyString(key));
+        return entry ? clone(entry.record) : null;
       },
       list: async (query) => this.#list(query, caller),
       getAccountKeyVersion: async (accountId) => {
@@ -81,8 +98,8 @@ export class MemoryRecordStore {
   #list(query: RecordQuery, caller: string | null): WireRecord[] {
     const q = fieldsOf(query);
     if (PRIVATE.has(query.type) && q["accountId"] !== caller) throw new Forbidden("private record");
-    const matches = [...this.#records.values()].filter((entry) => {
-      if (entry.deleted || entry.key.type !== query.type) return false;
+    const matches = [...this.#live.values()].filter((entry) => {
+      if (entry.key.type !== query.type) return false;
       const k = fieldsOf(entry.key);
       for (const [field, value] of Object.entries(q)) {
         if (field === "type" || value === undefined) continue;
@@ -102,41 +119,34 @@ export class MemoryRecordStore {
     return matches.map((e) => clone(e.record));
   }
 
-  #currentTeamKeyVersion(teamId: string, records: Map<string, Entry>): number {
-    let current = 0;
-    for (const entry of records.values()) {
-      const k = fieldsOf(entry.key);
-      if (entry.key.type === "team-key-version" && k["teamId"] === teamId && !entry.deleted) {
-        current = Math.max(current, k["version"] as number);
-      }
-    }
-    return current;
-  }
-
   /** Applies the batch to copies and swaps them in only if every rule holds (atomic). */
   #commit(ops: readonly WriteOp[], caller: string | null): void {
-    const records = new Map([...this.#records].map(([k, e]) => [k, { ...e }]));
+    const live = new Map(this.#live);
+    const archive = new Map([...this.#archive].map(([k, list]) => [k, [...list]]));
     const versions = new Map(this.#accountVersions);
     const conflict = (why: string) => new StoreConflictError(why);
     const ownOnly = (key: RecordKey) => {
       if (PRIVATE.has(key.type) && fieldsOf(key)["accountId"] !== caller) throw new Forbidden("private record");
     };
-    const live = (key: RecordKey) => {
-      const entry = records.get(keyString(key));
-      return entry && !entry.deleted ? entry : undefined;
-    };
+    const touched = new Set<string>();
     const newVersions: { teamId: string; version: number }[] = [];
     const atCurrentVersion: { teamId: string; version: unknown }[] = [];
 
     for (const op of ops) {
+      if (op.op !== "set-account-key-version") {
+        // Integration guide: a batch never touches one key twice.
+        const id = keyString(op.key);
+        if (touched.has(id)) throw conflict("key written twice in one batch");
+        touched.add(id);
+      }
       switch (op.op) {
         case "create": {
           ownOnly(op.key);
           checkIdentity(op.key, op.record);
-          if (live(op.key)) throw conflict("write-once");
+          if (live.has(keyString(op.key))) throw conflict("write-once");
           if (op.key.type === "team-key-version") {
             const { teamId, version } = op.key;
-            const before = this.#currentTeamKeyVersion(teamId, this.#records);
+            const before = currentTeamKeyVersion(teamId, this.#live);
             if (version !== before + 1 || newVersions.some((v) => v.teamId === teamId)) {
               throw conflict("version must be current + 1");
             }
@@ -146,23 +156,32 @@ export class MemoryRecordStore {
           if (op.key.type === "item" || op.key.type === "inbox") {
             atCurrentVersion.push({ teamId: op.key.teamId, version: op.record["teamKeyVersion"] });
           }
-          records.set(keyString(op.key), { key: clone(op.key), record: clone(op.record), deleted: false });
+          live.set(keyString(op.key), { key: clone(op.key), record: clone(op.record) });
           break;
         }
         case "compare-and-set": {
           ownOnly(op.key);
           checkIdentity(op.key, op.record);
-          const entry = live(op.key);
+          const entry = live.get(keyString(op.key));
           const revision = entry ? (entry.record["revision"] as number) : null;
           if (revision !== op.expectedRevision) throw conflict("revision changed");
           if (op.record["revision"] !== (revision ?? 0) + 1) throw conflict("revision must increase by one");
-          records.set(keyString(op.key), { key: clone(op.key), record: clone(op.record), deleted: false });
+          live.set(keyString(op.key), { key: clone(op.key), record: clone(op.record) });
+          break;
+        }
+        case "replace": {
+          ownOnly(op.key);
+          if (op.key.type !== "account-key-wrap") throw new Forbidden("only wraps are replaced");
+          checkIdentity(op.key, op.record);
+          const id = keyString(op.key);
+          if (!live.has(id)) throw conflict("nothing to replace");
+          archiveLive(live, archive, id);
+          live.set(id, { key: clone(op.key), record: clone(op.record) });
           break;
         }
         case "delete": {
           ownOnly(op.key);
-          const entry = live(op.key);
-          if (entry) entry.deleted = true;
+          archiveLive(live, archive, keyString(op.key));
           break;
         }
         case "set-account-key-version": {
@@ -171,10 +190,10 @@ export class MemoryRecordStore {
           if (current !== op.expected || op.accountKeyVersion !== (current ?? 0) + 1) throw conflict("account key version");
           versions.set(op.accountId, op.accountKeyVersion);
           // Rule 7: a retired account key version's wraps stop being served.
-          for (const entry of records.values()) {
+          for (const [id, entry] of [...live]) {
             const k = fieldsOf(entry.key);
             const retired = k["accountId"] === op.accountId && current !== null && k["accountKeyVersion"] === current;
-            if (retired && (entry.key.type === "account-key-wrap" || entry.key.type === "member-keys-wrap")) entry.deleted = true;
+            if (retired && (entry.key.type === "account-key-wrap" || entry.key.type === "member-keys-wrap")) archiveLive(live, archive, id);
           }
           break;
         }
@@ -183,14 +202,30 @@ export class MemoryRecordStore {
 
     // Items and inboxes only at the current version, the batch's new version included (§11).
     for (const { teamId, version } of atCurrentVersion) {
-      if (version !== this.#currentTeamKeyVersion(teamId, records)) throw conflict("not the current team key version");
+      if (version !== currentTeamKeyVersion(teamId, live)) throw conflict("not the current team key version");
     }
 
-    this.#records.clear();
-    for (const [k, e] of records) this.#records.set(k, e);
-    this.#accountVersions.clear();
-    for (const [k, v] of versions) this.#accountVersions.set(k, v);
+    this.#live = live;
+    this.#archive = archive;
+    this.#accountVersions = versions;
   }
+}
+
+/** Moves the live record under `id`, if any, to the end of its archive. */
+function archiveLive(live: Map<string, Entry>, archive: Map<string, Entry[]>, id: string) {
+  const entry = live.get(id);
+  if (!entry) return;
+  live.delete(id);
+  archive.set(id, [...(archive.get(id) ?? []), entry]);
+}
+
+function currentTeamKeyVersion(teamId: string, live: Map<string, Entry>): number {
+  let current = 0;
+  for (const entry of live.values()) {
+    const k = fieldsOf(entry.key);
+    if (entry.key.type === "team-key-version" && k["teamId"] === teamId) current = Math.max(current, k["version"] as number);
+  }
+  return current;
 }
 
 /** A conforming server stores a record only under its own identity. */
