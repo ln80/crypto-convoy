@@ -32,3 +32,9 @@
 ## Verification
 
 `npm run typecheck`, `npm test`, `npm run check:spec`, `npm run build && npm run test:package`.
+
+## Execution notes
+
+- **A** (`9442cf8`): D-29 consequence, TH-04 disposition, SP-07 property and verification, key hierarchy (joining), protocol §3.8 (new step 4), §6.4, §12, integration (key custody). `check:spec` green.
+- **B:** `receiver.openTeam(ports, transfer, { anchor? })` decodes the anchor before the receiver is used up, then passes it to `TeamSession.open` (which already took one). Tests: the receiving context refuses a cut chain with the anchor and accepts it without (TH-04, the limit the anchor closes); a malformed or unknown-prefix anchor leaves the receiver usable. Both guards proven (removing the anchor, decoding after use: each test fails). 648 → 650 tests.
+- **Follow-up (doconvoy e2eev2):** the bridge's interim anchor check can go; the team controller passes the invitation's anchor to `receiver.openTeam` on the first open after joining.

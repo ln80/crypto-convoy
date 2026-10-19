@@ -75,6 +75,7 @@ If both run in one context, `vault.openTeam(teamId)`. If the vault runs elsewher
 const receiver = await createTeamKeyReceiver(accountId, teamId);
 // …send receiver.request to the vault over your channel; the vault calls exportTeamKeys(teamId, request)…
 const team = await receiver.openTeam({ store, anchors }, transfer);
+// on a joiner's first open, pass the invite link's anchor: openTeam({ store, anchors }, transfer, { anchor })
 ```
 
 The transfer opens only for that receiver, once. Your bridge carries the two strings and decides which page may ask for which team; the library never sees your domain layout (D-29).
@@ -104,7 +105,7 @@ It rotates out holders no longer active (never owners), and approves re-keys pro
 | Situation | Calls |
 | --- | --- |
 | **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack)` |
-| **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId)`, then `vault.openTeam(teamId, { anchor })` on the first open |
+| **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId)`, then on the first open `vault.openTeam(teamId, { anchor })`, or in another context `receiver.openTeam(ports, transfer, { anchor })` |
 | **Approve someone** | Check the request out of band, then `owner.approve([account.keys])` with the handles from `overview`: one rotation for all of them, joiners and re-keys alike. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
 | **Someone leaves** | Drop them from `activeIds`; the next `reconcile` rotates. Or `owner.remove([accountId])` now |
 | **Device lost, never used by anyone** | `vault.revokeDevice(deviceId)` from another device |

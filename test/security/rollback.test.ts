@@ -5,6 +5,7 @@
 import { sessionInternals } from "../../src/team/session.js";
 import { describe, expect, it } from "vitest";
 import { cc1 } from "../../src/suites/cc1/index.js";
+import { createTeamKeyReceiver } from "../../src/team/receiver.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { bundleOf, forgeVersion } from "../support/forge.js";
 import { team } from "../support/teams.js";
@@ -113,5 +114,25 @@ describe("SP-07: a client never goes back", () => {
     const erin = await w.account("erin");
     await erin.vault.joinTeam("team-1");
     expect((await erin.vault.openTeam("team-1", { anchor })).state).toBe("pending");
+  });
+
+  it("a joining member's receiving context refuses a chain that doesn't contain the invite anchor (§3.8)", async () => {
+    const { aliceTeam, w } = await team();
+    await aliceTeam.owner().rotate({ keep: [] });
+    const anchor = aliceTeam.inviteAnchor();
+    /** A joiner whose team opens in another context (D-29), e.g. a page beside a vault frame. */
+    const joinInPage = async (name: string, { rollback, withAnchor }: { rollback: boolean; withAnchor: boolean }) => {
+      const member = await w.account(name);
+      if (rollback) member.store.rollback("team-1", 1);
+      await member.vault.joinTeam("team-1");
+      const receiver = await createTeamKeyReceiver(name, "team-1");
+      const transfer = await member.vault.exportTeamKeys("team-1", receiver.request);
+      const page = { store: member.store, anchors: new MemoryLocalKeyStore(), clock: w.clock };
+      return receiver.openTeam(page, transfer, withAnchor ? { anchor } : {});
+    };
+    expect((await joinInPage("dave", { rollback: true, withAnchor: true })).failure).toEqual(trust("rollback"));
+    expect((await joinInPage("erin", { rollback: false, withAnchor: true })).state).toBe("pending");
+    // Without the anchor, first contact trusts what the server serves (TH-04): the same cut chain opens.
+    expect((await joinInPage("frank", { rollback: true, withAnchor: false })).state).toBe("pending");
   });
 });
