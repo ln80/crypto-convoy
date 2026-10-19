@@ -54,7 +54,7 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 
 Each operation in a batch names a different key: a batch never touches one key twice.
 
-The client reports a refused condition by throwing the library's `StoreConflictError`. Anything else it throws becomes `STORE_ERROR`. Defence in depth (rule 8): also check that the signer and owners of a new team key version hold the matching role in your product.
+The client reports a refused condition by throwing the library's `StoreConflictError`. Anything else it throws becomes `STORE_ERROR`. Defence in depth (rule 8): also check that the signer of a new team key version is the caller and holds the matching role in your product. Don't check the owners it lists: a co-owner demoted in your product stays listed until an owner change, and refusing would block every rotation, `reconcile` included.
 
 ### Archived records
 

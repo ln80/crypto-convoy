@@ -841,7 +841,7 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 | `member-keys` | team, account, memberKeysVersion | Write-once. Readable by the team's members. |
 | `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Deleted with its account key version. |
 | `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. |
-| `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer and the listed owners must hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30). Writers keep the record's JSON within 384 KiB (§2), about 1,000 roster entries with 36-byte ids; the server accepts records of that size. |
+| `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer must be the caller and hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30); the listed owners aren't checked (scope, rule 8). Writers keep the record's JSON within 384 KiB (§2), about 1,000 roster entries with 36-byte ids; the server accepts records of that size. |
 | `item` | team, item | Write-once; `teamKeyVersion` must be current. Readable by the team's members, and by whoever the integration lets open the item's links, by the route it chooses. |
 | `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. Readable by the team's members. |
 | Team creation | — | Version 1 and the creator's member keys in one atomic batch. |
