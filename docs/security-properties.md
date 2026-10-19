@@ -152,12 +152,12 @@ Related threats: TH-03, TH-17.
 
 Property: a client keeps an anchor: the newest team key version record it verified (version and record hash), and the newest account key version it accepted. It refuses a chain that doesn't contain its anchor (shorter, or diverging) and an older account key version, and never encrypts with a team key version older than its anchor. It adopts a newer tip only after checking the chain from its anchor.
 
-A `team-state` that fails to decrypt stops the client with `TRUST_FAILURE` (`state_unreadable`) instead of being ignored. An invite anchor received outside the server counts as an anchor for a new member.
+A `team-state` that fails to decrypt stops the client with `TRUST_FAILURE` (`state_unreadable`) instead of being ignored. An invite anchor received outside the server counts as an anchor for a new member, in the vault's context and in a receiving context alike (§3.8).
 
 Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and the encrypted server copy can't be forged by the server (§4.4 of the protocol). A client with no anchor can't detect a rollback until it sees newer state (accepted in TH-05); that includes the account key version on a new device (SP-19).
 
 Verification:
-- `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor, and an older team key version after a newer one was seen.
+- `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (opened in the vault's context and through a receiver), and an older team key version after a newer one was seen.
 
 Related threats: TH-05.
 

@@ -264,6 +264,7 @@ When the account vault and a team session run in separate contexts (D-29), one t
 1. **Receiver.** The receiving context creates a receiver for an expected `accountId` and `teamId`: an X25519 key pair from `randombytes_buf`, kept in memory. The **transfer request** is `"1"` followed by its public key in base64url without padding, as a link value (§3.5).
 2. **Export.** The vault opens the account's member keys bundles for the team (§5.8) and returns the **transfer**: `"1"` followed by `seal(receiverPublicKey, "team-keys-transfer", accountId, teamId, body)` in base64url without padding, where `body` = `enc(list<u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, bytes teamStateKey>)`, newest `memberKeysVersion` first, 1–64 entries. The vault refuses a request that isn't a valid link value or carries a low-order key (§2), with `MALFORMED_RECORD`.
 3. **Open.** The receiver checks the prefix (else `UNSUPPORTED_VERSION`), opens the box with the expected `accountId` and `teamId` (§3.2; any failure, including a second use, is `DECRYPTION_FAILED`), then wipes its secret key: a receiver opens one transfer. It refuses a list out of order or with a key of the wrong size (`MALFORMED_RECORD`), and checks each bundle against the published `member-keys` record of its version (§4.3), else `TRUST_FAILURE` (`key_mismatch`).
+4. **Anchor.** On a first open, the receiver takes the invite link's anchor (§6.4) and the session starts from it, exactly as in the vault's context (§6.1). The anchor is decoded before step 3: a malformed one (`MALFORMED_RECORD`, `UNSUPPORTED_VERSION`) leaves the receiver unused.
 
 Which context may ask for which team, and the channel the two values travel on, are the integration's (D-29).
 
@@ -628,7 +629,7 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 ### 6.4 Inviting and joining a team
 
 1. **Invite (owner).** Put the team's anchor (`team.inviteAnchor()`, §3.5) in the invite link, for the integration to deliver.
-2. **Join.** The vault creates the member's keys for the team (§5.9). On the joiner's first open of the team, the anchor from the link is passed to `openTeam(teamId, { anchor })` and becomes the member's first anchor: the chain must contain it (§6.1), so a server can't present a forged team.
+2. **Join.** The vault creates the member's keys for the team (§5.9). On the joiner's first open of the team, the anchor from the link is passed to `openTeam(teamId, { anchor })`, or, in another context, to the receiver's `openTeam(ports, transfer, { anchor })` (§3.8), and becomes the member's first anchor: the chain must contain it (§6.1), so a server can't present a forged team.
 3. The member is `pending` until an owner approves their keys (§6.5).
 
 ### 6.5 Approving members (owner)
@@ -877,7 +878,7 @@ vault.openTeam(teamId, { anchor? })       → TeamSession   // same context; the
 vault.exportTeamKeys(teamId, request)     → transfer      // another context (§3.8)
 
 // Receiving context (split layouts): one receiver per transfer.
-createTeamKeyReceiver(accountId, teamId)  → { request, openTeam({ store, anchors }, transfer) → TeamSession }
+createTeamKeyReceiver(accountId, teamId)  → { request, openTeam({ store, anchors }, transfer, { anchor? }) → TeamSession }
 
 // Team session: one team's keys.
 team.state                                // "not-joined" | "pending" | "ready" | "unverified"

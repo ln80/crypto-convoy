@@ -72,7 +72,7 @@ The library produces content and takes it back; the integration stores and serve
 
 ## Key custody across contexts
 
-If the vault and team sessions run in different contexts (D-29), carry the transfer request and the transfer over your own channel, and decide which context may receive which team, for example from the requesting page's origin and the signed-in session. The library seals and opens; it never chooses who may ask (§3.8).
+If the vault and team sessions run in different contexts (D-29), carry the transfer request and the transfer over your own channel, and decide which context may receive which team, for example from the requesting page's origin and the signed-in session. The library seals and opens; it never chooses who may ask (§3.8). On a joiner's first open, pass the invite link's anchor to the receiver (`openTeam(ports, transfer, { anchor })`), as you would to `vault.openTeam` in one context (§6.4).
 
 ## OprfService
 

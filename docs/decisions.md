@@ -338,7 +338,7 @@ Decision: the library offers a sealed transfer (protocol §3.8). The receiving c
 
 Rejected: shipping a bridge (D-02). Sending the account key or a root that derives every team's keys: a compromise of one page would reach every team.
 
-Consequence: the account key never leaves the vault; one team's keys reach only a context the integration authorized (SP-02).
+Consequence: the account key never leaves the vault; one team's keys reach only a context the integration authorized (SP-02). The receiving context takes the invite link's anchor on a first open, as the vault's context does (§3.8, §6.4), so splitting contexts keeps the first-contact protection of an invite (TH-04, SP-07).
 
 ## D-30: Owners are a cryptographic role, separate from product roles
 

@@ -147,7 +147,7 @@ Attack: the first time a client meets something, it has nothing earlier to compa
 
 Impact: the user trusts fake owners and their fake members, or the owner seals the team key to the server.
 
-Disposition: accepted in v1. Every later change is checked against what the client first accepted (SP-05, SP-07), so the exposure is limited to first contact. A client that already holds the team's state (on the device or in its encrypted team state) is not exposed. A joiner whose invite link carries an invite anchor and travelled outside the server starts from that anchor, so a forged team is refused (protocol §6.4). Out-of-band fingerprint verification is deferred (D-11, SP-20): v1 claims no protection here, by choice.
+Disposition: accepted in v1. Every later change is checked against what the client first accepted (SP-05, SP-07), so the exposure is limited to first contact. A client that already holds the team's state (on the device or in its encrypted team state) is not exposed. A joiner whose invite link carries an invite anchor and travelled outside the server starts from that anchor, so a forged team is refused (protocol §6.4), whether the team is opened in the vault's context or in a receiving one (§3.8). Out-of-band fingerprint verification is deferred (D-11, SP-20): v1 claims no protection here, by choice.
 
 ### TH-05: Server rolls back or hides team state
 

@@ -354,7 +354,7 @@ Member keys don't change, so teams see nothing. The old `accountKey` only opens 
 ### Inviting and joining a team
 
 1. An owner puts the team's anchor (`team.inviteAnchor()`) in the invite link, which the integration delivers.
-2. The joining account's vault generates member keys for the team, stores the bundle wrapped by its `accountKey`, and publishes its member keys record. (Anything that wraps member keys runs in the vault.) On its first open, it starts from the anchor in the link, so a forged team is refused.
+2. The joining account's vault generates member keys for the team, stores the bundle wrapped by its `accountKey`, and publishes its member keys record. (Anything that wraps member keys runs in the vault.) On its first open, in the vault's context or a receiving one (§3.8), it starts from the anchor in the link, so a forged team is refused.
 3. An owner checks the request is genuine (AS-06) and approves those keys: a rotation whose roster adds the member (D-37). Several approvals can share one rotation.
 4. The new member opens the current version from its roster entry, and every earlier version by walking the chain (D-07).
 
