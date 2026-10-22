@@ -197,3 +197,32 @@ describe("member-keys (§11, D-43)", () => {
     await server.as("bob").commit([create("bob", 2)]);
   });
 });
+
+describe("archive of private records (rule 7, D-42)", () => {
+  it("each team-state write archives the previous revision", async () => {
+    const server = new MemoryRecordStore();
+    const key = { type: "team-state", accountId: "a", teamId: "t" } as const;
+    const record = (revision: number) => ({ ...key, revision }) as WireRecord;
+    await server.as("a").commit([{ op: "compare-and-set", key, expectedRevision: null, record: record(1) }]);
+    await server.as("a").commit([{ op: "compare-and-set", key, expectedRevision: 1, record: record(2) }]);
+    expect(server.archived(key)).toEqual([record(1)]);
+    server.restore(key);
+    expect(await server.as("a").get(key)).toEqual(record(1));
+  });
+
+  it("restoreVersion makes an archived account key version current again, archiving later ones", async () => {
+    const server = new MemoryRecordStore();
+    const wrap = (accountKeyVersion: number) => ({ type: "account-key-wrap", accountId: "a", accountKeyVersion, method: "pin" }) as RecordKey;
+    const create = (v: number): WriteOp => ({ op: "create", key: wrap(v), record: { ...wrap(v) } as WireRecord });
+    await server.as("a").commit([create(1), { op: "set-account-key-version", accountId: "a", expected: null, accountKeyVersion: 1 }]);
+    await server.as("a").commit([create(2), { op: "set-account-key-version", accountId: "a", expected: 1, accountKeyVersion: 2 }]);
+    expect(await server.as("a").get(wrap(1))).toBeNull();
+
+    server.restoreVersion("a", 1);
+    expect(await server.as("a").getAccountKeyVersion("a")).toBe(1);
+    expect(await server.as("a").get(wrap(1))).not.toBeNull();
+    expect(await server.as("a").get(wrap(2))).toBeNull();
+    expect(server.archived(wrap(2))).toHaveLength(1);
+    expect(() => server.restoreVersion("a", 3)).toThrow();
+  });
+});

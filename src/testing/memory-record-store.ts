@@ -34,8 +34,9 @@ class Forbidden extends Error {}
  * The server: one shared state. Each client talks to it through a view bound to the
  * account it is signed in as (`as(accountId)`), or with no account (`anonymous()`).
  *
- * Each identity has at most one live record. Removed and replaced records go to an
- * archive, no longer served and kept for the restore window (rule 7, TH-36, D-39).
+ * Each identity has at most one live record. Removed and replaced records, retired account key
+ * versions and previous team state revisions go to an archive, no longer served and kept for the
+ * restore window (rule 7, TH-36, TH-46, D-39, D-42).
  */
 export class MemoryRecordStore {
   #live = new Map<string, Entry>();
@@ -71,6 +72,28 @@ export class MemoryRecordStore {
     archived.splice(at, 1);
     archiveLive(this.#live, this.#archive, id);
     this.#live.set(id, chosen);
+  }
+
+  /**
+   * Makes an archived account key version current again, as the integration's support process
+   * would after a takeover with a rotation (D-42): the account's live records of later versions are
+   * archived, and the newest archived generation of each record of `version` is served again. Pick
+   * an older generation of one record with `restore` afterwards.
+   */
+  restoreVersion(accountId: string, version: number): void {
+    const current = this.#accountVersions.get(accountId);
+    if (current === undefined || !Number.isSafeInteger(version) || version < 1 || version > current) throw new Error("no such version");
+    for (const [id, entry] of [...this.#live]) {
+      const k = fieldsOf(entry.key);
+      if (k["accountId"] === accountId && typeof k["accountKeyVersion"] === "number" && k["accountKeyVersion"] > version) {
+        archiveLive(this.#live, this.#archive, id);
+      }
+    }
+    for (const [id, generations] of this.#archive) {
+      const k = fieldsOf(generations[0]?.key ?? {});
+      if (k["accountId"] === accountId && k["accountKeyVersion"] === version && !this.#live.has(id)) this.restore(generations[0]!.key);
+    }
+    this.#accountVersions.set(accountId, version);
   }
 
   /** Every record ever written, archived ones included: what a database thief would get. */
@@ -179,6 +202,8 @@ export class MemoryRecordStore {
           const revision = entry ? (entry.record["revision"] as number) : null;
           if (revision !== op.expectedRevision) throw conflict("revision changed");
           if (op.record["revision"] !== (revision ?? 0) + 1) throw conflict("revision must increase by one");
+          // Rule 7 (D-42): the previous revision is archived, so a garbage write can be undone.
+          archiveLive(live, archive, keyString(op.key));
           live.set(keyString(op.key), { key: clone(op.key), record: clone(op.record) });
           break;
         }
