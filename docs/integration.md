@@ -105,6 +105,13 @@ The library produces content and takes it back; the integration stores and serve
 - **Run `reconcile` at every owner session** with the accounts your product considers members (§6.9). It rotates out removed accounts and approves re-keys proven by the recovery phrase; it never widens access otherwise (SP-22). Show its `needsHuman` list in your admin screens, with `overview()` for the details.
 - **Lost device or leaked credential:** end the account's other sign-in sessions, then offer `secureAccount` (D-36, D-43). Ending them first keeps a session thief from publishing keys over its re-keys.
 - **Credential changes need a credential** (D-41): ask for the current PIN or the recovery phrase in your PIN-change and phrase-replacement screens; an open vault alone isn't enough.
+- **Approve joins in batches.** `owner.approve(handles)` takes every pending account in one rotation (§6.5). Each approval is a new version carrying the whole roster, about 360 bytes per member, and opening an old item walks back through every version above it (§6.2). For a team's initial setup, invite everyone, let them join, then approve all accounts the overview shows as `awaiting-approval` in one call: 50 members approved one by one make 50 versions, about 460 KB of chain; approved together, one version of about 18 KB. Approving a join stays a human decision: `reconcile` never does it (D-31).
+
+## Devices
+
+- **Names and dates are yours.** `listDevices()` returns `{ deviceId, current }` for every device wrap, and `status().deviceId` names this device (§5.5). After a registration (`unlockWithPin`, `recover`, `setup`), send your server this device's `deviceId` with a label: one the user typed, or one built from the user agent ("Chrome on macOS"). Your server can also record when it stored the device's wrap and when the device last fetched it.
+- **Display only.** A label is never a security input: the server controls which wraps it lists, and anyone holding the account key could name a device anything. Decide "this device" with `current`, never with a label.
+- **Support restores** (D-42) are easier with these labels: list the archived device wraps with their names, creation and last-use dates.
 
 ## Key custody across contexts
 

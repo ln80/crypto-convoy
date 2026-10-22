@@ -17,9 +17,15 @@ describe("SP-10: a revoked device can't unlock again", () => {
     const laptop = await w.account("alice");
     const phone = await w.device("alice");
     await phone.vault.unlockWithPin("1234");
-    const phoneId = (await phone.localKeys.getDevice("alice"))!.deviceId;
-    expect(await laptop.vault.listDevices()).toContain(phoneId);
+    const phoneId = (await phone.vault.status()).deviceId!;
+    expect(phoneId).toBe((await phone.localKeys.getDevice("alice"))!.deviceId);
+    const laptopId = (await laptop.vault.status()).deviceId!;
+    // §5.5: each device sees the full list, with itself marked as current.
+    expect(await laptop.vault.listDevices()).toEqual(
+      expect.arrayContaining([{ deviceId: laptopId, current: true }, { deviceId: phoneId, current: false }]),
+    );
     expect(await laptop.vault.listDevices()).toHaveLength(2);
+    expect((await phone.vault.listDevices()).find((d) => d.current)?.deviceId).toBe(phoneId);
 
     await laptop.vault.revokeDevice(phoneId);
     phone.vault.lock();
@@ -30,16 +36,17 @@ describe("SP-10: a revoked device can't unlock again", () => {
   it("revoking the current device forgets its local key", async () => {
     const w = world();
     const laptop = await w.account("alice");
-    const [id] = await laptop.vault.listDevices();
-    await laptop.vault.revokeDevice(id!);
+    const [entry] = await laptop.vault.listDevices();
+    await laptop.vault.revokeDevice(entry!.deviceId);
     expect(await laptop.localKeys.getDevice("alice")).toBeNull();
+    expect((await laptop.vault.status()).deviceId).toBeNull();
   });
 
   it("the device registers again with the PIN", async () => {
     const w = world();
     const laptop = await w.account("alice");
-    const [id] = await laptop.vault.listDevices();
-    await laptop.vault.revokeDevice(id!);
+    const [entry] = await laptop.vault.listDevices();
+    await laptop.vault.revokeDevice(entry!.deviceId);
     laptop.vault.lock();
     await expect(laptop.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
     await laptop.vault.unlockWithPin("1234");

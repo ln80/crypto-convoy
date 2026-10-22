@@ -530,7 +530,7 @@ The account key opens only through one of these three paths (SP-19).
 ### 5.5 Registering and revoking a device
 
 - **Register.** With the `accountKey` open: generate `deviceKey` and `deviceId`, keep both in `LocalKeyStore`, and store a device wrap at the current version. The wrap is fetched from the server at each unlock and never cached on the device.
-- **List.** `listDevices()` returns the `deviceId` of every device wrap at the current version. Human-readable names and dates belong to the integration's own data.
+- **List.** `listDevices()` returns, for every device wrap at the current version, its `deviceId` and whether it is this device; `status()` also gives this device's `deviceId`. Human-readable names and dates belong to the integration's own data, keyed by `deviceId`: they are for display only, never for a security decision, since the server controls which wraps it lists.
 - **Inactivity.** The server may stop serving a device wrap unused for a period set by the integration ([server contract](scope.md#server-contract), rule 7). The device then gets `DEVICE_NOT_REGISTERED` and registers again with the PIN or the recovery phrase, which limits how long a forgotten device stays able to unlock.
 - **Revoke.** Ask the server to remove the device's wrap, which it stops serving and archives (rule 7, D-39). From then on, the device can't unlock the account again (SP-10). That's the whole guarantee of revocation (D-21). The integration also ends that device's sign-in sessions, so it can't fetch other private records.
 
@@ -864,7 +864,7 @@ Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyErr
 
 ```ts
 // Account vault: holds the account key; only what needs it runs here (scope, "Key custody").
-vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered,
+vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered, deviceId,
                                           //   recovery: "not-set-up" | "set-up", pin: "not-set-up" | "set-up" }
 vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying;
                                           //   teams with keys this vault didn't make (`foreign-member-keys`, D-43)
@@ -876,7 +876,7 @@ vault.unlock()                            // device; throws DEVICE_NOT_REGISTERE
 vault.unlockWithPin(pin)                  // upgrades an outdated PIN wrap (§5.4); throws PIN_NOT_SET_UP
 vault.recover(phrase, newPin)             // unlocked even if setting the PIN is refused (§5.4)
 vault.changePin(newPin, { currentPin } | { phrase })   // D-41; creates the PIN wrap when there is none (D-40)
-vault.listDevices()                       → deviceId[]
+vault.listDevices()                       → { deviceId, current }[]   // current: this device (§5.5)
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
 vault.rotate({ phrase, newPin? })         // keeps the phrase; without newPin, no PIN until changePin (D-40, D-41)
 vault.secureAccount({ phrase, newPin? })  → { rekeyed: teamId[], failed: teamId[] }   // §5.11, D-40

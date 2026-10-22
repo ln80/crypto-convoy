@@ -61,8 +61,8 @@ describe("SP-19: only authorized material opens the account key", () => {
   it("a revoked device and an old phrase fail", async () => {
     const w = world();
     const laptop = await w.account("alice");
-    const [id] = await laptop.vault.listDevices();
-    await laptop.vault.revokeDevice(id!);
+    const [entry] = await laptop.vault.listDevices();
+    await laptop.vault.revokeDevice(entry!.deviceId);
     await replacePhrase(laptop.vault, { currentPhrase: laptop.recoveryPhrase });
     laptop.vault.lock();
     await expect(laptop.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));

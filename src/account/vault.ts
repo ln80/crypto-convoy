@@ -61,10 +61,19 @@ export interface VaultOptions {
 export interface VaultStatus {
   readonly account: "not-set-up" | "locked" | "unlocked";
   readonly deviceRegistered: boolean;
+  /** This device's id, or `null` when it holds none: the key for the integration's device labels (§5.5). */
+  readonly deviceId: string | null;
   /** Recovery is set up when a recovery wrap exists at the current account key version (D-35). */
   readonly recovery: "not-set-up" | "set-up";
   /** No PIN after a rotation with the phrase alone, until `changePin` sets one (D-40). */
   readonly pin: "not-set-up" | "set-up";
+}
+
+/** One registered device of the account (§5.5). */
+export interface DeviceEntry {
+  readonly deviceId: string;
+  /** This device. */
+  readonly current: boolean;
 }
 
 /** Something about the account the user should act on, with the operation that clears it (§12). */
@@ -278,16 +287,21 @@ export class Vault {
     await commit(this.#ports, current ? replaceWrap(wrap) : [createWrap(wrap)]);
   }
 
-  /** The `deviceId` of every device wrap at the current version (§5.5). */
-  async listDevices(): Promise<string[]> {
+  /**
+   * Every device wrap at the current version: its `deviceId`, and whether it is this device (§5.5).
+   * Names and dates are the integration's, keyed by `deviceId`, for display only.
+   */
+  async listDevices(): Promise<DeviceEntry[]> {
     const account = this.#requireAccount();
     const wraps = await callPort(() =>
       this.#ports.store.list({ type: "account-key-wrap", accountId: this.accountId, accountKeyVersion: account.version }),
     );
     const expected = { accountId: this.accountId, accountKeyVersion: account.version };
+    const local = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
     return wraps
       .filter((json) => (json as { method?: unknown }).method === "device")
-      .map((json) => parseAccountKeyWrap(json, { ...expected, method: "device" }).deviceId!);
+      .map((json) => parseAccountKeyWrap(json, { ...expected, method: "device" }).deviceId!)
+      .map((deviceId) => ({ deviceId, current: deviceId === local?.deviceId }));
   }
 
   /** Deletes a device's wrap: it can't unlock again (§5.5, SP-10). */
@@ -337,7 +351,7 @@ export class Vault {
   /** Whether the account is set up, the vault unlocked, and this device registered (§12). Never calls the OPRF. */
   async status(): Promise<VaultStatus> {
     const version = await callPort(() => this.#ports.store.getAccountKeyVersion(this.accountId));
-    if (version === null) return { account: "not-set-up", deviceRegistered: false, recovery: "not-set-up", pin: "not-set-up" };
+    if (version === null) return { account: "not-set-up", deviceRegistered: false, deviceId: null, recovery: "not-set-up", pin: "not-set-up" };
     const has = async (method: "recovery" | "pin") =>
       (await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method })) ? "set-up" : "not-set-up";
     const [recovery, pin] = await Promise.all([has("recovery"), has("pin")]);
@@ -345,7 +359,7 @@ export class Vault {
     const wrap = device
       ? await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId })
       : null;
-    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null, recovery, pin };
+    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null, deviceId: device?.deviceId ?? null, recovery, pin };
   }
 
   /** What the user should act on (§12): recovery not set up, teams whose keys predate the current phrase. */

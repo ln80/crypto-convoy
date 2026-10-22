@@ -90,7 +90,8 @@ The transfer opens only for that receiver, once. Your bridge carries the two str
 
 What to render:
 
-- `vault.status()`: `account` (`not-set-up`, `locked`, `unlocked`), `deviceRegistered`, and `recovery` (`not-set-up`, `set-up`).
+- `vault.status()`: `account` (`not-set-up`, `locked`, `unlocked`), `deviceRegistered`, this device's `deviceId` (or `null`), `recovery` and `pin` (`not-set-up`, `set-up`).
+- `vault.listDevices()`: `{ deviceId, current }` per registered device. Keep names and dates on your server, keyed by `deviceId` (integration guide, Devices).
 - `vault.warnings()`: `recovery-not-set-up`, `pin-not-set-up`, `rekey-needed` for teams whose keys predate the current phrase, and `foreign-member-keys` for teams where keys were published under the account that this vault didn't make (D-43): treat it as a sign of session theft.
 - `team.ownerChanges` and `team.memberChanges`: owner list and roster changes since this account last verified the team, each with its signer (SP-15).
 - `team.state`: `not-joined`, `pending`, `ready` or `unverified`.
@@ -114,6 +115,8 @@ It rotates out holders no longer active (never owners), and approves re-keys pro
 | **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack)` |
 | **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId)`, then on the first open `vault.openTeam(teamId, { anchor })`, or in another context `receiver.openTeam(ports, transfer, { anchor })` |
 | **Approve someone** | Check the request out of band, then `owner.approve([account.keys])` with the handles from `overview`: one rotation for all of them, joiners and re-keys alike. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
+| **Set up a team with many members** | Invite everyone, let them join, then approve every `awaiting-approval` account from `overview` in one `owner.approve(...)` call: one version instead of one per member (integration guide) |
+| **Name devices** | After a registration, send your server `status().deviceId` with a label; show `listDevices()` joined with those labels, `current` marking this device |
 | **Someone leaves** | Drop them from `activeIds`; the next `reconcile` rotates. Or `owner.remove([accountId])` now |
 | **Device lost, never used by anyone** | `vault.revokeDevice(deviceId)` from another device |
 | **Device possibly misused, or PIN leaked** | End the account's other sign-in sessions, then `vault.secureAccount({ phrase, newPin? })` from a clean device: new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Retry any `failed` team with `vault.rekey(teamId, { phrase })` |
