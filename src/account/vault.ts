@@ -42,6 +42,8 @@ import {
   pinWrap,
   recoveryPublicKey,
   recoveryWrap,
+  verifyPhrase,
+  verifyPin,
 } from "./unlock-methods.js";
 
 export interface VaultOptions {
@@ -164,17 +166,24 @@ export class Vault {
   }
 
   /**
-   * Stores the recovery wrap for the phrase the user typed back (§5.10). When it replaces a
-   * phrase, every team is re-keyed with the new recovery key (§5.6): proven if `currentPhrase`
-   * is given, a human approval otherwise. Throws `WRONG_CREDENTIAL` (not the phrase shown, or
-   * not the current one), `STALE_VERSION`.
+   * Stores the recovery wrap for the phrase the user typed back (§5.10). Replacing a phrase needs
+   * the current phrase or the current PIN (§5.6, D-41), and re-keys every team with the new
+   * recovery key: proven with `currentPhrase`, a human approval with `currentPin`. A first setup
+   * needs neither. Throws `WRONG_CREDENTIAL` (not the phrase shown, or not a current credential),
+   * `MALFORMED_RECORD` (a replacement with neither), `PIN_RATE_LIMITED`, `STALE_VERSION`.
    */
-  async confirmRecoveryPhrase(phrase: string, options: { currentPhrase?: string } = {}): Promise<RekeyReport> {
+  async confirmRecoveryPhrase(phrase: string, options: { currentPhrase?: string; currentPin?: string } = {}): Promise<RekeyReport> {
     const account = this.#requireAccount();
     const pending = this.#pendingPhrase;
     if (pending === null || !samePhrase(phrase, pending)) throw new ConvoyError("WRONG_CREDENTIAL");
     const old = await currentRecoveryKey(this.#ports, account);
-    const signer = old && options.currentPhrase !== undefined ? recoverySigner(this.#ports, this.accountId, options.currentPhrase, old) : undefined;
+    const { currentPhrase, currentPin } = options ?? {};
+    if (old && typeof currentPhrase !== "string") {
+      if (typeof currentPin !== "string") throw new ConvoyError("MALFORMED_RECORD");
+      await verifyPin(this.#ports, account, currentPin);
+    }
+    // The current phrase's signing key must be the one the recovery wrap names: that checks it.
+    const signer = old && typeof currentPhrase === "string" ? recoverySigner(this.#ports, this.accountId, currentPhrase, old) : undefined;
     try {
       const wrap = recoveryWrap(this.#ports, account, pending);
       await commit(this.#ports, old ? replaceWrap(wrap) : [createWrap(wrap)]);
@@ -244,15 +253,21 @@ export class Vault {
     if (ops.length > 0) await commit(this.#ports, ops);
     await this.#keepDevice(device);
     await this.#open(account);
-    await this.changePin(newPin);
+    await this.changePin(newPin, { phrase });
   }
 
   /**
    * Sets the PIN (§5.6): replaces the PIN wrap, or creates it when the account has none (D-40).
-   * Throws `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   * Needs the current PIN (one evaluation) or the phrase; with no PIN set, the phrase (D-41).
+   * Throws `WRONG_CREDENTIAL`, `PIN_NOT_SET_UP`, `MALFORMED_RECORD` (neither), `PIN_RATE_LIMITED`,
+   * `STALE_VERSION`.
    */
-  async changePin(newPin: string): Promise<void> {
+  async changePin(newPin: string, credential: { currentPin: string } | { phrase: string }): Promise<void> {
     const account = this.#requireAccount();
+    const { currentPin, phrase } = (credential ?? {}) as { currentPin?: unknown; phrase?: unknown };
+    if (typeof phrase === "string") await verifyPhrase(this.#ports, account, phrase);
+    else if (typeof currentPin === "string") await verifyPin(this.#ports, account, currentPin);
+    else throw new ConvoyError("MALFORMED_RECORD");
     const wrap = await pinWrap(this.#ports, account, newPin);
     const current = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
     await commit(this.#ports, current ? replaceWrap(wrap) : [createWrap(wrap)]);
@@ -279,12 +294,12 @@ export class Vault {
   }
 
   /**
-   * Rotates the account key (§5.7). Pass the current `phrase` to keep it; without it, recovery
-   * must be set up again (D-35), which re-keys every team. Without a `pin`, the account has no PIN
-   * until `changePin` (D-40): at least one is required. Other devices must register again.
-   * Throws `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`, `STALE_VERSION`, `MALFORMED_RECORD` (neither).
+   * Rotates the account key (§5.7). Needs the current `phrase`, which it keeps (D-41); without a
+   * `newPin`, the account has no PIN until `changePin` (D-40). Other devices must register again.
+   * Throws `WRONG_CREDENTIAL`, `RECOVERY_NOT_SET_UP`, `PIN_RATE_LIMITED`, `STALE_VERSION`,
+   * `MALFORMED_RECORD` (no phrase).
    */
-  async rotate(input: { pin?: string; phrase?: string }): Promise<void> {
+  async rotate(input: { phrase: string; newPin?: string }): Promise<void> {
     const current = this.#requireAccount();
     const { account } = await rotateAccount(this.#ports, current, input);
     this.lock();
@@ -304,7 +319,7 @@ export class Vault {
     if (!recoveryPublicKey) throw new ConvoyError("RECOVERY_NOT_SET_UP");
     const signer = recoverySigner(this.#ports, this.accountId, input.phrase, recoveryPublicKey);
     try {
-      const pin = input.newPin !== undefined ? { pin: input.newPin } : {};
+      const pin = input.newPin !== undefined ? { newPin: input.newPin } : {};
       const { account } = await rotateAccount(this.#ports, current, { ...pin, phrase: input.phrase });
       this.lock();
       this.#account = account;

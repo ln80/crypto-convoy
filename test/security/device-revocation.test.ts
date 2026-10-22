@@ -60,7 +60,7 @@ describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full reme
     expect((await accessOf(bob.store, "bob", revoked))!.open(stolenBundle.pairs.encryption)).toHaveLength(32);
 
     // The full remedy (D-21).
-    await bob.vault.rotate({ pin: bob.pin, phrase: bob.recoveryPhrase });
+    await bob.vault.rotate({ phrase: bob.recoveryPhrase, newPin: bob.pin });
     await bob.vault.rekey("team-1");
     const { version } = await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
 

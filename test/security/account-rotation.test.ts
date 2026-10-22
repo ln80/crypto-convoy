@@ -1,10 +1,11 @@
 /**
  * SP-11: The account key can be rotated.
- * Threats: TH-12, TH-20.
+ * SP-25: An open vault alone can't change the account's credentials (rotation needs the phrase).
+ * Threats: TH-10, TH-12, TH-20, TH-45.
  */
 import { describe, expect, it } from "vitest";
 import { openAccountKeyWrap, parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
-import { replacePhrase, world } from "../support/fixtures.js";
+import { world } from "../support/fixtures.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
@@ -18,7 +19,7 @@ describe("SP-11: the account key can be rotated", () => {
     const phone = await w.device("alice");
     await phone.vault.unlockWithPin("1234");
 
-    await laptop.vault.rotate({ pin: "1234", phrase: laptop.recoveryPhrase });
+    await laptop.vault.rotate({ phrase: laptop.recoveryPhrase, newPin: "1234" });
     expect((await laptop.vault.status()).recovery).toBe("set-up");
     laptop.vault.lock();
     await laptop.vault.unlock();
@@ -29,23 +30,23 @@ describe("SP-11: the account key can be rotated", () => {
     await (await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1234");
   });
 
-  it("without the phrase, recovery must be set up again, and the old phrase stops working (D-35)", async () => {
+  it("SP-25: refuses a rotation without the phrase; with it, recovery stays set up (D-41)", async () => {
     const w = world();
     const laptop = await w.account("alice");
-    await laptop.vault.rotate({ pin: "1234" });
-    expect((await laptop.vault.status()).recovery).toBe("not-set-up");
-    expect(await laptop.vault.warnings()).toEqual([{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }]);
-    await expect(laptop.vault.createTeam("team-1")).rejects.toEqual(code("RECOVERY_NOT_SET_UP"));
-    await expect((await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1")).rejects.toEqual(code("STORE_ERROR"));
-    const { recoveryPhrase } = await replacePhrase(laptop.vault);
-    await (await w.device("alice")).vault.recover(recoveryPhrase, "1");
+    await expect(laptop.vault.rotate({} as never)).rejects.toEqual(code("MALFORMED_RECORD"));
+    await expect(laptop.vault.rotate({ newPin: "1234" } as never)).rejects.toEqual(code("MALFORMED_RECORD"));
+    expect(await laptop.store.getAccountKeyVersion("alice")).toBe(1);
+    await laptop.vault.rotate({ phrase: laptop.recoveryPhrase });
+    expect((await laptop.vault.status()).recovery).toBe("set-up");
+    await laptop.vault.createTeam("team-1");
+    await (await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1");
   });
 
   it("refuses a mistyped phrase before changing anything", async () => {
     const w = world();
     const laptop = await w.account("alice");
     const { recoveryPhrase: other } = await w.account("bob");
-    await expect(laptop.vault.rotate({ pin: "1234", phrase: other })).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    await expect(laptop.vault.rotate({ phrase: other, newPin: "1234" })).rejects.toEqual(code("WRONG_CREDENTIAL"));
     expect(await laptop.store.getAccountKeyVersion("alice")).toBe(1);
   });
 
@@ -57,7 +58,7 @@ describe("SP-11: the account key can be rotated", () => {
     const v1 = deviceWrap.map((j) => parseAccountKeyWrap(j, { accountId: "alice", accountKeyVersion: 1, method: (j as { method: "pin" }).method })).find((x) => x.method === "device")!;
     const oldKey = openAccountKeyWrap(v1, device.deviceKey);
 
-    await laptop.vault.rotate({ pin: "1234" });
+    await laptop.vault.rotate({ phrase: laptop.recoveryPhrase, newPin: "1234" });
     const after = w.server.dump().filter((r) => r["accountKeyVersion"] === 2);
     expect(after.length).toBeGreaterThan(0);
     for (const json of after) {
@@ -72,7 +73,7 @@ describe("SP-11: teams survive an account key rotation", () => {
     const { members } = await team("bob");
     const bob = members.bob!;
     const before = await bundleOf(bob.vault);
-    await bob.vault.rotate({ pin: bob.pin });
+    await bob.vault.rotate({ phrase: bob.recoveryPhrase, newPin: bob.pin });
     const session = await bob.vault.openTeam("team-1");
     expect(session.state).toBe("ready");
     const after = await bundleOf(bob.vault);
@@ -83,7 +84,7 @@ describe("SP-11: teams survive an account key rotation", () => {
     const { members, aliceTeam } = await team("bob");
     const bob = members.bob!;
     const copied = await bundleOf(bob.vault);
-    await bob.vault.rotate({ pin: bob.pin });
+    await bob.vault.rotate({ phrase: bob.recoveryPhrase, newPin: bob.pin });
     await aliceTeam.owner().rotate({ keep: ["bob"] });
     expect((await accessOf(bob.store, "bob", 2))!.open(copied.pairs.encryption)).toHaveLength(32);
   });

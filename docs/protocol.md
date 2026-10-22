@@ -542,7 +542,7 @@ If the device may have been used by an attacker while unlocked, revocation isn't
 - the current PIN: fetch the live PIN wrap and open it (§5.1, purpose `unlock`; one evaluation). The opened key must equal the open `accountKey`, else `WRONG_CREDENTIAL`; no PIN wrap is `PIN_NOT_SET_UP`;
 - the current phrase: derive the `recoveryKey` (§5.2) and open the recovery wrap with it, else `WRONG_CREDENTIAL`.
 
-A PIN change takes the current PIN or the phrase (only the phrase when the current version has no PIN wrap, D-40). A phrase replacement takes the current phrase or the current PIN. A first recovery setup (§5.10) takes none.
+A PIN change takes the current PIN or the phrase (only the phrase when the current version has no PIN wrap, D-40). A phrase replacement takes the current phrase or the current PIN. A first recovery setup (§5.10) takes none. A change given no credential is `MALFORMED_RECORD`.
 
 **PIN.** With the `accountKey` open and a current credential checked, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12), or as a new wrap when the current version has none (D-40). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
 

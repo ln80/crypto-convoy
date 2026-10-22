@@ -13,7 +13,7 @@ import {
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { createWrap, wrapKey } from "./context.js";
 import { derivePinKey, newKdf } from "./pin-key.js";
-import { deriveRecoveryKeys } from "./recovery-key.js";
+import { deriveRecoveryKey, deriveRecoveryKeys } from "./recovery-key.js";
 
 /** The server's current account key version, never below the highest this device accepted (SP-07). */
 export async function currentVersion(ports: AccountPorts, accountId: string): Promise<number | null> {
@@ -105,6 +105,39 @@ export async function openWithPin(ports: AccountPorts, wrap: AccountKeyWrap, pin
     return openAccountKeyWrap(wrap, pinKey);
   } finally {
     ports.suite.wipe(pinKey);
+  }
+}
+
+/**
+ * Checks the current PIN against the live PIN wrap (§5.6, D-41): one server evaluation.
+ * Throws `PIN_NOT_SET_UP`, `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`.
+ */
+export async function verifyPin(ports: AccountPorts, account: OpenAccount, pin: string): Promise<void> {
+  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "pin" });
+  if (!wrap) throw new ConvoyError("PIN_NOT_SET_UP");
+  sameKey(ports, account, await openWithPin(ports, wrap, pin, "unlock"));
+}
+
+/** Checks the current phrase against the live recovery wrap (§5.6, D-41). Throws `RECOVERY_NOT_SET_UP`, `WRONG_CREDENTIAL`. */
+export async function verifyPhrase(ports: AccountPorts, account: OpenAccount, phrase: string): Promise<void> {
+  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
+  if (!wrap) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+  const recoveryKey = deriveRecoveryKey(ports.suite, account.accountId, phrase);
+  let key: Uint8Array;
+  try {
+    key = openAccountKeyWrap(wrap, recoveryKey);
+  } finally {
+    ports.suite.wipe(recoveryKey);
+  }
+  sameKey(ports, account, key);
+}
+
+/** The key a credential opened must be the open account key; wipes it either way. */
+function sameKey(ports: AccountPorts, account: OpenAccount, key: Uint8Array): void {
+  try {
+    if (!ports.suite.equal(key, account.key)) throw new ConvoyError("WRONG_CREDENTIAL");
+  } finally {
+    ports.suite.wipe(key);
   }
 }
 

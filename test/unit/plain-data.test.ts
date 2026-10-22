@@ -21,7 +21,7 @@ describe("vault results are structured-cloneable", () => {
     results.push(
       await alice.vault.confirmRecoveryPhrase(next.recoveryPhrase, { currentPhrase: begun.recoveryPhrase }),
       await alice.vault.secureAccount({ phrase: next.recoveryPhrase, newPin: "4321" }),
-      await alice.vault.rotate({ pin: "4321" }),
+      await alice.vault.rotate({ phrase: next.recoveryPhrase, newPin: "4321" }),
     );
     for (const value of results) expect(structuredClone(value)).toEqual(value);
   });

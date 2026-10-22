@@ -45,8 +45,8 @@ export function world(options: { budget?: number } = {}) {
   return { server, oprf, clock, device, account };
 }
 
-/** Sets up a new phrase in two steps, as the user would (§5.10); `currentPhrase` proves the team re-keys. */
-export async function replacePhrase(vault: Vault, options: { currentPhrase?: string } = {}) {
+/** Sets up a new phrase in two steps, as the user would (§5.10); `currentPhrase` proves the team re-keys, `currentPin` doesn't (D-41). */
+export async function replacePhrase(vault: Vault, options: { currentPhrase?: string; currentPin?: string } = {}) {
   const { recoveryPhrase } = vault.beginRecoverySetup();
   const report = await vault.confirmRecoveryPhrase(recoveryPhrase, options);
   return { recoveryPhrase, report };

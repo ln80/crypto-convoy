@@ -142,7 +142,7 @@ describe("scenario", () => {
     expect(read(await (await pageTeam.openItem(id)).part(0, product.download(id, 0)))).toBe("the secret value");
 
     // 8. Alice rotates her account key: her team still opens, her phrase still works.
-    await alice.rotate({ pin: "1234", phrase: recoveryPhrase });
+    await alice.rotate({ phrase: recoveryPhrase, newPin: "1234" });
     expect((await alice.openTeam("team-1")).state).toBe("ready");
     const newDevice = await vault("alice");
     await newDevice.recover(recoveryPhrase, "4321");

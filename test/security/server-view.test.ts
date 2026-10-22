@@ -37,9 +37,9 @@ describe("SP-01: no key that opens items, and no plaintext, in the key store or 
     await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob"] });
     await members.bob!.vault.rekey("team-1");
     await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
-    await alice.vault.changePin("2222");
-    await replacePhrase(alice.vault, { currentPhrase: alice.recoveryPhrase });
-    await alice.vault.rotate({ pin: "2222" });
+    await alice.vault.changePin("2222", { currentPin: "1234" });
+    const { recoveryPhrase } = await replacePhrase(alice.vault, { currentPhrase: alice.recoveryPhrase });
+    await alice.vault.rotate({ phrase: recoveryPhrase, newPin: "2222" });
 
     const session = await alice.vault.openTeam("team-1");
     const internals = sessionInternals(session);

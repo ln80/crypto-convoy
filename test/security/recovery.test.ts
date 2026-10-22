@@ -63,7 +63,7 @@ describe("SP-19: only authorized material opens the account key", () => {
     const laptop = await w.account("alice");
     const [id] = await laptop.vault.listDevices();
     await laptop.vault.revokeDevice(id!);
-    await replacePhrase(laptop.vault);
+    await replacePhrase(laptop.vault, { currentPhrase: laptop.recoveryPhrase });
     laptop.vault.lock();
     await expect(laptop.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
     await expect((await w.device("alice")).vault.recover(laptop.recoveryPhrase, "1")).rejects.toEqual(code("WRONG_CREDENTIAL"));
@@ -74,7 +74,7 @@ describe("SP-19: only authorized material opens the account key", () => {
     const laptop = await w.account("alice");
     const phone = await w.device("alice");
     await phone.vault.unlockWithPin("1234");
-    await laptop.vault.rotate({ pin: "1234" });
+    await laptop.vault.rotate({ phrase: laptop.recoveryPhrase, newPin: "1234" });
     await phone.vault.unlockWithPin("1234");
     phone.store.accountVersion(1);
     phone.vault.lock();
@@ -84,7 +84,7 @@ describe("SP-19: only authorized material opens the account key", () => {
   it("Limit: a device with no stored state adopts a retired version the server kept", async () => {
     const w = world();
     const laptop = await w.account("alice");
-    await laptop.vault.rotate({ pin: "1234" });
+    await laptop.vault.rotate({ phrase: laptop.recoveryPhrase, newPin: "1234" });
     w.server.restore({ type: "account-key-wrap", accountId: "alice", accountKeyVersion: 1, method: "pin" });
     const fresh = await w.device("alice", { localKeys: new MemoryLocalKeyStore() });
     fresh.store.accountVersion(1);

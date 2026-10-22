@@ -62,12 +62,11 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
   it("TH-44: with the PIN budget spent, the phrase alone cuts the thief's PIN and devices (D-40)", async () => {
     const w = world({ budget: 4 });
     const alice = await w.account("alice"); // 1 evaluation
-    // A session thief sets their own PIN, then spends the rest of the budget.
-    await alice.vault.changePin("6666"); // 2
+    // A thief holding the session and the PIN sets their own PIN, then spends the rest of the budget.
+    await alice.vault.changePin("6666", { currentPin: "1234" }); // 2 (the check), 3 (the new wrap)
     const guesses = await w.device("alice");
-    await expect(guesses.vault.unlockWithPin("0000")).rejects.toEqual(code("WRONG_CREDENTIAL")); // 3
-    await expect(guesses.vault.unlockWithPin("0001")).rejects.toEqual(code("WRONG_CREDENTIAL")); // 4
-    await expect(guesses.vault.unlockWithPin("0002")).rejects.toEqual(code("PIN_RATE_LIMITED"));
+    await expect(guesses.vault.unlockWithPin("0000")).rejects.toEqual(code("WRONG_CREDENTIAL")); // 4
+    await expect(guesses.vault.unlockWithPin("0001")).rejects.toEqual(code("PIN_RATE_LIMITED"));
 
     // The user recovers on a clean device: unlocked and registered, but the PIN can't change.
     const clean = await w.device("alice");
@@ -88,15 +87,15 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
 
     // Once the budget allows, the user sets a PIN: it is created, not replaced.
     w.oprf.resetBudget("alice");
-    await clean.vault.changePin("2222");
+    await clean.vault.changePin("2222", { phrase: alice.recoveryPhrase });
     expect((await clean.vault.status()).pin).toBe("set-up");
     await (await w.device("alice")).vault.unlockWithPin("2222");
   });
 
-  it("refuses a rotation with neither a PIN nor the phrase", async () => {
+  it("refuses a rotation without the phrase (D-41)", async () => {
     const w = world();
     const alice = await w.account("alice");
-    await expect(alice.vault.rotate({})).rejects.toEqual(code("MALFORMED_RECORD"));
+    await expect(alice.vault.rotate({ newPin: "2222" } as never)).rejects.toEqual(code("MALFORMED_RECORD"));
     expect(await alice.store.getAccountKeyVersion("alice")).toBe(1);
   });
 });

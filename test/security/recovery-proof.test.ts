@@ -70,9 +70,9 @@ describe("SP-23: recovery-proven re-keys", () => {
     expect((await bob.vault.openTeam("team-1")).state).toBe("pending");
   });
 
-  it("a phrase replaced without the old one re-keys every team without proof", async () => {
+  it("a phrase replaced with the PIN instead of the old one re-keys every team without proof (D-41)", async () => {
     const { members, aliceTeam } = await team("bob");
-    const { report } = await replacePhrase(members.bob!.vault);
+    const { report } = await replacePhrase(members.bob!.vault, { currentPin: members.bob!.pin });
     expect(report).toEqual({ rekeyed: ["team-1"], failed: [] });
     expect((await aliceTeam.owner().reconcile(["alice", "bob"])).needsHuman).toMatchObject([{ accountId: "bob", reason: "rekey-unproven" }]);
   });
