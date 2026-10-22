@@ -15,8 +15,9 @@ The documents in `docs/` are the source of truth for the library. Code follows t
 ## Entry shapes
 
 - **Decision:** Status (Accepted / Proposed / Deferred / Superseded), Problem, Decision, Rejected, Consequence.
-- **Threat:** Actor, Attack, Impact, Disposition (mitigated by SP-, or accepted with the reason). Update the index row too.
-- **Property:** Property (falsifiable), Limit when it doesn't cover something, Assumptions, Verification (test files), Related threats. Never claim more than the design delivers: write the Limit next to the claim.
+- **Threat:** Actor, Attack, Impact, Disposition (mitigated by SP-, or accepted with the reason). Update the index row too: its disposition starts with Mitigated, Partly mitigated, Accepted or Not applicable, and cites the same properties as the entry.
+- **Threats cite, they don't restate.** A disposition is one to three sentences with ids (SP-, D-, §). How a mechanism works lives in the protocol only, so a change is edited in one place.
+- **Property:** Property (falsifiable), Limit when it doesn't cover something, Assumptions, Verification (test files), Related threats. Never claim more than the design delivers: write the Limit next to the claim. A threat in Related threats cites the property in its index row, and the reverse.
 - **Protocol record:** fields, protection (exact construction with labels), reader checks, server rule (§11), and catalogue row.
 
 ## Writing
@@ -27,4 +28,6 @@ The documents in `docs/` are the source of truth for the library. Code follows t
 
 ## After every edit
 
-Run `npm run check:spec`. It checks labels against the §1 table, ids, `§` references, vector names, property traceability and product terms.
+Run `npm run check:spec`. It checks labels against the §1 table, ids, `§` references, vector names, property traceability, product terms, the threat index against the entries, threats ↔ properties in both directions, error codes and reasons against §9 and `src/errors.ts`, table cell counts, and retired wording.
+
+**Retired wording** (`scripts/retired-terms.json`): when a decision removes or changes something, add the wording it retires, with the sections allowed to keep it as history (`allow`). A match kept on purpose until an open question is decided goes in `known`, with the reason; the check fails once it no longer matches, so the entry leaves with the fix.

@@ -22,4 +22,4 @@
 
 ## Learning notes
 
-When a change teaches a new pattern, concept or lesson, record it in `learning/` (local, not tracked) with [capture-learning](../workflows/capture-learning.md).
+When a change teaches a new pattern, concept or lesson, record it in `learning/` (local, not tracked) with [capture-learning](../workflows/capture-learning.md). When a decision or a public operation changes, update `learning/course/` with [maintain-course](../workflows/maintain-course.md). The short notes stay design history. The course says when one describes a deferred or superseded decision.

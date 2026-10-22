@@ -35,8 +35,8 @@ Never implement behaviour the protocol doesn't specify. If the spec is missing o
 ## Guides and workflows
 
 - Guides: [architecture](.agents/guides/architecture.md) · [crypto rules](.agents/guides/crypto-rules.md) · [testing](.agents/guides/testing.md) · [editing specs](.agents/guides/spec-docs.md) · [workflow](.agents/guides/workflow.md)
-- Workflows: [implement from spec](.agents/workflows/implement-from-spec.md) · [add an algorithm suite](.agents/workflows/add-algorithm-suite.md) · [security property tests](.agents/workflows/security-property-tests.md) · [protocol change](.agents/workflows/protocol-change.md) · [capture a learning note](.agents/workflows/capture-learning.md)
-- Plans: `.agents/plans/NNN-name.plan.md`
+- Workflows: [implement from spec](.agents/workflows/implement-from-spec.md) · [add an algorithm suite](.agents/workflows/add-algorithm-suite.md) · [security property tests](.agents/workflows/security-property-tests.md) · [protocol change](.agents/workflows/protocol-change.md) · [capture a learning note](.agents/workflows/capture-learning.md) · [maintain the protocol course](.agents/workflows/maintain-course.md) · [spec review](.agents/workflows/spec-review.md)
+- Plans: `.agents/plans/NNN-name.plan.md` · Reviews: `.agents/reviews/NNN-name.md`
 
 ## Commands
 
@@ -47,7 +47,7 @@ Never implement behaviour the protocol doesn't specify. If the spec is missing o
 | `npm run test:security` | Adversarial tests only |
 | `npm run test:fuzz` | Bounded fuzzing (opt-in) |
 | `npm run test:browser` | Browser adapter tests (Node, with fake IndexedDB) |
-| `npm run check:spec` | Consistency of `docs/` (labels, ids, § references, vectors, traceability, product terms) |
+| `npm run check:spec` | Consistency of `docs/` (labels, ids, § references, vectors, traceability, product terms, threat index, threats ↔ properties, errors, tables, retired wording in `scripts/retired-terms.json`) |
 | `npm run build` | Library build: `crypto-convoy`, `crypto-convoy/browser`, `crypto-convoy/testing` |
 | `npm run test:package` | Runs the built package as a consumer, after `build` |
 | `npm run vectors:generate` | Writes missing vector files from independent generators; never overwrites |

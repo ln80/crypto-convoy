@@ -1,0 +1,100 @@
+{
+  "about": "Wording a decision retired. check:spec fails when a pattern matches in docs/ or README.md outside the sections listed in `allow` (ids of enclosing headings or index rows: D-13, TH-33, SP-24, protocol 4.6). `known` lists matches kept on purpose until an open gap is decided; each must still match, so a fixed gap forces its entry out. Add entries in the ripple step of the protocol-change workflow.",
+  "terms": [
+    {
+      "pattern": "\\bgrants?\\b",
+      "decision": "D-37",
+      "use": "the version's roster; every access change is a rotation",
+      "allow": {
+        "decisions.md": [
+          "D-13",
+          "D-34",
+          "D-37"
+        ],
+        "threat-model.md": [
+          "TH-33",
+          "TH-42"
+        ],
+        "protocol.md": [
+          "4.6"
+        ]
+      }
+    },
+    {
+      "pattern": "\\bcompleteRotation\\b",
+      "decision": "D-34",
+      "use": "a rotation is one record",
+      "allow": {
+        "decisions.md": [
+          "D-34"
+        ]
+      }
+    },
+    {
+      "pattern": "\\b[Cc]ontinuity (signature|hint|proof)s?\\b|: member keys, continuity",
+      "decision": "D-38",
+      "use": "proofs are `recovery` or none",
+      "allow": {
+        "decisions.md": [
+          "D-33",
+          "D-38"
+        ]
+      }
+    },
+    {
+      "pattern": "\\b[Ii]nvite proofs?\\b|\\bjoin secret\\b|\\bautoApproveInvites\\b",
+      "decision": "D-32 (deferred)",
+      "use": "an invite link carries only the team's anchor",
+      "allow": {
+        "decisions.md": [
+          "D-32"
+        ],
+        "threat-model.md": [
+          "TH-37",
+          "TH-43"
+        ],
+        "security-properties.md": [
+          "SP-24"
+        ],
+        "protocol.md": [
+          "14"
+        ]
+      }
+    },
+    {
+      "pattern": "\\b(server|it) deletes\\b|\\bdeletes? (its|the|their) (device's )?wraps?\\b|\\bwraps? (is|are) deleted\\b|\\bdeleted on revoke\\b|\\b[Dd]eleted with its account key version\\b",
+      "decision": "D-39",
+      "use": "the server stops serving the record and archives it (rule 7)",
+      "allow": {},
+      "known": [
+        {
+          "file": "protocol.md",
+          "text": "Write-once; deleted with its account key version",
+          "gap": "review 001 B: retirement of member-keys-wrap records (archived by the testing store, deleted by §11)"
+        },
+        {
+          "file": "protocol.md",
+          "text": "Served only to the account. Deleted with its account key version.",
+          "gap": "review 001 B: §11 rule for member-keys-wrap retirement"
+        },
+        {
+          "file": "integration.md",
+          "text": "Your server deletes that account's `member-keys-wrap`",
+          "gap": "review 001 B and G: removal of a member's private team records"
+        }
+      ]
+    },
+    {
+      "pattern": "secureAccount\\(\\{ phrase, newPin \\}\\)|\\bask for the PIN once\\b|\\bthey enter the PIN, and\\b",
+      "decision": "D-40",
+      "use": "the PIN is optional when the phrase is given: `secureAccount({ phrase, newPin? })`",
+      "allow": {}
+    },
+    {
+      "pattern": "\\blisted owners hold\\b",
+      "decision": "rule 8",
+      "use": "the server checks the signer of a new version, not the owners it lists",
+      "allow": {}
+    }
+  ]
+}
