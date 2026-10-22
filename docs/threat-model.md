@@ -595,7 +595,7 @@ Attack: replaces the recovery phrase, changes the PIN, or rotates the account ke
 
 Impact: account takeover: the user loses the account and every team only it could open.
 
-Disposition: mitigated by SP-25 (D-41): each of these needs a current credential besides the open vault. Residual, accepted: the thief can revoke the user's other devices, which register again with the PIN or the phrase.
+Disposition: mitigated by SP-25 (D-41): each of these needs a current credential besides the open vault. Residual, accepted: the thief can still revoke the user's other devices, which register again with the PIN or the phrase; publish unproven re-keys, which only a human approves (TH-37); or leave teams, which support undoes from the archive (TH-46).
 
 ### TH-46: Session thief corrupts private team records
 

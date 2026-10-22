@@ -145,3 +145,18 @@ There is no record layout, label, vector or error code change. Only operation ru
 - `npm run typecheck && npm test` after each code phase. The security project covers SP-09, SP-11, SP-12, SP-15, SP-25 and SP-26; the traceability test confirms that the new properties' test files exist and cite them.
 - `npm run build && npm run test:package` after Phase F.
 - The `spec-review` skill (review 002) as the final check that threats, properties, protocol and code agree.
+
+## Execution notes
+
+- **Phase 0:** `4e7139a` (stale text and links), `da23d00` (spec tooling), on `plan-006-receiver-anchor`; then branch `plan-008-review-gaps`.
+- **Phase A** `6986d25`: spec. The traceability test stayed red until phase E added `record-archive.test.ts`, as expected.
+- **Phase B** `374101e`:
+  - `verifyPin` and `verifyPhrase` in `unlock-methods.ts`.
+  - `changePin(newPin, credential)`, `confirmRecoveryPhrase(…, { currentPhrase | currentPin })`, `rotate({ phrase, newPin? })`.
+  - Giving no credential is `MALFORMED_RECORD`, added to §5.6.
+- **Phase C** `54ce245`. **Deviation:** while implementing, `member-keys` turned out to have no writer rule (any account could publish under another, and a record at the largest version would exhaust numbering). D-43, §11, scope rule 8, the integration guide and the testing store gained two rules: only the account writes its keys, at its next version. Two key-substitution tests now publish forged keys through the victim's own session.
+- **Phase D** `0a90c16`: `MemberChange` and `team.memberChanges`, exported from `src/index.ts`.
+- **Phase E** `2da7ce1`: `team-state` compare-and-set archives the previous revision; `MemoryRecordStore.restoreVersion`.
+- **Phase F:** build and package smoke test pass. No API report file exists in the repo; `test/unit/public-api.test.ts` covers the exports. The README needed no change. Review 002 extended TH-45's residual.
+- **Each fix was mutation-checked:** removing it makes its tests fail (credential checks, numbering, membership reports, `team-state` archive).
+- **Follow-up, optional:** update `learning/course/` with `maintain-course` (local, not tracked).
