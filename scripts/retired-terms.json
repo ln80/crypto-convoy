@@ -65,24 +65,7 @@
       "pattern": "\\b(server|it) deletes\\b|\\bdeletes? (its|the|their) (device's )?wraps?\\b|\\bwraps? (is|are) deleted\\b|\\bdeleted on revoke\\b|\\b[Dd]eleted with its account key version\\b",
       "decision": "D-39",
       "use": "the server stops serving the record and archives it (rule 7)",
-      "allow": {},
-      "known": [
-        {
-          "file": "protocol.md",
-          "text": "Write-once; deleted with its account key version",
-          "gap": "review 001 B: retirement of member-keys-wrap records (archived by the testing store, deleted by §11)"
-        },
-        {
-          "file": "protocol.md",
-          "text": "Served only to the account. Deleted with its account key version.",
-          "gap": "review 001 B: §11 rule for member-keys-wrap retirement"
-        },
-        {
-          "file": "integration.md",
-          "text": "Your server deletes that account's `member-keys-wrap`",
-          "gap": "review 001 B and G: removal of a member's private team records"
-        }
-      ]
+      "allow": {}
     },
     {
       "pattern": "secureAccount\\(\\{ phrase, newPin \\}\\)|\\bask for the PIN once\\b|\\bthey enter the PIN, and\\b",
@@ -94,6 +77,18 @@
       "pattern": "\\blisted owners hold\\b",
       "decision": "rule 8",
       "use": "the server checks the signer of a new version, not the owners it lists",
+      "allow": {}
+    },
+    {
+      "pattern": "\\bthe current one or a new one\\b|\\bdrops the recovery wrap\\b|rotate\\(\\{ pin|\\bwithout the phrase, recovery must\\b",
+      "decision": "D-41",
+      "use": "`rotate({ phrase, newPin? })` needs the phrase and keeps it",
+      "allow": {}
+    },
+    {
+      "pattern": "doesn't match its own keys \\(`key_mismatch`\\)|\\bmemberKeysVersion` \\+ 1\\b",
+      "decision": "D-43",
+      "use": "new keys take the newest published version plus one; foreign keys are reported (`foreign-member-keys`)",
       "allow": {}
     }
   ]

@@ -113,7 +113,7 @@ Status: Accepted.
 
 Problem: rotating the account key must re-wrap it for every unlock method. With public-key wraps (seal the new key to each method's public key), rotation would need no PIN or phrase. But anyone can seal to a public key, including the server: it could hand a device or a recovering user a forged account key, and then read every key the user wraps under it.
 
-Decision: the PIN, the recovery phrase and each device wrap the account key with a symmetric key that only that method's holder can compute. Rotation needs the user present: they enter the PIN or the recovery phrase (D-40), and without the phrase they set up a new one afterwards (D-35). Other registered devices stop working and register again after a PIN or phrase unlock.
+Decision: the PIN, the recovery phrase and each device wrap the account key with a symmetric key that only that method's holder can compute. Rotation needs the user present: they enter the recovery phrase, and optionally a new PIN (D-40, D-41). Other registered devices stop working and register again after a PIN or phrase unlock.
 
 Rejected: public-key wraps for unlock methods, for the forgery reason above.
 
@@ -415,7 +415,7 @@ Status: Accepted.
 
 Problem: a phrase shown once and never checked is the usual way an end-to-end encrypted account is lost. With D-33 it is also the only way to prove a re-key.
 
-Decision: setting up recovery is two steps: the vault generates a phrase and keeps it in memory; the user enters it back, and only then is the recovery wrap stored. No recovery wrap at the current account key version means recovery isn't set up. Creating or joining a team requires it (`RECOVERY_NOT_SET_UP`). An account key rotation without the phrase drops the recovery wrap, so the user sets up a new phrase next.
+Decision: setting up recovery is two steps: the vault generates a phrase and keeps it in memory; the user enters it back, and only then is the recovery wrap stored. No recovery wrap at the current account key version means recovery isn't set up. Creating or joining a team requires it (`RECOVERY_NOT_SET_UP`). An account key rotation needs the phrase and keeps it (D-41), so recovery, once set up, stays set up.
 
 Rejected: a "confirmed" flag on a stored wrap: a flag the server can't verify, and a phrase that already works before anyone saved it.
 
@@ -476,8 +476,63 @@ Status: Accepted.
 
 Problem: every rotation of the account key made a new PIN wrap, so it needed a server evaluation from the account's PIN budget. A session thief (A11) can spend that budget on purpose: until it resets, `secureAccount` can't run, `recover` unlocks but can't replace the PIN, and a PIN the thief set keeps opening the account (TH-44).
 
-Decision: a rotation needs the PIN or the recovery phrase, and the PIN is optional when the phrase is given. Without a PIN, the new account key version has no PIN wrap: the rotation still retires every wrap of the old version, the thief's PIN and devices included. The account then reports `pin: "not-set-up"` and the `pin-not-set-up` warning; unlocking with a PIN answers `PIN_NOT_SET_UP` before any evaluation, and `changePin` creates the PIN wrap once the budget allows. `secureAccount` takes the phrase and an optional new PIN.
+Decision: a rotation needs the recovery phrase (D-41), and the PIN is optional. Without a PIN, the new account key version has no PIN wrap: the rotation still retires every wrap of the old version, the thief's PIN and devices included. The account then reports `pin: "not-set-up"` and the `pin-not-set-up` warning; unlocking with a PIN answers `PIN_NOT_SET_UP` before any evaluation, and `changePin` creates the PIN wrap once the budget allows. `secureAccount` takes the phrase and an optional new PIN.
 
 Rejected: a PIN wrap made without the server evaluation, which would let a stolen wrap test PINs offline (SP-08); relying only on the integration resetting the budget, which leaves the thief's PIN working until someone acts.
 
 Consequence: an account can exist without a PIN wrap, at the current version, after a phrase-only rotation. It unlocks with the phrase or a registered device until a PIN is set. The integration may still reset a spent budget through its support process.
+
+## D-41: Changing a credential needs a current credential
+
+Status: Accepted.
+
+Problem: same-device unlocks need no PIN, so a stolen device, or a script running in the vault, holds an open vault without knowing any credential. With only that, it could replace the recovery phrase, change the PIN, and rotate the account key with a PIN of its choice, which dropped the recovery wrap. The user was then locked out, and `secureAccount`, which needs the phrase, no longer ran (TH-45). An open vault proves possession of a device, not of the account.
+
+Decision: an operation that changes how the account is opened needs a current credential besides the open vault:
+- `changePin` needs the current PIN, checked by opening the live PIN wrap (one server evaluation), or the recovery phrase. With no PIN set (D-40), only the phrase.
+- Replacing the recovery phrase needs the current phrase or the current PIN. Setting up recovery the first time needs neither: an account without recovery can't be in a team (D-35).
+- Rotating the account key needs the current phrase, and keeps it; a new PIN is optional (D-40). A rotation never drops recovery.
+
+A user who lost the phrase replaces it with the PIN, then secures the account with the new phrase if the old one may have leaked.
+
+Rejected:
+- Accepting the risk: a stolen device would be an account takeover.
+- Only the phrase may replace the phrase: a lost phrase, which is common, could never be replaced, and the account could never rotate again.
+
+Consequence: a device alone uses the account but can't change how it is opened; a user who forgot the PIN and lost the phrase keeps a working device but can't set new credentials. A PIN change costs two evaluations. A PIN thief with a session can still replace the phrase and rotate (TH-11); the remedy is a support restore (D-42). Revoking a device still needs only an open vault: it costs the user a new registration, never the account.
+
+## D-42: The server never destroys an account's private records; a version can be restored
+
+Status: Accepted.
+
+Problem: D-39 archived removed account key wraps, so support could undo a session thief's changes within one account key version. Three cases weren't covered: a rotation by someone holding a credential (TH-11, TH-41) left the user's previous version with its member keys wraps "deleted"; a session thief could delete member keys wraps, or write a garbage team state that the server stored in place of the previous one (TH-46); and nothing let support make an older account key version current again.
+
+Decision: the server never destroys an account's private records: account key wraps, member keys wraps and team states. Deleting, replacing or retiring one archives it, and each team state write archives the previous revision. Support may restore a single record (D-39) or an **account key version**: that version becomes current again, the records of later versions are archived, and that version's records are served again. Restores go only through the integration's support process; the library takes no part.
+
+Rejected:
+- Repairing an unreadable team state in the library from a device's local anchor: a session holding an older bundle could overwrite a newer team state, moving the account's anchor back.
+- Deleting after a delay instead of archiving: the user's previous state would be gone when support needs it.
+
+Consequence: a takeover is undone by restoring the version from before it. What a restore can't undo: devices that accepted the later version refuse the older one (SP-07, `rollback`) and must be reset and registered again; owner approvals of the thief's keys stay, and the restored user re-keys with an owner's approval. Archives are kept for the restore window only, which bounds what a data thief finds (TH-36).
+
+## D-43: New member keys follow the newest published version
+
+Status: Accepted.
+
+Problem: the vault numbered new member keys from the bundles it held: 1 on joining, the newest held version + 1 on a re-key. Someone holding the user's session can publish `member-keys` records under the account (TH-37). Any version they took made the member's own write collide, forever, with `STALE_VERSION`, including the re-keys of `secureAccount` (TH-47). The member couldn't tell why.
+
+Decision: new member keys take the account's newest published version for the team, plus one. The vault reports `foreign-member-keys` for a team where a published version is newer than every bundle it holds: keys this vault didn't make. The integration ends the account's other sign-in sessions before `secureAccount`, so nobody can publish newer keys over its proven re-keys.
+
+Rejected: refusing gaps in member keys versions. Approvals and rosters pin exact keys by version and hash, so a gap means nothing, and refusing one would hand the blocking back to the thief.
+
+Consequence: a session thief can publish bait keys but can't block a member. The member sees the warning; owners see the bait as unproven keys, which only a human approves (TH-37).
+
+## D-44: Membership changes are reported like owner changes
+
+Status: Accepted.
+
+Problem: SP-15 promised that every newly approved member key is reported on every member's client. The library reported owner list changes only, and `team.members()` showed the current roster. A member admitted by a stolen owner key and removed again between two opens was never seen (TH-17).
+
+Decision: chain verification reports, for every record newer than the client's highest anchor, the accounts added to, removed from or re-keyed in the roster, with the signer (`team.memberChanges`), as it reports owner changes.
+
+Consequence: detection covers every access change since the client last verified the team, from the verified chain only. A first contact reports the whole history, as owner changes do.

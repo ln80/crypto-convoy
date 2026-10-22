@@ -47,10 +47,10 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | `create` | No live record under that key (write-once, rule 3) |
 | `create` of `team-key-version` | Version = current + 1 (§11). Accept records up to 384 KiB: the roster of a team of up to 1,000 members (D-34); DynamoDB's 400 KB item limit fits |
 | `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6) |
-| `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4) |
+| `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4); archive the previous revision (rule 7, D-42) |
 | `replace` (`account-key-wrap` only) | A live record exists under the key; archive it, then store the new one as live (D-39) |
 | `delete` | Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
-| `set-account-key-version` | The current version equals `expected`; then stop serving every wrap of the old version (rule 7) |
+| `set-account-key-version` | The current version equals `expected`; then stop serving every record of the old version, keeping it archived (rule 7, D-42) |
 
 Each operation in a batch names a different key: a batch never touches one key twice.
 
@@ -58,7 +58,7 @@ The client reports a refused condition by throwing the library's `StoreConflictE
 
 ### Archived records
 
-Rule 7 keeps every removed or replaced wrap for a restore window (TH-36, D-39). Each identity has at most one live record and any number of archived ones.
+Rule 7 keeps every removed or replaced private record (account key wraps, member keys wraps, team states) for a restore window (TH-36, TH-46, D-39, D-42). Each identity has at most one live record and any number of archived ones.
 
 - **Relational database:** an `archived_at` column, and a unique index on the identity over live rows only (a partial index in Postgres).
 - **DynamoDB:** the live item under its identity, with a generation counter `gen`. An archived record is a separate item (for example partition `archive#<accountId>`, sort key `<identity>#<gen>`) whose TTL is the archive time plus the restore window, so expiry needs no job.
@@ -66,6 +66,7 @@ Rule 7 keeps every removed or replaced wrap for a restore window (TH-36, D-39). 
   - `delete`: the same, deleting the live item instead.
   - Retiring an account key version: serve wraps only at the current version (a read filter), so the switch writes one item. Set the TTL on the old version's items afterwards, best effort.
 - **Restoring** is your support process, not a route: list the archived generations of an identity, pick the one from before the incident, archive the live record and make the chosen one live, in one transaction. Never drop the live record: a mistaken restore must be reversible.
+- **Restoring an account key version** (D-42), after a takeover with a rotation: set the account's current version back to the one from before, archive the records of later versions, and serve that version's archived records again. With the read filter above, this is the version pointer plus the later versions' records. Tell the user that devices which saw the later version must be reset and registered again, and that teams which approved the thief's keys need an owner to approve the user's re-key.
 
 ### Sizing
 
@@ -82,7 +83,7 @@ For DynamoDB, a rotation must fit `TransactWriteItems` (100 items): cap the team
 
 ### Leaving, removal and account deletion
 
-- **Removal by the product:** a removed member can't read the chain any more, so it can't run `leaveTeam`. Your server deletes that account's `member-keys-wrap` and `team-state` records for the team; owners' next `reconcile` rotates the member out (§6.9).
+- **Removal by the product:** a removed member can't read the chain any more, so it can't run `leaveTeam`. Your server removes (archives, rule 7) that account's `member-keys-wrap` and `team-state` records for the team; owners' next `reconcile` rotates the member out (§6.9).
 - **Deleting an account** is your server's job, not one transaction: delete its records for each team as above, then archive its `account-key-wrap` records for the restore window (a session thief could otherwise delete the account, TH-36) and purge them after it. **Never delete records the team shares** (`member-keys`, `team-key-version`, `item`, `inbox`): other members verify old owners' signatures against published `member-keys` records.
 - **The last owner:** refuse to remove or delete an account that is the only owner in the newest team key version (`LAST_OWNER`, TH-18). The product's owner role may change before the chain's owner list does (D-30): check the list in the record.
 
@@ -101,7 +102,8 @@ The library produces content and takes it back; the integration stores and serve
 - **Invite links carry the team's anchor** (`team.inviteAnchor()`), so a joiner can't be shown a forged team (§6.4). They hold no secret: approving a joiner is an owner's decision, checked out of band (AS-06).
 - **Every access change is one version record** (D-37): accept records up to 384 KiB, and expect one per join, re-key and removal.
 - **Run `reconcile` at every owner session** with the accounts your product considers members (§6.9). It rotates out removed accounts and approves re-keys proven by the recovery phrase; it never widens access otherwise (SP-22). Show its `needsHuman` list in your admin screens, with `overview()` for the details.
-- **Lost device or leaked credential:** offer `secureAccount` (D-36), and end the account's other sign-in sessions.
+- **Lost device or leaked credential:** end the account's other sign-in sessions, then offer `secureAccount` (D-36, D-43). Ending them first keeps a session thief from publishing keys over its re-keys.
+- **Credential changes need a credential** (D-41): ask for the current PIN or the recovery phrase in your PIN-change and phrase-replacement screens; an open vault alone isn't enough.
 
 ## Key custody across contexts
 

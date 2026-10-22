@@ -289,8 +289,8 @@ Each record lists its fields, how it is protected, and what a reader checks. Key
 | --- | --- | --- | --- | --- |
 | `account-key-wrap` | The account | The account | `wrap` under a PIN, recovery or device key | Write-once; archived on revoke, replace, retire (D-39) |
 | `member-keys` | The member | Team members | Self-signature | Write-once |
-| `member-keys-wrap` | The account | The account | `wrap` under the account key | Write-once; deleted with its account key version |
-| `team-state` | The account | The account | `wrap` under the team state key | Compare-and-set |
+| `member-keys-wrap` | The account | The account | `wrap` under the account key | Write-once; archived when deleted or retired (D-42) |
+| `team-state` | The account | The account | `wrap` under the team state key | Compare-and-set; previous revisions archived (D-42) |
 | `team-key-version` | An owner | Team members | Owner signature, hash chain, `wrap` link, `seal` per roster entry | Write-once; current + 1 |
 | `item` | A member | Members, link holders | `wrap` under the team key and the item key | Write-once; current version only |
 | Item part (content) | A member | Members, link holders | `stream` under the item key | Stored by the integration (D-25) |
@@ -370,7 +370,7 @@ What a member last accepted about a team, so their other devices start from it. 
 
 Protection: `wrappedState = wrap(teamStateKey, "team-state", accountId, teamId, u64 revision, state)`, where `state` = `enc(u32 anchorVersion, bytes anchorHash)`: the newest team key version record this account has verified, and its record hash (§4.5).
 
-The server has no `team-state` for an account until its first write; no record means no anchor on the server. The server can't forge a `team-state`, since it doesn't have `teamStateKey`. It can only serve an older revision. A `team-state` that fails to decrypt was corrupted or tampered with (for example by someone holding the account's session): it is a `TRUST_FAILURE` with reason `state_unreadable`, never silently ignored, since ignoring it would send the device back to first-contact trust. How the anchor is used is in §6.1.
+The server has no `team-state` for an account until its first write; no record means no anchor on the server. The server can't forge a `team-state`, since it doesn't have `teamStateKey`. It can only serve an older revision. A `team-state` that fails to decrypt was corrupted or tampered with (for example by someone holding the account's session): it is a `TRUST_FAILURE` with reason `state_unreadable`, never silently ignored, since ignoring it would send the device back to first-contact trust. The server archives every previous revision, so support restores the last readable one (rule 7, D-42, TH-46). How the anchor is used is in §6.1.
 
 ### 4.5 `team-key-version`
 
@@ -525,7 +525,7 @@ The account key opens only through one of these three paths (SP-19).
 - **Same device.** Read the `deviceKey` and `deviceId` from `LocalKeyStore`, fetch that device's wrap at the current version, and unwrap. If the wrap is gone (revoked, or removed by a rotation), the device must register again: `DEVICE_NOT_REGISTERED`.
 - **PIN.** Fetch the PIN wrap, derive the `pinKey` (purpose `unlock`), unwrap. Then register the device (§5.5). With no PIN wrap at the current version (after a rotation without a PIN, D-40): `PIN_NOT_SET_UP`, before any server evaluation.
   - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the server's current one, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget.
-- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6). Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it. They happen first: if setting the PIN is refused (`PIN_RATE_LIMITED`), the account stays unlocked on this device with its previous PIN wrap. If someone else may have set that PIN, secure the account with the phrase alone (§5.11).
+- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6), the phrase being the current credential. Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it. They happen first: if setting the PIN is refused (`PIN_RATE_LIMITED`), the account stays unlocked on this device with its previous PIN wrap. If someone else may have set that PIN, secure the account with the phrase alone (§5.11).
 
 ### 5.5 Registering and revoking a device
 
@@ -538,25 +538,29 @@ If the device may have been used by an attacker while unlocked, revocation isn't
 
 ### 5.6 Changing the PIN, replacing the recovery phrase
 
-**PIN.** With the `accountKey` open, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12), or as a new wrap when the current version has none (D-40). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
+**Current credential (D-41, SP-25).** Changing the PIN or replacing the phrase needs, besides the open `accountKey`, a current credential, checked before anything is written:
+- the current PIN: fetch the live PIN wrap and open it (§5.1, purpose `unlock`; one evaluation). The opened key must equal the open `accountKey`, else `WRONG_CREDENTIAL`; no PIN wrap is `PIN_NOT_SET_UP`;
+- the current phrase: derive the `recoveryKey` (§5.2) and open the recovery wrap with it, else `WRONG_CREDENTIAL`.
 
-**Recovery phrase.** Set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new `recoveryPublicKey`:
+A PIN change takes the current PIN or the phrase (only the phrase when the current version has no PIN wrap, D-40). A phrase replacement takes the current phrase or the current PIN. A first recovery setup (§5.10) takes none.
+
+**PIN.** With the `accountKey` open and a current credential checked, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12), or as a new wrap when the current version has none (D-40). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
+
+**Recovery phrase.** With a current credential checked, set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new `recoveryPublicKey`:
 - if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the current recovery key: proven, and approved by owners' `reconcile` unless the account is an owner of that team (SP-23);
-- otherwise, the re-keys carry no proof, and an owner approves each by hand.
+- with the current PIN instead, the re-keys carry no proof, and an owner approves each by hand.
 
 Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed; a failed team is retried with the re-key of §6.8.
 
 ### 5.7 Rotating the account key (D-10)
 
 1. Open the current `accountKey` (version a).
-2. Derive the `pinKey` (purpose `enroll`) from the PIN the user enters (the current one or a new one), if any: the PIN is optional when the phrase is given, and at least one of them is required, else `MALFORMED_RECORD` (D-40). If the user enters the recovery phrase, derive the `recoveryKey` and recovery signing key, and check them against the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`; with no recovery wrap, `RECOVERY_NOT_SET_UP`.
+2. The user enters the current recovery phrase (D-41): derive the `recoveryKey` and check that it opens the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`; with no recovery wrap, `RECOVERY_NOT_SET_UP`. If the user also enters a new PIN, derive its `pinKey` (purpose `enroll`); without one, the new version has no PIN (D-40).
 3. Generate `accountKey` version a+1.
 4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1.
-5. Create the current-device wrap for version a+1, the PIN wrap if a PIN was entered, and the recovery wrap if the phrase was entered. Without a PIN, version a+1 has no PIN wrap until `changePin` sets one (D-40).
+5. Create the current-device wrap and the recovery wrap for version a+1, and the PIN wrap if a new PIN was entered. Without one, version a+1 has no PIN wrap until `changePin` sets one (D-40).
 6. Store everything and switch the current version to a+1, in one atomic batch.
-7. The server stops serving every record of version a (rule 7, D-39). Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
-
-Without the phrase, version a+1 has no recovery wrap: recovery isn't set up (D-35), and setting up a new phrase re-keys every team as in §5.6.
+7. The server stops serving every record of version a and archives it (rule 7, D-42). Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
 
 Rotation retires the account key only. Member keys are unchanged, so anyone who already copied a member keys bundle keeps that team's access until the member re-keys in that team (§6.8) (SP-11). §5.11 does both.
 
@@ -571,7 +575,7 @@ Rotation retires the account key only. Member keys are unchanged, so anyone who 
 
 Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so it runs in the vault:
 
-- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap`. Then open the team (§5.8).
+- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team and the bundles the vault holds, or 1 for none (D-43): keys someone else published under the account never block it. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap`. Then open the team (§5.8).
 - **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is the only owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): another owner must be added first (§6.7). The member's keys stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
 - **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is the only owner of a team, for the same reason as above (TH-18).
 
@@ -584,14 +588,14 @@ Recovery is set up when a recovery wrap exists at the current account key versio
 
 ### 5.11 Securing an account (D-36)
 
-For a device that may have been used while unlocked, or a leaked PIN, run from a device the attacker didn't control. Input: the recovery phrase and, optionally, a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one: `WRONG_CREDENTIAL`, before anything is written.
+For a device that may have been used while unlocked, or a leaked PIN, run from a device the attacker didn't control, after the integration has ended the account's other sign-in sessions, so nobody publishes keys over its re-keys (D-43). Input: the recovery phrase and, optionally, a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one: `WRONG_CREDENTIAL`, before anything is written.
 
 1. Rotate the account key (§5.7) with the phrase and the new PIN, if given. This cuts every other device: their wraps belong to the retired version (D-10).
 2. For every team the account has member keys for, in its own write: create new member keys (§5.9) whose record carries a `recoverySignature` by the recovery signing key (§4.2).
 3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase.
 4. Wipe the phrase and the keys derived from it.
 
-Each team's owners approve the new keys at their next `reconcile` (§6.9, SP-23), except where the account is an owner: another owner approves by hand. Until a team approves them, keys copied by the attacker still open what that team writes. The integration also ends the account's other sign-in sessions.
+Each team's owners approve the new keys at their next `reconcile` (§6.9, SP-23), except where the account is an owner: another owner approves by hand. Until a team approves them, keys copied by the attacker still open what that team writes.
 
 ---
 
@@ -605,7 +609,7 @@ Run when a team session starts, before any other team operation.
 
 1. **Collect anchors.** An anchor is a (version, record hash) pair this account already verified. Read the local one (`LocalKeyStore`), the server's `team-state` (§4.4), and on a first join the invite anchor if the invite carried one (§6.4). All are authenticated or received outside the server: the server can serve an older `team-state`, but can't forge one, and one that fails to decrypt stops here with `TRUST_FAILURE` (`state_unreadable`). With no anchor at all, this is a first contact: the chain is accepted as the server presents it (TH-04).
 2. **Verify the chain.** Fetch the team key version records from the lowest anchor (or from version 1 at first contact) to the newest, and check them (§4.5). The chain must contain **every** anchor. The client adopts nothing newer than its anchors before this check passes. This order matters: the anchor comes from what the client verified, never from the record it's about to check.
-3. **Report owner changes.** For every record newer than the highest anchor whose owner list differs from the previous version, report to the integration the signer and the owners added or removed (SP-15).
+3. **Report changes.** For every record newer than the highest anchor, compared with the previous version: if its owner list differs, report to the integration the signer and the owners added, removed or re-keyed; if its roster differs, the signer and the accounts added, removed or re-keyed (a different `keysHash`) (SP-15, D-44).
 4. The current version n is the newest record of the verified chain.
 5. Find this member's newest access: the newest version whose roster has an entry for one of its keys (§4.5). Check it and open it. For a version above 1, open its `wrappedPreviousKey` with the opened key. The keys and version it names are the keys the account **holds**.
 6. Work out the access state (§9).
@@ -669,7 +673,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 ### 6.8 Re-keying a member
 
-1. The vault creates new member keys for the team with `memberKeysVersion` + 1 (§5.9), with a `recoverySignature` if the user entered the recovery phrase. The member stays able to read with the old keys until the rotation.
+1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with a `recoverySignature` if the user entered the recovery phrase. The member stays able to read with the old keys until the rotation.
 2. An owner approves the new keys by rotating the team key (§6.6), naming the `memberKeysVersion` reviewed. The library classifies the request:
    - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23);
    - **unproven**: anything else. The owner verifies out of band (AS-06, TH-37). The old keys can't vouch for the new ones, since an attacker may hold them (D-38).
@@ -839,13 +843,14 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 | --- | --- | --- |
 | `account-key-wrap` | account, version, method, deviceId | Write-once. Served only to the account. A recovery wrap may be created after the version's other wraps (§5.10). Replaced with `replace`, which needs a live record. Archived on replacement (at once), revocation (after a short delay at most) or retirement of the version: the server stops serving it and keeps it for a restore window (rule 7, D-39); the identity is unique among live records only. A device wrap may also stop being served after a period of inactivity. The switch of current version is atomic with the new wraps. |
 | `member-keys` | team, account, memberKeysVersion | Write-once. Readable by the team's members. |
-| `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Deleted with its account key version. |
-| `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. |
+| `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Archived when deleted, and with its account key version when it is retired (rule 7, D-42). |
+| `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. Each write archives the previous revision (rule 7, D-42). |
 | `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer must be the caller and hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30); the listed owners aren't checked (scope, rule 8). Writers keep the record's JSON within 384 KiB (§2), about 1,000 roster entries with 36-byte ids; the server accepts records of that size. |
 | `item` | team, item | Write-once; `teamKeyVersion` must be current. Readable by the team's members, and by whoever the integration lets open the item's links, by the route it chooses. |
 | `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. Readable by the team's members. |
 | Team creation | — | Version 1 and the creator's member keys in one atomic batch. |
 | OPRF evaluation | account | Per-account key. One total budget per account across `unlock` and `enroll`; the purposes may only split it. |
+| Account key version restore | account | A support action, outside `RecordStore` (D-42, SP-26): the chosen archived version becomes current again, the records of later versions are archived, and its own records are served again. |
 
 **Content, stored by the integration.** Item parts (team, item, index), submission records and their parts (team, inbox, submission, index) are checked by readers against their key record or envelope, wherever they are stored. Recommended, not relied on: keep them write-once, and don't present an item until its `item` record is stored. Parts of a draft never sealed (§7.1) open with no key and can be deleted.
 
@@ -861,17 +866,19 @@ Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyErr
 // Account vault: holds the account key; only what needs it runs here (scope, "Key custody").
 vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered,
                                           //   recovery: "not-set-up" | "set-up", pin: "not-set-up" | "set-up" }
-vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying
+vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying;
+                                          //   teams with keys this vault didn't make (`foreign-member-keys`, D-43)
 vault.setup(pin)                          // then set up recovery before any team work
 vault.beginRecoverySetup()                → { recoveryPhrase }   // held in memory until confirmed (§5.10)
-vault.confirmRecoveryPhrase(phrase, { currentPhrase? }) → { rekeyed, failed }   // a replacement re-keys teams (§5.6)
+vault.confirmRecoveryPhrase(phrase, { currentPhrase } | { currentPin }) → { rekeyed, failed }
+                                          // a replacement needs one and re-keys teams (§5.6, D-41); a first setup none
 vault.unlock()                            // device; throws DEVICE_NOT_REGISTERED
 vault.unlockWithPin(pin)                  // upgrades an outdated PIN wrap (§5.4); throws PIN_NOT_SET_UP
 vault.recover(phrase, newPin)             // unlocked even if setting the PIN is refused (§5.4)
-vault.changePin(newPin)                   // creates the PIN wrap when there is none (D-40)
+vault.changePin(newPin, { currentPin } | { phrase })   // D-41; creates the PIN wrap when there is none (D-40)
 vault.listDevices()                       → deviceId[]
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
-vault.rotate({ pin?, phrase? })           // at least one; without the phrase, recovery must be set up again (D-40)
+vault.rotate({ phrase, newPin? })         // keeps the phrase; without newPin, no PIN until changePin (D-40, D-41)
 vault.secureAccount({ phrase, newPin? })  → { rekeyed: teamId[], failed: teamId[] }   // §5.11, D-40
 vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
 vault.joinTeam(teamId)                    // "pending" until an owner approves the keys
@@ -886,6 +893,7 @@ createTeamKeyReceiver(accountId, teamId)  → { request, openTeam({ store, ancho
 // Team session: one team's keys.
 team.state                                // "not-joined" | "pending" | "ready" | "unverified"
 team.ownerChanges                         // owner list changes since this account's last verified state
+team.memberChanges                        // roster changes (accounts added, removed, re-keyed) since then (D-44)
 team.owners()                             → accountId[]
 team.members()                            → the current roster, with who signed it
 team.inviteAnchor()                       → string        // a bare anchor for an invite link
@@ -938,7 +946,7 @@ What the library expects from each interface. A conforming server enforces the r
 | `get(key)` | The record (a JSON value, parsed by the library) or `null`. |
 | `list(query)` | The records matching a query, in identity order: an account's wraps at one account key version, its member keys wraps at one version, a team's team key versions from a given version, a team's member keys records (optionally of one account). |
 | `getAccountKeyVersion(accountId)` | The current account key version, or `null` for an account that was never set up. |
-| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none), `replace` (a live `account-key-wrap`, archiving it), `delete` (archiving the record), and `setAccountKeyVersion` (with the expected current version, archiving the old version's wraps) (D-39). |
+| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none, archiving the previous revision), `replace` (a live `account-key-wrap`, archiving it), `delete` (archiving the record), and `setAccountKeyVersion` (with the expected current version, archiving the old version's wraps) (D-39). |
 
 A write that a server rule refuses (write-once, current version, compare-and-set, ordering) is reported by throwing the library's `StoreConflictError`: the library turns it into `STALE_VERSION`, or reloads and retries for a `team-state` (§6.1 step 7). Any other failure is `STORE_ERROR`. Private records (§11) are served only to their account: the integration authenticates the caller, the library never sees how.
 

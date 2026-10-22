@@ -10,7 +10,11 @@ Scope: `docs/` at commit 4093119 (plan 007), against `src/` on the same commit.
 - F: SP-10 Limits: a revoked wrap may be served for a short delay and can be restored from the archive.
 - `check:spec` gained checks 7–11 (threat index, threats ↔ properties, errors, tables, retired wording) so these don't drift again.
 
-## Open: each needs a decision
+## Decided (plan 008)
+
+A → D-41 (a credential change needs a current credential; rotation needs the phrase). B and G → D-42 (private records are archived, never destroyed; support restores a record or an account key version). D → D-43 (new keys follow the newest published version; `foreign-member-keys`; sessions ended before `secureAccount`). C → D-44 (`team.memberChanges`). New threats TH-45 to TH-47, properties SP-25 and SP-26. Implementation: `.agents/plans/008-review-gaps.plan.md`.
+
+## Findings as reported
 
 | Id | Kind | Severity | Finding |
 | --- | --- | --- | --- |

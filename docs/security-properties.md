@@ -50,6 +50,8 @@ Developers, testers, reviewers, auditors.
 | SP-22 | Automatic owner actions never widen access |
 | SP-23 | A re-key proven by the recovery key is approved without an out-of-band check |
 | SP-24 | An invite proof shows the joiner held the invite link (deferred, D-32) |
+| SP-25 | An open vault alone can't change the account's credentials |
+| SP-26 | A session can't destroy an account's private records |
 
 ---
 
@@ -217,9 +219,9 @@ Related threats: TH-10.
 
 ### SP-11: The account key can be rotated
 
-Property: an account can replace its account key without leaving any team and without changing its member keys. After rotation, the old account key opens no record the account writes afterwards. The credentials entered at rotation open the new key; a recovery phrase or PIN left out is set up again afterwards (D-35, D-40). Other devices must register again (D-10).
+Property: an account can replace its account key without leaving any team and without changing its member keys. After rotation, the old account key opens no record the account writes afterwards. The recovery phrase entered at rotation, which it keeps, and the new PIN, if one is given, open the new key (D-41). Other devices must register again (D-10).
 
-Limit: rotation retires the account key only. Member keys don't change, so anyone who already copied a member keys bundle (or the old account key and its wraps) keeps that team's access until the member re-keys in that team and the team key is rotated (SP-12); `secureAccount` does both (D-36). A rotation without the recovery phrase leaves the account without recovery until a new phrase is confirmed (D-35); one without a PIN leaves it without a PIN until one is set (D-40).
+Limit: rotation retires the account key only. Member keys don't change, so anyone who already copied a member keys bundle (or the old account key and its wraps) keeps that team's access until the member re-keys in that team and the team key is rotated (SP-12); `secureAccount` does both (D-36). A rotation without a new PIN leaves the account without a PIN until one is set (D-40).
 
 Assumptions: AS-01.
 
@@ -230,17 +232,18 @@ Related threats: TH-10, TH-12, TH-20, TH-44.
 
 ### SP-12: Compromised member keys can be replaced
 
-Property: a member can get new member keys for a team. The new keys are accepted only once an owner approves them, by a rotation sealed to them; a signature by the old keys is never enough. An approval holds for exactly the keys the owner reviewed: keys published after the review, or replaced by a newer re-key, are refused. A rotation carries one set of keys per account, so after that rotation the old member keys open nothing new.
+Property: a member can get new member keys for a team. The new keys are accepted only once an owner approves them, by a rotation sealed to them; a signature by the old keys is never enough. An approval holds for exactly the keys the owner reviewed: keys published after the review, or replaced by a newer re-key, are refused. A rotation carries one set of keys per account, so after that rotation the old member keys open nothing new. Keys published under the account by someone else never block the member's own keys: new keys take the newest published version plus one, and the vault reports keys it didn't make (`foreign-member-keys`, D-43).
 
 A recovery signature is the only proof (SP-23, D-38); any other re-key is shown to the owner as unproven, for an out-of-band check.
 
 Assumptions: AS-01, AS-06 for the owner's check that the request is genuine.
 
 Verification:
-- `test/security/member-rekey.test.ts`: keys published without proof are reported as unproven and never approved by themselves; an owner approves by rotating (accepted); the old keys get no roster entry of the new version and open nothing created after it; keys published after the owner's review, including an owner's own, are refused; once the new keys are approved the vault deletes the old bundle, and the team still opens.
+- `test/security/member-rekey.test.ts`: keys published without proof are reported as unproven and never approved by themselves; an owner approves by rotating (accepted); the old keys get no roster entry of the new version and open nothing created after it; keys published after the owner's review, including an owner's own, are refused; once the new keys are approved the vault deletes the old bundle, and the team still opens. A session thief publishes keys at the member's next version: the member's join and re-key still succeed, at the following version, and the vault reports the foreign keys until they're superseded.
 - `test/security/key-substitution.test.ts`: approving keys a re-key replaced is refused.
+- `test/security/secure-account.test.ts`: keys published by a session thief before `secureAccount` don't block its re-keys or their approval by `reconcile`.
 
-Related threats: TH-12, TH-13, TH-20, TH-37.
+Related threats: TH-12, TH-13, TH-20, TH-37, TH-47.
 
 ### SP-19: Recovering an account requires authorized material
 
@@ -259,14 +262,14 @@ Related threats: TH-11, TH-18.
 
 ### SP-15: Owner and membership changes are visible
 
-Property: every accepted change to the owner list and every newly approved member key is reported by the library to the integration, with the signer and what changed, on every member's client. Who received each version created by a rotation is its signed roster, which the server can't edit or trim. Owners also get an overview of each member's access, its proof, and what needs their action (members awaiting approval, unproven re-keys, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Each owner's key must match that account's published member keys, so a report names the account the key belongs to, unless the server also forges that account's member keys record.
+Property: every change to the owner list or to the roster (accounts added, removed or re-keyed) in the records a client verifies since its last verified state is reported by the library to the integration, with the signer and what changed, on every member's client (D-44). Who received each version created by a rotation is its signed roster, which the server can't edit or trim. Owners also get an overview of each member's access, its proof, and what needs their action (members awaiting approval, unproven re-keys, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Each owner's key must match that account's published member keys, so a report names the account the key belongs to, unless the server also forges that account's member keys record.
 
 Limit: this is detection, not prevention. Someone holding a stolen owner key can admit a member, rotate, and remove the other owners before anyone reads the report. The "given by a removed owner" list shown during an owner removal is a warning, not a control: a later rotation by another owner hides the origin (TH-17).
 
 Assumptions: the integration displays these changes.
 
 Verification:
-- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; every member sees every admission in the roster.
+- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; every member sees every admission in the roster; a member admitted and removed again between two opens is reported to a member whose anchor predates both.
 
 Related threats: TH-17, TH-41.
 
@@ -357,7 +360,7 @@ Property: a `member-keys` record signed by the recovery key that the account's c
 Limits:
 - **A leaked phrase** proves re-keys too: a thief can replace a member's keys in every team, racing the real user (TH-41).
 - **Owners** are never approved automatically, even with a proof.
-- A phrase replaced **without** the old one re-keys every team without proof, so each needs a human approval.
+- A phrase replaced with the PIN instead of the old phrase (D-41) re-keys every team without proof, so each needs a human approval.
 
 Assumptions: AS-01, AS-03 for the device where the phrase is typed.
 
@@ -382,3 +385,37 @@ Verification:
 
 Related threats: TH-02, TH-04, TH-37, TH-43.
 
+## Credentials and records
+
+### SP-25: An open vault alone can't change the account's credentials
+
+Property: changing the PIN, replacing the recovery phrase and rotating the account key each require a current credential besides the open vault (D-41): the current PIN, verified by one server evaluation, or the phrase, for a PIN change (only the phrase when no PIN is set); the current phrase or the current PIN for a phrase replacement; the current phrase for a rotation, which keeps it. A wrong credential is refused before anything is written.
+
+Limits:
+- Whoever holds a current credential can use it (TH-11).
+- Setting up recovery the first time needs no credential: the account can't be in a team before (D-35).
+- Revoking a device needs only an open vault.
+
+Assumptions: AS-01, AS-05.
+
+Verification:
+- `test/security/credential-rotation.test.ts`: with only an open vault, changing the PIN, replacing the phrase and rotating are refused and write nothing; each succeeds with the current credential; a PIN check spends one evaluation; with no PIN set, a PIN change needs the phrase.
+- `test/security/account-rotation.test.ts`: a rotation without the phrase is refused; one with it keeps recovery set up.
+
+Related threats: TH-10, TH-45.
+
+### SP-26: A session can't destroy an account's private records
+
+Property: removing, replacing or retiring an account's private record (account key wraps, member keys wraps, team states) archives it, and each team state write archives the previous revision: nothing the account's session can ask the server destroys one (D-42). Support can restore a single record, or an account key version with its records, after which the account opens as before.
+
+Limits:
+- Until support restores, the account can be locked out or a team unavailable.
+- Restores are the integration's support process: the library doesn't check who asks for one.
+- Devices that accepted a later account key version refuse a restored older one (SP-07) and must be reset. Owner approvals made in between stay.
+
+Assumptions: the server honours rule 7 ([server contract](scope.md#server-contract)).
+
+Verification:
+- `test/security/record-archive.test.ts`: a garbage `team-state` stops the team (`state_unreadable`) and restoring the previous revision reopens it; a deleted `member-keys-wrap` is restored; a PIN thief replaces the phrase and rotates, and restoring the earlier account key version brings back the user's PIN, phrase, devices and teams; a device that accepted the thief's version reports `rollback`.
+
+Related threats: TH-11, TH-36, TH-46.

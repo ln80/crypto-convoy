@@ -91,7 +91,8 @@ The transfer opens only for that receiver, once. Your bridge carries the two str
 What to render:
 
 - `vault.status()`: `account` (`not-set-up`, `locked`, `unlocked`), `deviceRegistered`, and `recovery` (`not-set-up`, `set-up`).
-- `vault.warnings()`: `recovery-not-set-up`, or `rekey-needed` for teams whose keys predate the current phrase.
+- `vault.warnings()`: `recovery-not-set-up`, `pin-not-set-up`, `rekey-needed` for teams whose keys predate the current phrase, and `foreign-member-keys` for teams where keys were published under the account that this vault didn't make (D-43): treat it as a sign of session theft.
+- `team.ownerChanges` and `team.memberChanges`: owner list and roster changes since this account last verified the team, each with its signer (SP-15).
 - `team.state`: `not-joined`, `pending`, `ready` or `unverified`.
 - `team.owner().overview(activeIds)`, for owners: each account's `status` (`no-keys`, `awaiting-approval`, `approved`, `outdated`, `rekey-awaiting-approval`), its newest `keys` (a handle to approve), their `proof` (`recovery` or `none`), and warnings (`single-owner`, `members-awaiting-approval`, `rekeys-awaiting-approval`, `rotation-needed`) with the operation that clears each.
 
@@ -115,8 +116,9 @@ It rotates out holders no longer active (never owners), and approves re-keys pro
 | **Approve someone** | Check the request out of band, then `owner.approve([account.keys])` with the handles from `overview`: one rotation for all of them, joiners and re-keys alike. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
 | **Someone leaves** | Drop them from `activeIds`; the next `reconcile` rotates. Or `owner.remove([accountId])` now |
 | **Device lost, never used by anyone** | `vault.revokeDevice(deviceId)` from another device |
-| **Device possibly misused, or PIN leaked** | `vault.secureAccount({ phrase, newPin? })` from a clean device: new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Retry any `failed` team with `vault.rekey(teamId, { phrase })` |
-| **Replace the recovery phrase** | `beginRecoverySetup()`, then `confirmRecoveryPhrase(typedBack, { currentPhrase })`: teams re-key with proof. Without `currentPhrase` (phrase lost) each team needs an owner's approval |
+| **Device possibly misused, or PIN leaked** | End the account's other sign-in sessions, then `vault.secureAccount({ phrase, newPin? })` from a clean device: new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Retry any `failed` team with `vault.rekey(teamId, { phrase })` |
+| **Replace the recovery phrase** | `beginRecoverySetup()`, then `confirmRecoveryPhrase(typedBack, { currentPhrase })`: teams re-key with proof. With `{ currentPin }` instead (phrase lost), each team needs an owner's approval (D-41) |
+| **Change the PIN** | `vault.changePin(newPin, { currentPin })`, or `{ phrase }` when the PIN is forgotten or not set |
 | **Hand over or add an owner** | `owner.setOwners([...])`: a rotation with the new owner list; keeps every holder |
 | **Single owner warning** | Add a co-owner with `setOwners`: a team whose only owner loses every credential is frozen (TH-18) |
 

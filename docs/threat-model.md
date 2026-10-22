@@ -67,8 +67,8 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |
 | TH-08 | Online PIN guessing with a stolen session | A11, A9 | Mitigated: SP-08 (server rate limit) |
 | TH-09 | The server operator brute-forces a PIN | A2 | Accepted |
-| TH-10 | Lost or stolen device | A7 | Partly mitigated: SP-10 (revoke only); full remedy `secureAccount`: SP-11 + SP-23 |
-| TH-11 | Leaked PIN or recovery phrase | A8 | Mitigated: SP-09, SP-19 |
+| TH-10 | Lost or stolen device | A7 | Partly mitigated: SP-10 (revoke only); full remedy `secureAccount`: SP-11 + SP-23; the device can't take the remedy away: SP-25 |
+| TH-11 | Leaked PIN or recovery phrase | A8 | Partly mitigated: SP-09, SP-19; a takeover is undone by a support restore: SP-26 |
 | TH-12 | Account key leaked | A9, A7 | Mitigated: SP-11 + SP-12 + SP-23; past access accepted |
 | TH-13 | Member keys of one team leaked | A9, A7 | Mitigated: SP-12 + SP-23; past access accepted |
 | TH-14 | Removed member keeps reading | A4 | Mitigated: SP-06, SP-22; history accepted |
@@ -93,7 +93,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-33 | Removed owner signs grants for versions they owned | A4, A6 | Not applicable in v1: no grants (D-37) |
 | TH-34 | PIN hashing cost set too low | Integration error, A2 | Mitigated: library hard floor (D-17, SP-08) |
 | TH-35 | A timestamp shown as proof of when something was sent | A5, A10 | Accepted; integration must not present it as trusted |
-| TH-36 | Session thief destroys the account | A11 | Mitigated: SP-09 (removed and replaced wraps archived for a restore window, server contract, D-39) |
+| TH-36 | Session thief destroys the account | A11 | Mitigated: SP-09, SP-26 (removed and replaced records archived for a restore window, server contract, D-39, D-42) |
 | TH-37 | Session thief injects member keys | A11 | Partly mitigated: SP-12 (pinned approvals), SP-22 (no automatic approval without proof), SP-23 (recovery proof); residual accepted |
 | TH-38 | Split view: two records for one version | A6 with A2 | Accepted (needs key transparency) |
 | TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
@@ -101,6 +101,9 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
 | TH-42 | The server hides grants to suppress a rotation | A2 | Not applicable in v1: no grants; who holds a version is the signed roster (D-37) |
 | TH-43 | An invite link leaks | A2, A11, A1 | Not applicable in v1: invite links carry no secret (D-32 deferred) |
+| TH-45 | An unlocked vault replaces the account's credentials | A7, A9 | Mitigated: SP-25 (D-41) |
+| TH-46 | Session thief corrupts private team records | A11 | Mitigated: SP-26 (D-42); unavailability until restored accepted |
+| TH-47 | Session thief takes a member's key version numbers | A11 | Mitigated: SP-12 (D-43); bait keys need a human |
 | TH-44 | Session thief spends the PIN budget | A11 with A7, A8 or A9 | Mitigated: SP-11 (phrase-only rotation and securing, D-40); the integration may reset the budget |
 
 ---
@@ -216,7 +219,7 @@ Impact: everything the account can reach, for as long as the device keeps workin
 
 Disposition: partly mitigated by SP-10. The user revokes the device from another one: the server stops serving its wrap, so the device can't unlock again. That stops a thief who hasn't used the device yet. The integration can also have the server stop serving device wraps after a period of inactivity, so a forgotten device asks for the PIN again (protocol §5.5).
 
-A thief who used the device while it was unlocked may have copied the account key and the member keys of every team it opened. Revocation alone doesn't evict them (D-21). The full remedy is `secureAccount` (D-36): it rotates the account key (SP-11), with a new PIN or none (D-40), and re-keys every team with a recovery proof (SP-23), which each team's owners approve at their next `reconcile`, without an out-of-band check, unless the account is an owner there. The user enters the recovery phrase on a device the thief didn't control. Anything already decrypted, and what a team writes before its owners reconcile, is accepted as lost.
+A thief who used the device while it was unlocked may have copied the account key and the member keys of every team it opened. Revocation alone doesn't evict them (D-21). The full remedy is `secureAccount` (D-36): it rotates the account key (SP-11), with a new PIN or none (D-40), and re-keys every team with a recovery proof (SP-23), which each team's owners approve at their next `reconcile`, without an out-of-band check, unless the account is an owner there. The user enters the recovery phrase on a device the thief didn't control. The thief can't take this remedy away first: the device alone can't change the account's credentials (SP-25, TH-45). Anything already decrypted, and what a team writes before its owners reconcile, is accepted as lost.
 
 ### TH-11: Leaked PIN or recovery phrase
 
@@ -226,7 +229,7 @@ Attack: uses the leaked PIN (with a session for the OPRF evaluation) or the leak
 
 Impact: the account key and every team.
 
-Disposition: mitigated by SP-09 and SP-19. The user changes the PIN or replaces the recovery phrase, and the old one stops opening anything. If the thief may already have used it, the user also rotates the account key (TH-12).
+Disposition: partly mitigated by SP-09 and SP-19. The user changes the PIN or replaces the recovery phrase, and the old one stops opening anything. If the thief may already have used it, the user also rotates the account key (TH-12). A thief who also holds a session can act first: with the PIN, replace the phrase and rotate (D-41 lets the PIN replace a lost phrase), locking the user out. Accepted, with a support restore of the account key version from before as the remedy (SP-26, D-42).
 
 ## Key compromise
 
@@ -290,7 +293,7 @@ Attack: uses the owner's keys to admit members they control, or to remove the ot
 
 Impact: reads future items; may lock out the honest owners.
 
-Disposition: partly mitigated by SP-15, which is detection, not prevention. Every owner-list change and every new member is reported on all members' clients, but the attacker can act before anyone reads the reports. The warning shown when an owner is removed (members whose current version that owner signed) can be washed out by a later rotation by another owner. Owner keys must match the accounts' published member keys, so a report can't show an attacker's key under another member's name, unless the server also forges that member's keys record. The honest owners recover by removing the stolen key while they are still owners (its signatures are then refused for every later version, SP-05), or, if locked out, by creating a new team and moving members to it out of band. A single stolen owner key allowing a takeover is accepted (D-06): a quorum wouldn't prevent the more damaging attack, admitting a fake member. Automatic approvals never change the owner list: an owner's re-key, even proven by their recovery key, needs another owner's approval (SP-23, TH-41).
+Disposition: partly mitigated by SP-15, which is detection, not prevention. Every owner-list change and every roster change is reported on all members' clients (D-44), but the attacker can act before anyone reads the reports. The warning shown when an owner is removed (members whose current version that owner signed) can be washed out by a later rotation by another owner. Owner keys must match the accounts' published member keys, so a report can't show an attacker's key under another member's name, unless the server also forges that member's keys record. The honest owners recover by removing the stolen key while they are still owners (its signatures are then refused for every later version, SP-05), or, if locked out, by creating a new team and moving members to it out of band. A single stolen owner key allowing a takeover is accepted (D-06): a quorum wouldn't prevent the more damaging attack, admitting a fake member. Automatic approvals never change the owner list: an owner's re-key, even proven by their recovery key, needs another owner's approval (SP-23, TH-41).
 
 ### TH-18: Owner loses their credentials
 
@@ -493,7 +496,7 @@ Attack: calls "change PIN", "replace recovery phrase" and "revoke device", suppl
 
 Impact: permanent loss of the account and of every team key only it could open.
 
-Disposition: mitigated by the server contract (rule 7, D-39): removing or replacing a wrap means the server **stops serving** it and archives it for a restore window set by the integration, restorable only through the integration's support process. Every replacement is archived, so after several, support picks the generation from before the theft; restoring archives the live garbage rather than dropping it. The old credential stops working as soon as the wrap stops being served (SP-09). Residual, accepted: a data thief (A1) can find retained wraps, which still need the old PIN with a server evaluation, or the old phrase.
+Disposition: mitigated by the server contract (rule 7, D-39, D-42) and SP-26: removing or replacing a wrap means the server **stops serving** it and archives it for a restore window set by the integration, restorable only through the integration's support process. Every replacement is archived, so after several, support picks the generation from before the theft; restoring archives the live garbage rather than dropping it. The old credential stops working as soon as the wrap stops being served (SP-09). Residual, accepted: a data thief (A1) can find retained wraps, which still need the old PIN with a server evaluation, or the old phrase.
 
 ### TH-37: Session thief injects member keys
 
@@ -506,7 +509,7 @@ Impact: the attacker reads the team from that rotation on.
 Disposition: partly mitigated.
 - **Proof.** A re-key signed by the member's recovery key is proven (SP-23). The thief can't produce one: the phrase isn't stored. Anything else is shown to the owner as unproven, prompting an out-of-band check (AS-06).
 - **Pinned approvals.** An owner's approval holds for exactly the keys they reviewed; keys published afterwards are refused (SP-12). `reconcile` never approves an unproven request by itself (SP-22).
-- **Detection.** A preempted first join is detected by the real member: their vault finds a `member-keys` record that doesn't match its own keys (`key_mismatch`).
+- **Detection.** Keys published under the account that the member's vault didn't make are reported to the member (`foreign-member-keys`, D-43), and they can't block the member's own join or re-key (TH-47).
 
 Residual, accepted: an owner who approves an unproven request without checking. Invite proofs, which would cover first joins, are deferred (D-32).
 
@@ -581,3 +584,35 @@ Attack: changes the PIN, then calls the OPRF until the account's budget is spent
 Impact: the thief's PIN keeps opening the account, and the thief's devices stay registered, while the user waits.
 
 Disposition: mitigated by D-40 (SP-11): `secureAccount` and `rotate` run with the recovery phrase alone, retire every wrap of the old version (the thief's PIN and devices), and leave the PIN to be set once the budget allows. The integration may also reset the budget through its support process. Residual, accepted: until the budget resets or is reset, the account has no PIN and unlocks with the phrase or a registered device only.
+
+## Sixth pass: open vaults, sessions and support restores
+
+### TH-45: An unlocked vault replaces the account's credentials
+
+Actor: device thief (A7) or injected script in the vault (A9), holding an open vault but no credential. Same-device unlocks need none.
+
+Attack: replaces the recovery phrase, changes the PIN, or rotates the account key, so the user's credentials stop working and `secureAccount` can't run.
+
+Impact: account takeover: the user loses the account and every team only it could open.
+
+Disposition: mitigated by SP-25 (D-41): each of these needs a current credential besides the open vault. Residual, accepted: the thief can revoke the user's other devices, which register again with the PIN or the phrase.
+
+### TH-46: Session thief corrupts private team records
+
+Actor: session thief (A11).
+
+Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records.
+
+Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it.
+
+Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
+
+### TH-47: Session thief takes a member's key version numbers
+
+Actor: session thief (A11).
+
+Attack: publishes `member-keys` records under the victim's account at the versions the member's next join or re-key would use.
+
+Impact: the member's own write collides forever (`STALE_VERSION`): no join, and no re-key, including those of `secureAccount`.
+
+Disposition: mitigated by SP-12 (D-43): new keys take the newest published version plus one, and the vault reports keys it didn't make (`foreign-member-keys`). The bait keys stay unproven, so only a human approves them (TH-37).

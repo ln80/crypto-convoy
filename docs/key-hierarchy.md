@@ -73,7 +73,7 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Generation | Derived each time the user types the PIN. Each derivation costs one rate-limited server evaluation. |
 | Storage | Never stored, not even on the device (D-05). |
 | Access | Whoever knows the PIN **and** gets a server evaluation for this account. |
-| Rotation | On PIN change: a new wrap replaces the old one. |
+| Rotation | On PIN change, with the current PIN or the phrase (D-41): a new wrap replaces the old one. |
 | Recovery | Not needed: a lost PIN is replaced through the recovery phrase. |
 | Destruction | After a PIN change, the server stops serving the old wrap and archives it for the restore window (rule 7, D-39). |
 
@@ -86,7 +86,7 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Generation | The phrase is generated on the client and shown once. The user keeps it outside the product. |
 | Storage | Never stored by the library or the server. |
 | Access | Whoever holds the phrase. |
-| Rotation | When the user replaces the phrase. An account key rotation keeps it if the user enters it again; otherwise the recovery wrap is dropped and a new phrase is set up (D-10, D-35). |
+| Rotation | When the user replaces the phrase, with the current phrase or the PIN (D-41). An account key rotation needs the phrase and keeps it. |
 | Recovery | None. Losing the phrase and every other unlock method loses the account. |
 | Destruction | After a replacement, the server stops serving the old wrap and archives it for the restore window (rule 7, D-39). |
 
@@ -311,24 +311,24 @@ Other devices are not affected.
 
 ### Changing the PIN
 
-1. Open the `accountKey` with any unlock method.
+1. Open the `accountKey` with any unlock method, and enter the current PIN (one server evaluation) or the recovery phrase (D-41).
 2. Store the new wrap in place of the old one (`replace`). The server archives the old one without serving it, so the old credential stops working at once (SP-09, D-39).
 
 A copy of the old wrap taken before the replacement, or restored from the archive, still opens the current `accountKey` with the old credential. If that's a concern, also rotate the account key.
 
 ### Replacing the recovery phrase
 
-1. Open the `accountKey`, set up a new phrase as at account setup (two steps), and store its wrap in place of the old one (SP-09).
+1. Open the `accountKey`, enter the current phrase or the current PIN (D-41), set up a new phrase as at account setup (two steps), and store its wrap in place of the old one (SP-09).
 2. Re-key every team (§6.8): the new member keys carry the new recovery public key.
    - The user still has the old phrase: the re-keys are signed by the old recovery key, and owners' `reconcile` approves them (SP-23), except in teams where the account is an owner.
-   - The old phrase is lost: the re-keys carry no proof, and an owner approves each by hand.
+   - The old phrase is lost, and the user entered the PIN: the re-keys carry no proof, and an owner approves each by hand. If the old phrase may have leaked, secure the account with the new one next.
 
 ### Losing a device (D-21, D-36)
 
 Two cases:
 
 - **Not used by anyone** (locked, wiped, or nobody opened the app). From another device, or after recovery, revoke it. The server stops serving its wrap, and the device can't unlock again (SP-10). Nothing else is needed.
-- **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. From another device, the user runs `secureAccount` with the recovery phrase and a new PIN, or the phrase alone when the PIN budget is spent (D-40, TH-44):
+- **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. The integration ends the account's other sign-in sessions first (D-43). From another device, the user runs `secureAccount` with the recovery phrase and a new PIN, or the phrase alone when the PIN budget is spent (D-40, TH-44). The stolen device can't take this remedy away first: it can't change the account's credentials (D-41).
   1. the account key is rotated (SP-11), which cuts every other device (D-10);
   2. every team is re-keyed, each re-key signed by the recovery key (SP-23);
   3. each team's owners approve the new keys at their next `reconcile`, by rotating; an owner's own re-key waits for another owner.
@@ -338,10 +338,18 @@ Two cases:
 ### Rotating the account key (D-10)
 
 1. Open the current `accountKey`.
-2. The user enters the PIN (one server evaluation), the recovery phrase, or both: at least one (D-40).
+2. The user enters the recovery phrase (D-41), and optionally a new PIN (one server evaluation, D-40).
 3. Generate the next `accountKey` version and re-wrap every member keys bundle under it.
-4. Store the current-device wrap, the new PIN wrap if a PIN was entered, and the recovery wrap if the phrase was entered; switch the account to the new version in one atomic step. Without a PIN, the account has none until the user sets one (D-40).
-5. The server stops serving every wrap of the old version (rule 7, D-39). Other devices register again after a PIN or phrase unlock. Without the phrase, the user sets up a new one next (D-35), which re-keys every team as when replacing a lost phrase.
+4. Store the current-device wrap, the recovery wrap, and the new PIN wrap if a PIN was entered; switch the account to the new version in one atomic step. Without a PIN, the account has none until the user sets one (D-40).
+5. The server stops serving every record of the old version and archives it (rule 7, D-42). Other devices register again after a PIN or phrase unlock.
+
+### Restoring an account (D-42)
+
+When someone took over the account with a credential (they replaced the phrase or the PIN, perhaps rotated), the integration's support process restores it:
+
+1. Support restores the account key version from before the takeover: it becomes current again, the thief's later versions are archived, and the user's wraps and member keys wraps of that version are served again. Within one version, support restores the single records the thief replaced.
+2. The user unlocks with their own PIN or phrase, and secures the account (§5.11).
+3. Devices that accepted the thief's version refuse the older one (`rollback`): they are reset and register again. In teams where an owner approved the thief's keys, the user's re-key needs an owner's approval.
 
 Member keys don't change, so teams see nothing. The old `accountKey` only opens records that the server no longer serves (SP-11). For the same reason, rotation alone doesn't end team access for someone who already copied a member keys bundle; that takes a re-key in each team (`secureAccount` does both).
 
