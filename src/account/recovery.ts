@@ -5,7 +5,7 @@ import { openRecoveryPublicKey } from "../records/account-key-wrap.js";
 import { parseMemberKeysWrap } from "../records/member-keys-wrap.js";
 import type { KeyPair } from "../suites/suite.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
-import { newMemberKeys, openBundles } from "./member-custody.js";
+import { newMemberKeys, nextMemberKeysVersion, openBundles } from "./member-custody.js";
 import { deriveRecoveryKeys } from "./recovery-key.js";
 import { commit, fetchWrap } from "./unlock-methods.js";
 
@@ -62,7 +62,7 @@ export async function rekeyTeam(
   const [newest] = await openBundles(ports, account, teamId);
   if (!newest) throw new ConvoyError("NOT_GRANTED");
   const options = { recoveryPublicKey, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}) };
-  await commit(ports, newMemberKeys(ports, account, teamId, newest.memberKeysVersion + 1, options).ops);
+  await commit(ports, newMemberKeys(ports, account, teamId, await nextMemberKeysVersion(ports, account, teamId), options).ops);
 }
 
 /** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11). */
@@ -85,6 +85,24 @@ export async function rekeyTeams(
     }
   }
   return { rekeyed, failed };
+}
+
+/**
+ * Teams where the account has a published member keys version newer than every bundle the vault
+ * holds: keys this vault didn't make, a sign that someone holds the session (D-43, TH-37).
+ */
+export async function teamsWithForeignKeys(ports: AccountPorts, account: OpenAccount): Promise<string[]> {
+  const foreign: string[] = [];
+  for (const teamId of await accountTeams(ports, account)) {
+    const [newest] = await openBundles(ports, account, teamId);
+    const published = await callPort(() => ports.store.list({ type: "member-keys", teamId, accountId: account.accountId }));
+    const newer = published.some((json) => {
+      const version = (json as { memberKeysVersion?: unknown }).memberKeysVersion;
+      return typeof version === "number" && newest !== undefined && version > newest.memberKeysVersion;
+    });
+    if (newer) foreign.push(teamId);
+  }
+  return foreign;
 }
 
 /** Teams whose newest member keys don't carry the current recovery key: they need a re-key (§5.6). */

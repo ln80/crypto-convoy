@@ -153,6 +153,19 @@ export class MemoryRecordStore {
             if (new TextEncoder().encode(JSON.stringify(op.record)).length > VERSION_RECORD_BYTES) throw conflict("record too large");
             newVersions.push({ teamId, version });
           }
+          if (op.key.type === "member-keys") {
+            // §11 (D-43): only the account publishes its keys, and their versions are consecutive.
+            const { teamId, accountId, memberKeysVersion } = op.key;
+            if (accountId !== caller) throw new Forbidden("member keys of another account");
+            const newest = Math.max(
+              0,
+              ...[...live.values()]
+                .map((e) => fieldsOf(e.key))
+                .filter((k) => k["type"] === "member-keys" && k["teamId"] === teamId && k["accountId"] === accountId)
+                .map((k) => k["memberKeysVersion"] as number),
+            );
+            if (memberKeysVersion !== newest + 1) throw conflict("member keys version must be the newest + 1");
+          }
           if (op.key.type === "item" || op.key.type === "inbox") {
             atCurrentVersion.push({ teamId: op.key.teamId, version: op.record["teamKeyVersion"] });
           }

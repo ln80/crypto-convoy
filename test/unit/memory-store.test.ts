@@ -182,3 +182,18 @@ describe("fake OPRF server (§5.1)", () => {
     expect(Buffer.from(again).equals(Buffer.from(forA))).toBe(true);
   });
 });
+
+describe("member-keys (§11, D-43)", () => {
+  it("only the account publishes its keys, at its newest version plus one", async () => {
+    const server = new MemoryRecordStore();
+    const create = (accountId: string, memberKeysVersion: number): WriteOp => {
+      const key = { type: "member-keys", teamId: "t", accountId, memberKeysVersion } as RecordKey;
+      return { op: "create", key, record: { ...key } as WireRecord };
+    };
+    await expect(server.as("mallory").commit([create("bob", 1)])).rejects.toThrow("member keys of another account");
+    await expect(server.as("bob").commit([create("bob", 2)])).rejects.toBeInstanceOf(StoreConflictError);
+    await server.as("bob").commit([create("bob", 1)]);
+    await expect(server.as("bob").commit([create("bob", 3)])).rejects.toBeInstanceOf(StoreConflictError);
+    await server.as("bob").commit([create("bob", 2)]);
+  });
+});

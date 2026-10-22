@@ -521,7 +521,7 @@ Status: Accepted.
 
 Problem: the vault numbered new member keys from the bundles it held: 1 on joining, the newest held version + 1 on a re-key. Someone holding the user's session can publish `member-keys` records under the account (TH-37). Any version they took made the member's own write collide, forever, with `STALE_VERSION`, including the re-keys of `secureAccount` (TH-47). The member couldn't tell why.
 
-Decision: new member keys take the account's newest published version for the team, plus one. The vault reports `foreign-member-keys` for a team where a published version is newer than every bundle it holds: keys this vault didn't make. The integration ends the account's other sign-in sessions before `secureAccount`, so nobody can publish newer keys over its proven re-keys.
+Decision: new member keys take the account's newest published version for the team, plus one. The vault reports `foreign-member-keys` for a team where a published version is newer than every bundle it holds: keys this vault didn't make. The integration ends the account's other sign-in sessions before `secureAccount`, so nobody can publish newer keys over its proven re-keys. As defence in depth, the server accepts a `member-keys` record only from its own account, and only at that account's newest version for the team plus one: no other account can publish under it, and nobody can jump to the largest version and leave none for the member.
 
 Rejected: refusing gaps in member keys versions. Approvals and rosters pin exact keys by version and hash, so a gap means nothing, and refusing one would hand the blocking back to the thief.
 

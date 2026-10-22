@@ -44,6 +44,20 @@ export interface NewMemberKeysOptions {
   readonly recoverySigningSecretKey?: MemberKeysProofs["recoverySigningSecretKey"];
 }
 
+/**
+ * The version for new member keys: one above the account's newest published record for the team
+ * and every bundle held, so keys someone else published never block it (§5.9, D-43).
+ */
+export async function nextMemberKeysVersion(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<number> {
+  const published = await callPort(() => ports.store.list({ type: "member-keys", teamId, accountId: account.accountId }));
+  const versions = published.map((json) => (json as { memberKeysVersion?: unknown }).memberKeysVersion);
+  for (const version of versions) {
+    if (!Number.isSafeInteger(version) || (version as number) < 1 || (version as number) >= 2 ** 32 - 1) throw new ConvoyError("MALFORMED_RECORD");
+  }
+  const held = (await openBundles(ports, account, teamId)).map((b) => b.memberKeysVersion);
+  return Math.max(0, ...(versions as number[]), ...held) + 1;
+}
+
 /** New member keys: the published record, with its proof, and its wrap (§5.9). */
 export function newMemberKeys(
   ports: AccountPorts,
@@ -82,9 +96,15 @@ export function newMemberKeys(
 }
 
 /** Team creation (§6.3): member keys and version 1, owned by and rostered to the creator, in one batch. */
-export function newTeamOps(ports: AccountPorts, account: OpenAccount, teamId: string, recoveryPublicKey: Uint8Array): WriteOp[] {
+export function newTeamOps(
+  ports: AccountPorts,
+  account: OpenAccount,
+  teamId: string,
+  recoveryPublicKey: Uint8Array,
+  memberKeysVersion: number,
+): WriteOp[] {
   const { suite, clock } = ports;
-  const { ops, bundle } = newMemberKeys(ports, account, teamId, 1, { recoveryPublicKey });
+  const { ops, bundle } = newMemberKeys(ports, account, teamId, memberKeysVersion, { recoveryPublicKey });
   const teamKey = suite.randomBytes(suite.sizes.key);
   const signer = { accountId: account.accountId, signingPublicKey: bundle.pairs.signing.publicKey };
   const version = createTeamKeyVersion(suite, {

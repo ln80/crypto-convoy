@@ -27,11 +27,12 @@ import {
   rekeyTeam,
   rekeyTeams,
   samePhrase,
+  teamsWithForeignKeys,
   teamsWithOldRecoveryKey,
   type RekeyReport,
 } from "./recovery.js";
 import { rotateAccount } from "./rotation.js";
-import { currentOwners, exportBundles, newMemberKeys, newTeamOps, openBundles, openSession } from "./member-custody.js";
+import { currentOwners, exportBundles, newMemberKeys, newTeamOps, nextMemberKeysVersion, openBundles, openSession } from "./member-custody.js";
 import {
   acceptVersion,
   commit,
@@ -68,8 +69,12 @@ export interface VaultStatus {
 
 /** Something about the account the user should act on, with the operation that clears it (§12). */
 export interface VaultWarning {
-  readonly code: "recovery-not-set-up" | "pin-not-set-up" | "rekey-needed";
-  /** For `rekey-needed`: teams whose member keys don't carry the current recovery key. */
+  readonly code: "recovery-not-set-up" | "pin-not-set-up" | "rekey-needed" | "foreign-member-keys";
+  /**
+   * For `rekey-needed`: teams whose member keys don't carry the current recovery key. For
+   * `foreign-member-keys`: teams with keys published under the account that this vault didn't make
+   * (D-43): someone may hold the session; end other sessions, then re-key.
+   */
   readonly teamIds: readonly string[];
   readonly action: "beginRecoverySetup" | "changePin" | "rekey";
 }
@@ -354,13 +359,16 @@ export class Vault {
     if (!recovery) return [{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }, ...warnings];
     const stale = await teamsWithOldRecoveryKey(this.#ports, account, recovery);
     if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
+    const foreign = await teamsWithForeignKeys(this.#ports, account);
+    if (foreign.length > 0) warnings.push({ code: "foreign-member-keys", teamIds: foreign, action: "rekey" });
     return warnings;
   }
 
   /** Creates a team with this account as its first owner (§6.3). Throws `STALE_VERSION` if it exists. */
   async createTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
-    await commit(this.#ports, newTeamOps(this.#ports, account, teamId, await recoveryPublicKey(this.#ports, account)));
+    const version = await nextMemberKeysVersion(this.#ports, account, teamId);
+    await commit(this.#ports, newTeamOps(this.#ports, account, teamId, await recoveryPublicKey(this.#ports, account), version));
   }
 
   /**
@@ -371,7 +379,7 @@ export class Vault {
     const account = this.#requireAccount();
     if ((await openBundles(this.#ports, account, teamId)).length === 0) {
       const keys = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account) };
-      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, 1, keys).ops);
+      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, await nextMemberKeysVersion(this.#ports, account, teamId), keys).ops);
     }
   }
 

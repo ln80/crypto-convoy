@@ -1,12 +1,13 @@
 /**
  * SP-10, SP-11, SP-23: securing an account after a misused device (D-36), also with the
  * PIN budget spent (D-40).
- * Threats: TH-10, TH-12, TH-44.
+ * SP-12: keys a session thief published don't block its re-keys (D-43).
+ * Threats: TH-10, TH-12, TH-44, TH-47.
  */
 import { describe, expect, it } from "vitest";
 import { vaultInternals } from "../../src/account/vault.js";
 import { world } from "../support/fixtures.js";
-import { accessOf, bundleOf } from "../support/forge.js";
+import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
@@ -97,5 +98,16 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
     const alice = await w.account("alice");
     await expect(alice.vault.rotate({ newPin: "2222" } as never)).rejects.toEqual(code("MALFORMED_RECORD"));
     expect(await alice.store.getAccountKeyVersion("alice")).toBe(1);
+  });
+
+  it("TH-47: keys a session thief published before secureAccount don't block its re-keys or their approval (D-43)", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const bob = members.bob!;
+    await bob.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) }]);
+    const clean = await w.device("bob");
+    await clean.vault.recover(bob.recoveryPhrase, "2222");
+    expect(await clean.vault.secureAccount({ phrase: bob.recoveryPhrase })).toEqual({ rekeyed: ["team-1"], failed: [] });
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+    expect((await clean.vault.openTeam("team-1")).state).toBe("ready");
   });
 });

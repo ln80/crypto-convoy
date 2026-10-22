@@ -288,7 +288,7 @@ Each record lists its fields, how it is protected, and what a reader checks. Key
 | Record | Written by | Read by | Protected by | Server rule (§11) |
 | --- | --- | --- | --- | --- |
 | `account-key-wrap` | The account | The account | `wrap` under a PIN, recovery or device key | Write-once; archived on revoke, replace, retire (D-39) |
-| `member-keys` | The member | Team members | Self-signature | Write-once |
+| `member-keys` | The member | Team members | Self-signature | Write-once; by its account; consecutive versions (D-43) |
 | `member-keys-wrap` | The account | The account | `wrap` under the account key | Write-once; archived when deleted or retired (D-42) |
 | `team-state` | The account | The account | `wrap` under the team state key | Compare-and-set; previous revisions archived (D-42) |
 | `team-key-version` | An owner | Team members | Owner signature, hash chain, `wrap` link, `seal` per roster entry | Write-once; current + 1 |
@@ -842,7 +842,7 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 | Record | Identity on the server | Rule |
 | --- | --- | --- |
 | `account-key-wrap` | account, version, method, deviceId | Write-once. Served only to the account. A recovery wrap may be created after the version's other wraps (§5.10). Replaced with `replace`, which needs a live record. Archived on replacement (at once), revocation (after a short delay at most) or retirement of the version: the server stops serving it and keeps it for a restore window (rule 7, D-39); the identity is unique among live records only. A device wrap may also stop being served after a period of inactivity. The switch of current version is atomic with the new wraps. |
-| `member-keys` | team, account, memberKeysVersion | Write-once. Readable by the team's members. |
+| `member-keys` | team, account, memberKeysVersion | Write-once. Written only by its account, at that account's newest `memberKeysVersion` for the team plus one, or 1 (D-43, defence in depth: readers verify every record regardless). Readable by the team's members. |
 | `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Write-once. Served only to the account. Archived when deleted, and with its account key version when it is retired (rule 7, D-42). |
 | `team-state` | account, team | Compare-and-set on `revision`. Served only to the account. Each write archives the previous revision (rule 7, D-42). |
 | `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer must be the caller and hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30); the listed owners aren't checked (scope, rule 8). Writers keep the record's JSON within 384 KiB (§2), about 1,000 roster entries with 36-byte ids; the server accepts records of that size. |

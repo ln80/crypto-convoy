@@ -1,7 +1,7 @@
 /**
  * SP-12: Compromised member keys can be replaced.
  * SP-23: a re-key with the recovery phrase is proven.
- * Threats: TH-13, TH-37.
+ * Threats: TH-13, TH-37, TH-47.
  */
 import { describe, expect, it } from "vitest";
 import { isConvoyError } from "../../src/errors.js";
@@ -129,5 +129,31 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
     const rekeyed = await bundleOf(bob.vault);
     expect(hasValidRecoveryProof(rekeyed.published, held.published.recoveryPublicKey)).toBe(true);
+  });
+});
+
+describe("SP-12: keys published under the account by someone else never block the member (D-43)", () => {
+  it("a re-key goes past a version a session thief took, and is approved; the vault reports the foreign keys until then", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    // Someone holding bob's session publishes keys at his next version.
+    await bob.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) }]);
+    expect(await bob.vault.warnings()).toContainEqual({ code: "foreign-member-keys", teamIds: ["team-1"], action: "rekey" });
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    expect((await bundleOf(bob.vault)).memberKeysVersion).toBe(3);
+    expect(await bob.vault.warnings()).toEqual([]);
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("a first join goes past a version 1 someone else took", async () => {
+    const { w, aliceTeam } = await team();
+    const carol = await w.account("carol");
+    await carol.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "carol", memberKeysVersion: 1 }, record: forgeMemberKeys("carol", 1, strangerKeys()) }]);
+    await carol.vault.joinTeam("team-1");
+    expect((await bundleOf(carol.vault)).memberKeysVersion).toBe(2);
+    expect(await carol.vault.warnings()).toEqual([]);
+    await aliceTeam.owner().approve([{ accountId: "carol", memberKeysVersion: 2 }]);
+    expect((await carol.vault.openTeam("team-1")).state).toBe("ready");
   });
 });

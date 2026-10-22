@@ -65,8 +65,8 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
     const { members, aliceTeam } = await team("bob");
     const mallory = strangerKeys();
     const alice = members.alice!;
-    // Newer keys published without approval: the rotation carries the held ones.
-    await alice.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, mallory) }]);
+    // Newer keys published under bob's account (his session, or the server) without approval: the rotation carries the held ones.
+    await members.bob!.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, mallory) }]);
     const { version } = await aliceTeam.owner().rotate({ keep: ["bob"] });
     expect((await accessOf(alice.store, "bob", version))!.memberKeysVersion).toBe(1);
     expect((await members.bob!.vault.openTeam("team-1")).state).toBe("ready");
@@ -82,7 +82,7 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
 
   it("keys published without proof from the current ones are flagged to the owner (TH-37)", async () => {
     const { members, aliceTeam } = await team("bob");
-    await members.alice!.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) }]);
+    await members.bob!.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) }]);
     expect((await requestOf(aliceTeam.owner(), "bob")).proof).toBe("none");
   });
 

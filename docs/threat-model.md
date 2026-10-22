@@ -615,4 +615,4 @@ Attack: publishes `member-keys` records under the victim's account at the versio
 
 Impact: the member's own write collides forever (`STALE_VERSION`): no join, and no re-key, including those of `secureAccount`.
 
-Disposition: mitigated by SP-12 (D-43): new keys take the newest published version plus one, and the vault reports keys it didn't make (`foreign-member-keys`). The bait keys stay unproven, so only a human approves them (TH-37).
+Disposition: mitigated by SP-12 (D-43): new keys take the newest published version plus one, the server accepts keys only from their account at its next version, and the vault reports keys it didn't make (`foreign-member-keys`). The bait keys stay unproven, so only a human approves them (TH-37).
