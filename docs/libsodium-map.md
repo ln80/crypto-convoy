@@ -23,10 +23,10 @@ Implementers porting the protocol to another language, reviewers, auditors.
 | `crypto_aead_xchacha20poly1305_ietf_encrypt` | `aeadEncrypt` | `wrap` (§3.1): account key, member keys, team state, team key link, item key, item manifest, inbox key | Key 32, nonce 24 | `cc1/index.ts` |
 | `crypto_aead_xchacha20poly1305_ietf_decrypt` | `aeadDecrypt` | `unwrap` (§3.1); any failure is `DECRYPTION_FAILED` | Key 32, nonce 24, ciphertext ≥ 16 | `cc1/index.ts` |
 | `crypto_scalarmult_base` | `generateEncryptionKeyPair`, `encryptionPublicKey` | Member encryption and inbox key pairs (secret from `randombytes_buf`); recomputing a public key in the post-checks of §4.3 and §4.9 | Secret key 32 | `cc1/index.ts` |
-| `crypto_box_seal` | `seal` | `seal` (§3.2): `grant-seal`, `submission` envelope | Public key 32, not in the X25519 low-order list (§2) | `cc1/index.ts` |
+| `crypto_box_seal` | `seal` | `seal` (§3.2): `roster-seal`, `submission` envelope, team keys transfer | Public key 32, not in the X25519 low-order list (§2) | `cc1/index.ts` |
 | `crypto_box_seal_open` | `sealOpen` | `open` (§3.2); label, context and trailing bytes are then checked by `blocks/seal.ts` | Key pair 32 + 32, sealed ≥ 48 | `cc1/index.ts` |
 | `crypto_sign_seed_keypair` | `signingKeyPair` | Member signing key from the bundle's `signingSeed` (§4.3) | Seed 32 | `cc1/index.ts` |
-| `crypto_sign_detached` | `sign` | `sign` (§3.3): member keys, continuity, team key version, grant | Secret key 64 | `cc1/index.ts` |
+| `crypto_sign_detached` | `sign` | `sign` (§3.3): member keys, member keys recovery signature, team key version | Secret key 64 | `cc1/index.ts` |
 | `crypto_sign_verify_detached` | `verify` | `verify` (§3.3), after the strict checks of §2 | Key 32, signature 64, S < L, valid key, R not small order | `cc1/index.ts` |
 | `crypto_core_ed25519_is_valid_point` | `verify`, `isValidSigningPublicKey` | Strict check of every signing public key (§2) | Length 32 | `cc1/index.ts` |
 | `crypto_generichash` | `hash`, `keyedHash` | Unkeyed BLAKE2b-256: record hash (§4.5), hashes bound in signatures and wraps (§4.5–§4.7), ciphertext hash (§3.4). Keyed: `pinKey` (§5.1), `recoveryKey` (§5.2), the part reference key and references (§3.9) | Key 16–64 bytes when keyed | `cc1/index.ts` |

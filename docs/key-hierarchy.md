@@ -62,7 +62,7 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Access | The account vault only. |
 | Rotation | On demand: after a device loss, a suspected leak or a credential leak. Re-wraps every member keys bundle; member keys themselves don't change, so no team notices (SP-11). |
 | Recovery | Through any unlock method. |
-| Destruction | Wraps of a retired version are deleted by the server after rotation ([server contract](scope.md#server-contract), rule 7). |
+| Destruction | Wraps of a retired version stop being served after rotation and are archived for the restore window ([server contract](scope.md#server-contract), rule 7, D-39). |
 
 ### `pinKey`
 
@@ -75,7 +75,7 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Access | Whoever knows the PIN **and** gets a server evaluation for this account. |
 | Rotation | On PIN change: a new wrap replaces the old one. |
 | Recovery | Not needed: a lost PIN is replaced through the recovery phrase. |
-| Destruction | The server deletes the old wrap after a PIN change. |
+| Destruction | After a PIN change, the server stops serving the old wrap and archives it for the restore window (rule 7, D-39). |
 
 ### `recoveryKey`
 
@@ -88,7 +88,7 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Access | Whoever holds the phrase. |
 | Rotation | When the user replaces the phrase. An account key rotation keeps it if the user enters it again; otherwise the recovery wrap is dropped and a new phrase is set up (D-10, D-35). |
 | Recovery | None. Losing the phrase and every other unlock method loses the account. |
-| Destruction | The server deletes the old wrap after a replacement. |
+| Destruction | After a replacement, the server stops serving the old wrap and archives it for the restore window (rule 7, D-39). |
 
 ### Recovery signing key
 
@@ -114,7 +114,7 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Access | Code running on that device. |
 | Rotation | None. A device whose wrap was removed registers again with a new `deviceKey`. |
 | Recovery | None. A lost device is replaced by registering a new one. |
-| Destruction | Revocation: the server deletes the device's wrap. An account key rotation also makes every other device's wrap useless; those devices register again (D-10). |
+| Destruction | Revocation: the server stops serving the device's wrap and archives it (rule 7, D-39). An account key rotation also makes every other device's wrap useless; those devices register again (D-10). |
 
 ## Team membership keys
 
@@ -314,7 +314,7 @@ Other devices are not affected.
 1. Open the `accountKey` with any unlock method.
 2. Store the new wrap in place of the old one (`replace`). The server archives the old one without serving it, so the old credential stops working at once (SP-09, D-39).
 
-A copy of the old wrap taken before the deletion still opens the current `accountKey` with the old credential. If that's a concern, also rotate the account key.
+A copy of the old wrap taken before the replacement, or restored from the archive, still opens the current `accountKey` with the old credential. If that's a concern, also rotate the account key.
 
 ### Replacing the recovery phrase
 
@@ -327,7 +327,7 @@ A copy of the old wrap taken before the deletion still opens the current `accoun
 
 Two cases:
 
-- **Not used by anyone** (locked, wiped, or nobody opened the app). From another device, or after recovery, revoke it. The server deletes its wrap, and the device can't unlock again (SP-10). Nothing else is needed.
+- **Not used by anyone** (locked, wiped, or nobody opened the app). From another device, or after recovery, revoke it. The server stops serving its wrap, and the device can't unlock again (SP-10). Nothing else is needed.
 - **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. From another device, the user runs `secureAccount` with the recovery phrase and a new PIN, or the phrase alone when the PIN budget is spent (D-40, TH-44):
   1. the account key is rotated (SP-11), which cuts every other device (D-10);
   2. every team is re-keyed, each re-key signed by the recovery key (SP-23);
@@ -338,12 +338,12 @@ Two cases:
 ### Rotating the account key (D-10)
 
 1. Open the current `accountKey`.
-2. The user enters the PIN (one server evaluation), and enters the recovery phrase or not.
+2. The user enters the PIN (one server evaluation), the recovery phrase, or both: at least one (D-40).
 3. Generate the next `accountKey` version and re-wrap every member keys bundle under it.
 4. Store the current-device wrap, the new PIN wrap if a PIN was entered, and the recovery wrap if the phrase was entered; switch the account to the new version in one atomic step. Without a PIN, the account has none until the user sets one (D-40).
-5. The server deletes every wrap of the old version. Other devices ask for the PIN once to register again. Without the phrase, the user sets up a new one next (D-35), which re-keys every team as when replacing a lost phrase.
+5. The server stops serving every wrap of the old version (rule 7, D-39). Other devices register again after a PIN or phrase unlock. Without the phrase, the user sets up a new one next (D-35), which re-keys every team as when replacing a lost phrase.
 
-Member keys don't change, so teams see nothing. The old `accountKey` only opens records that the server has deleted (SP-11). For the same reason, rotation alone doesn't end team access for someone who already copied a member keys bundle; that takes a re-key in each team (`secureAccount` does both).
+Member keys don't change, so teams see nothing. The old `accountKey` only opens records that the server no longer serves (SP-11). For the same reason, rotation alone doesn't end team access for someone who already copied a member keys bundle; that takes a re-key in each team (`secureAccount` does both).
 
 ### Creating a team
 

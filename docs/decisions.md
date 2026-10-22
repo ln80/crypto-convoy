@@ -65,7 +65,7 @@ Status: Accepted.
 
 Problem: in the earlier implementation, each device stores the PIN-derived key. A stolen device can open the backup forever, even after a rotation, and one device can't be revoked on its own.
 
-Decision: each device has its own random key, and the server stores the account key wrapped for each device. Revoking a device deletes its wrap, so the device can't unlock again. What revocation does *not* do is set by D-21.
+Decision: each device has its own random key, and the server stores the account key wrapped for each device. Revoking a device removes its wrap (the server stops serving it, D-39), so the device can't unlock again. What revocation does *not* do is set by D-21.
 
 Consequence: one record per device, and one device can be revoked without affecting the others.
 
@@ -113,7 +113,7 @@ Status: Accepted.
 
 Problem: rotating the account key must re-wrap it for every unlock method. With public-key wraps (seal the new key to each method's public key), rotation would need no PIN or phrase. But anyone can seal to a public key, including the server: it could hand a device or a recovering user a forged account key, and then read every key the user wraps under it.
 
-Decision: the PIN, the recovery phrase and each device wrap the account key with a symmetric key that only that method's holder can compute. Rotation needs the user present: they enter the PIN, and either enter the recovery phrase or set up a new one afterwards (D-35). Other registered devices stop working and ask for the PIN once to register again.
+Decision: the PIN, the recovery phrase and each device wrap the account key with a symmetric key that only that method's holder can compute. Rotation needs the user present: they enter the PIN or the recovery phrase (D-40), and without the phrase they set up a new one afterwards (D-35). Other registered devices stop working and register again after a PIN or phrase unlock.
 
 Rejected: public-key wraps for unlock methods, for the forgery reason above.
 
@@ -346,7 +346,7 @@ Status: Accepted.
 
 Problem: products have their own roles (owner, admin) with their own meaning. Tying team key ownership to one product role forces every product to change its roles, or forces the library to know them.
 
-Decision: the owners of each team key version are an explicit list in the chain (D-19). The integration decides which accounts hold the cryptographic owner role, and applies changes with an owner change (§6.7). A server may check, as defence in depth, that listed owners hold the product capability the integration maps to it (server contract, rule 8).
+Decision: the owners of each team key version are an explicit list in the chain (D-19). The integration decides which accounts hold the cryptographic owner role, and applies changes with an owner change (§6.7). A server may check, as defence in depth, that the signer of a new version holds the product capability the integration maps to it; the owners a version lists aren't checked (server contract, rule 8).
 
 Consequence: a change of product owner needs an owner change in the chain only if the cryptographic owners change.
 
@@ -427,7 +427,7 @@ Status: Accepted.
 
 Problem: the remedy after a misused device or a leaked credential was a procedure of four steps across the vault and every team (D-21). Integrations would stop at revocation.
 
-Decision: `vault.secureAccount({ phrase, newPin })` rotates the account key with a new PIN (which cuts every other device, D-10), then re-keys every team with a recovery signature (D-33), one team per write. It reports the teams re-keyed and those that failed, which the integration retries with `rekey(teamId, { phrase })`. Each team's owners approve the new keys at their next `reconcile` (D-31).
+Decision: `vault.secureAccount({ phrase, newPin? })` rotates the account key, with a new PIN or none when the PIN budget is spent (D-40), which cuts every other device (D-10), then re-keys every team with a recovery signature (D-33), one team per write. It reports the teams re-keyed and those that failed, which the integration retries with `rekey(teamId, { phrase })`. Each team's owners approve the new keys at their next `reconcile` (D-31).
 
 Rejected: one atomic batch for everything: it doesn't fit common database transaction limits. A stored resume marker: a retry per failed team is enough.
 

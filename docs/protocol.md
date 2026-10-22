@@ -163,9 +163,9 @@ The client checks these before any work, so a server can't weaken the PIN hashin
 | Accounts in a team key version's roster | — | 1–1,000 | — |
 | A team key version record's JSON | at most 384 KiB (393,216 bytes) | — | — |
 | Member key bundles in a transfer | — | 1–64 | — |
-| Parts in an item or submission | — | 1–128 |
-| Id length | — | 1–128 bytes |
-| `meta` per part | — | 0–4096 bytes |
+| Parts in an item or submission | — | 1–128 | — |
+| Id length | — | 1–128 bytes | — |
+| `meta` per part | — | 0–4096 bytes | — |
 
 ---
 
@@ -287,7 +287,7 @@ Each record lists its fields, how it is protected, and what a reader checks. Key
 
 | Record | Written by | Read by | Protected by | Server rule (§11) |
 | --- | --- | --- | --- | --- |
-| `account-key-wrap` | The account | The account | `wrap` under a PIN, recovery or device key | Write-once; deleted on revoke, replace, retire |
+| `account-key-wrap` | The account | The account | `wrap` under a PIN, recovery or device key | Write-once; archived on revoke, replace, retire (D-39) |
 | `member-keys` | The member | Team members | Self-signature | Write-once |
 | `member-keys-wrap` | The account | The account | `wrap` under the account key | Write-once; deleted with its account key version |
 | `team-state` | The account | The account | `wrap` under the team state key | Compare-and-set |
@@ -531,8 +531,8 @@ The account key opens only through one of these three paths (SP-19).
 
 - **Register.** With the `accountKey` open: generate `deviceKey` and `deviceId`, keep both in `LocalKeyStore`, and store a device wrap at the current version. The wrap is fetched from the server at each unlock and never cached on the device.
 - **List.** `listDevices()` returns the `deviceId` of every device wrap at the current version. Human-readable names and dates belong to the integration's own data.
-- **Inactivity.** The server may stop serving a device wrap unused for a period set by the integration ([server contract](scope.md#server-contract), rule 7). The device then gets `DEVICE_NOT_REGISTERED` and registers again with the PIN, which limits how long a forgotten device stays able to unlock.
-- **Revoke.** Ask the server to delete the device's wrap. From then on, the device can't unlock the account again (SP-10). That's the whole guarantee of revocation (D-21). The integration also ends that device's sign-in sessions, so it can't fetch other private records.
+- **Inactivity.** The server may stop serving a device wrap unused for a period set by the integration ([server contract](scope.md#server-contract), rule 7). The device then gets `DEVICE_NOT_REGISTERED` and registers again with the PIN or the recovery phrase, which limits how long a forgotten device stays able to unlock.
+- **Revoke.** Ask the server to remove the device's wrap, which it stops serving and archives (rule 7, D-39). From then on, the device can't unlock the account again (SP-10). That's the whole guarantee of revocation (D-21). The integration also ends that device's sign-in sessions, so it can't fetch other private records.
 
 If the device may have been used by an attacker while unlocked, revocation isn't enough: they may have copied the account key and the member keys of every team the device opened. The remedy is the account key rotation (§5.7, SP-11) followed by a re-key in each affected team (§6.8, SP-12). The library offers both operations; the integration decides whether to guide users through them (TH-10).
 
@@ -554,7 +554,7 @@ Each team is re-keyed in its own write. The operation reports the teams re-keyed
 4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1.
 5. Create the current-device wrap for version a+1, the PIN wrap if a PIN was entered, and the recovery wrap if the phrase was entered. Without a PIN, version a+1 has no PIN wrap until `changePin` sets one (D-40).
 6. Store everything and switch the current version to a+1, in one atomic batch.
-7. The server deletes every record of version a. Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
+7. The server stops serving every record of version a (rule 7, D-39). Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
 
 Without the phrase, version a+1 has no recovery wrap: recovery isn't set up (D-35), and setting up a new phrase re-keys every team as in §5.6.
 
@@ -806,7 +806,7 @@ What a team session reports to the integration after loading (§6.1):
 | `DECRYPTION_FAILED` | Authenticated decryption failed: wrong key, tampered or truncated data. | No |
 | `WRONG_CREDENTIAL` | The PIN or recovery phrase didn't open the account key. | Yes, by the user |
 | `PIN_RATE_LIMITED` | The server refused another PIN evaluation. | Later, or use the recovery phrase |
-| `DEVICE_NOT_REGISTERED` | This device has no current wrap (revoked or rotated). | After a PIN unlock |
+| `DEVICE_NOT_REGISTERED` | This device has no current wrap (revoked or rotated). | After a PIN or recovery phrase unlock |
 | `PIN_NOT_SET_UP` | The account has no PIN at its current version (rotated with the phrase alone, D-40). | Unlock with the phrase or a device, then set a PIN |
 | `NOT_GRANTED` | The member doesn't hold the version required. | After an owner approves |
 | `STALE_VERSION` | A write used a version that is no longer current. | After reloading team state |

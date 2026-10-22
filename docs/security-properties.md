@@ -1,6 +1,6 @@
 # Security properties
 
-> Status: draft, under review. Verification paths name the tests to write; none exist yet.
+> Status: draft, under review. Verification paths name the tests; the traceability test (`test/unit/traceability.test.ts`) checks that each non-deferred property's tests exist and cite it.
 
 ## Role
 
@@ -159,7 +159,7 @@ Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and t
 Verification:
 - `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (opened in the vault's context and through a receiver), and an older team key version after a newer one was seen.
 
-Related threats: TH-05.
+Related threats: TH-04, TH-05.
 
 ### SP-13: An item's author is provable
 
@@ -186,7 +186,7 @@ Verification:
 - `test/security/pin-hardening.test.ts`: try to open a backup with the correct PIN but no evaluation, with another account's evaluation, and with a wrong key.
 - `test/vectors/pin-key.v1.json` (including the RFC 9497 vectors).
 
-Related threats: TH-07, TH-08.
+Related threats: TH-07, TH-08, TH-34.
 
 ### SP-09: A replaced PIN or recovery phrase stops working
 
@@ -197,15 +197,17 @@ Assumptions: the server honours rule 7. A copy of an old wrap taken before the r
 Verification:
 - `test/security/credential-rotation.test.ts`: the old PIN and phrase fail right after a change; a garbage replacement is undone by restoring the archived wrap (TH-36).
 
-Related threats: TH-11, TH-36.
+Related threats: TH-11, TH-20, TH-36.
 
 ### SP-10: A revoked device can't unlock the account again
 
 Property: once a device is revoked, the server stops serving its wrap of the account key, and the device can't unlock the account again.
 
-Limit: revocation doesn't evict someone who already copied keys from the device while it was unlocked (D-21). For that, `secureAccount` rotates the account key (SP-11) and re-keys every team with a recovery proof (SP-23).
+Limits:
+- Revocation doesn't evict someone who already copied keys from the device while it was unlocked (D-21). For that, `secureAccount` rotates the account key (SP-11) and re-keys every team with a recovery proof (SP-23).
+- The server may keep serving a revoked wrap for a short delay, and keeps it archived for the restore window, from which the integration's support process can restore it ([server contract](scope.md#server-contract), rule 7; D-39).
 
-Assumptions: AS-01. The server deletes the wrap ([server contract](scope.md#server-contract), rule 7). The device never caches its wrap, and the integration ends the device's sign-in sessions when revoking it. Revocation runs from another unlocked device or through recovery.
+Assumptions: AS-01. The server stops serving the wrap ([server contract](scope.md#server-contract), rule 7). The device never caches its wrap, and the integration ends the device's sign-in sessions when revoking it. Revocation runs from another unlocked device or through recovery.
 
 Verification:
 - `test/security/device-revocation.test.ts`: revoke a device, then try to unlock with its device key (refused). Then run the full remedy and check that keys copied from the device open nothing written afterwards.
@@ -215,7 +217,7 @@ Related threats: TH-10.
 
 ### SP-11: The account key can be rotated
 
-Property: an account can replace its account key without leaving any team and without changing its member keys. After rotation, the old account key opens no record the account writes afterwards. The PIN and the recovery phrase (or its replacement) open the new key; other devices must register again (D-10).
+Property: an account can replace its account key without leaving any team and without changing its member keys. After rotation, the old account key opens no record the account writes afterwards. The credentials entered at rotation open the new key; a recovery phrase or PIN left out is set up again afterwards (D-35, D-40). Other devices must register again (D-10).
 
 Limit: rotation retires the account key only. Member keys don't change, so anyone who already copied a member keys bundle (or the old account key and its wraps) keeps that team's access until the member re-keys in that team and the team key is rotated (SP-12); `secureAccount` does both (D-36). A rotation without the recovery phrase leaves the account without recovery until a new phrase is confirmed (D-35); one without a PIN leaves it without a PIN until one is set (D-40).
 
@@ -224,7 +226,7 @@ Assumptions: AS-01.
 Verification:
 - `test/security/account-rotation.test.ts`: rotate, then check that the old key opens no new account record and that every team still opens with the new key. Check that a copied bundle still opens the team until a re-key, as specified.
 
-Related threats: TH-12, TH-20.
+Related threats: TH-10, TH-12, TH-20, TH-44.
 
 ### SP-12: Compromised member keys can be replaced
 
@@ -238,7 +240,7 @@ Verification:
 - `test/security/member-rekey.test.ts`: keys published without proof are reported as unproven and never approved by themselves; an owner approves by rotating (accepted); the old keys get no roster entry of the new version and open nothing created after it; keys published after the owner's review, including an owner's own, are refused; once the new keys are approved the vault deletes the old bundle, and the team still opens.
 - `test/security/key-substitution.test.ts`: approving keys a re-key replaced is refused.
 
-Related threats: TH-13.
+Related threats: TH-12, TH-13, TH-20, TH-37.
 
 ### SP-19: Recovering an account requires authorized material
 
@@ -266,7 +268,7 @@ Assumptions: the integration displays these changes.
 Verification:
 - `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; every member sees every admission in the roster.
 
-Related threats: TH-17.
+Related threats: TH-17, TH-41.
 
 ### SP-16: Losing one owner never freezes a team with other owners
 
