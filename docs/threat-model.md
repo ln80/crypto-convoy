@@ -90,7 +90,6 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-30 | Removed member opens new submissions to an existing inbox | A4 with A1 | Accepted in v1 (D-20); remedy: replace the inbox |
 | TH-31 | Anyone with an inbox link submits fake content | A10 | Accepted (out of scope) |
 | TH-32 | Recorded ciphertexts broken by a future quantum computer | A1, A2 | Accepted in v1 |
-| TH-33 | Removed owner signs grants for versions they owned | A4, A6 | Not applicable in v1: no grants (D-37) |
 | TH-34 | PIN hashing cost set too low | Integration error, A2 | Mitigated: library hard floor (D-17, SP-08) |
 | TH-35 | A timestamp shown as proof of when something was sent | A5, A10 | Accepted; integration must not present it as trusted |
 | TH-36 | Session thief destroys the account | A11 | Mitigated: SP-09, SP-26 (removed and replaced records archived for a restore window, server contract, D-39, D-42) |
@@ -99,16 +98,24 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
 | TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
-| TH-42 | The server hides grants to suppress a rotation | A2 | Not applicable in v1: no grants; who holds a version is the signed roster (D-37) |
-| TH-43 | An invite link leaks | A2, A11, A1 | Not applicable in v1: invite links carry no secret (D-32 deferred) |
 | TH-45 | An unlocked vault replaces the account's credentials | A7, A9 | Mitigated: SP-25 (D-41) |
 | TH-46 | Session thief corrupts private team records | A11 | Mitigated: SP-26 (D-42); unavailability until restored accepted |
 | TH-47 | Session thief takes a member's key version numbers | A11 | Mitigated: SP-12 (D-43); bait keys need a human |
 | TH-44 | Session thief spends the PIN budget | A11 with A7, A8 or A9 | Mitigated: SP-11 (phrase-only rotation and securing, D-40); the integration may reset the budget |
 
+Dormant threats, not applicable in v1 (kept so their ids stay stable, and to return with the mechanisms they belong to):
+
+| Id | Threat | Actor | Disposition |
+| --- | --- | --- | --- |
+| TH-33 | Removed owner signs grants for versions they owned | A4, A6 | Not applicable in v1: no grants (D-37) |
+| TH-42 | The server hides grants to suppress a rotation | A2 | Not applicable in v1: no grants; who holds a version is the signed roster (D-37) |
+| TH-43 | An invite link leaks | A2, A11, A1 | Not applicable in v1: invite links carry no secret (D-32 deferred) |
+
 ---
 
 ## Server and storage
+
+A data thief (A1), a malicious server (A2) or a network attacker (A3): what the server stores, serves and relays.
 
 ### TH-01: Server reads stored items or keys
 
@@ -175,195 +182,6 @@ Impact: users see wrong or altered content, or content attributed to the wrong p
 
 Disposition: mitigated by SP-03. Every ciphertext is authenticated and bound to its team, item and key version.
 
-## Account credentials
-
-### TH-07: Offline PIN guessing from a stolen backup
-
-Actor: data thief (A1).
-
-Attack: takes the PIN-protected wrap of the account key and tries every possible PIN offline. A short PIN has few enough possibilities to search them all.
-
-Impact: the account key and every team the user belongs to.
-
-Disposition: mitigated by SP-08. A guess can't be checked without one evaluation by the server, which the thief can't perform offline.
-
-### TH-08: Online PIN guessing with a stolen session
-
-Actor: a session thief (A11), or an injected script (A9), holding the user's session but not the PIN.
-
-Attack: submits PIN guesses through the server.
-
-Impact: the account key, if a guess succeeds.
-
-Disposition: mitigated by SP-08 together with the server rate limit (AS-05): each guess costs one server evaluation, and the server allows only a few per day. The budget is one total across purposes: an `enroll` evaluation produces the same PIN key as an `unlock` one, so it is a guess too. Weak PINs are refused at creation, by a rule the integration sets.
-
-Residual, accepted: someone holding the session can use up the budget on purpose and lock the user out of PIN unlocks for a while. The recovery phrase still unlocks the account and registers the device without any server evaluation; only setting a new PIN waits for the budget.
-
-### TH-09: The server operator brute-forces a PIN
-
-Actor: malicious server (A2), or an attacker who stole both the OPRF key and the database.
-
-Attack: holds the OPRF key and the backup, so it can evaluate guesses itself, offline, with no rate limit.
-
-Impact: the account key of any user with a short PIN.
-
-Disposition: accepted. A short PIN can't resist someone who holds every piece. Integrations can reduce the exposure by isolating the OPRF key from the database, and by offering a longer passphrase or a hardware-backed secret (such as a passkey) instead of a PIN. The recovery phrase (128 bits) is not affected.
-
-### TH-10: Lost or stolen device
-
-Actor: device thief (A7).
-
-Attack: uses a device where the account was unlocked. Same-device unlocks don't ask for the PIN, so the device can open the account key.
-
-Impact: everything the account can reach, for as long as the device keeps working.
-
-Disposition: partly mitigated by SP-10. The user revokes the device from another one: the server stops serving its wrap, so the device can't unlock again. That stops a thief who hasn't used the device yet. The integration can also have the server stop serving device wraps after a period of inactivity, so a forgotten device asks for the PIN again (protocol §5.5).
-
-A thief who used the device while it was unlocked may have copied the account key and the member keys of every team it opened. Revocation alone doesn't evict them (D-21). The full remedy is `secureAccount` (D-36): it rotates the account key (SP-11), with a new PIN or none (D-40), and re-keys every team with a recovery proof (SP-23), which each team's owners approve at their next `reconcile`, without an out-of-band check, unless the account is an owner there. The user enters the recovery phrase on a device the thief didn't control. The thief can't take this remedy away first: the device alone can't change the account's credentials (SP-25, TH-45). Anything already decrypted, and what a team writes before its owners reconcile, is accepted as lost.
-
-### TH-11: Leaked PIN or recovery phrase
-
-Actor: credential thief (A8).
-
-Attack: uses the leaked PIN (with a session for the OPRF evaluation) or the leaked recovery phrase to open the account key.
-
-Impact: the account key and every team.
-
-Disposition: partly mitigated by SP-09 and SP-19. The user changes the PIN or replaces the recovery phrase, and the old one stops opening anything. If the thief may already have used it, the user also rotates the account key (TH-12). A thief who also holds a session can act first: with the PIN, replace the phrase and rotate (D-41 lets the PIN replace a lost phrase), locking the user out. Accepted, with a support restore of the account key version from before as the remedy (SP-26, D-42).
-
-## Key compromise
-
-### TH-12: Account key leaked
-
-Actor: injected script in the vault (A9), device thief (A7).
-
-Attack: extracts the account key from memory or storage.
-
-Impact: every team key and item the account can reach.
-
-Disposition: mitigated by SP-11 and SP-12 together, in one operation (`secureAccount`, D-36). Rotating the account key retires it, but member keys don't change. An attacker who held the account key could have opened every member keys bundle, so team access only ends once the member re-keys in each team and the team key is rotated (TH-13). The recovery phrase isn't under the account key, so it still proves the re-keys (SP-23). What the attacker opened before is accepted as lost.
-
-### TH-13: Member keys of one team leaked
-
-Actor: injected script (A9), device thief (A7).
-
-Attack: extracts a member's private keys for one team.
-
-Impact: the attacker can open every team key version given to that member, and sign as that member.
-
-Disposition: mitigated by SP-12. The member gets new keys, approved by an owner, and the team key is rotated, so the old keys open nothing new. A key can't vouch for its own replacement, since the attacker holds it too; the recovery key, which isn't stored anywhere, can (SP-23). Past versions are accepted as lost.
-
-## Team members
-
-### TH-14: Removed member keeps reading
-
-Actor: removed member (A4).
-
-Attack: keeps the team keys they held and reads items, including new ones.
-
-Impact: continued access after removal.
-
-Disposition: mitigated by SP-06 for items and inboxes created after the next rotation. An owner's `reconcile` rotates as soon as an account holding the current version is no longer in the integration's active list (SP-22); the list of who holds a version is signed chain data (TH-42). Rotations take a list of accounts to keep, so forgetting a removed member costs them access instead of leaving them in. The member keeps every key they had (AS-07), so items they could read before removal are accepted as lost, as in any E2EE system. Inboxes created before the rotation are covered by TH-30. A member re-admitted later can open the versions created while they were away (D-07); this is accepted.
-
-### TH-15: Member forges an item's author
-
-Actor: malicious member (A5).
-
-Attack: creates an item that claims another member wrote it.
-
-Impact: false attribution, for example a fake instruction attributed to an owner.
-
-Disposition: accepted in v1. Author signatures are deferred (D-09, SP-13): any member can claim any author. The server still can't change the author recorded on an item (SP-03).
-
-### TH-16: Member reads everything in the team
-
-Actor: malicious member (A5).
-
-Attack: reads every item of the team, including items unrelated to their work.
-
-Impact: the team's items, within the team.
-
-Disposition: accepted by design. The team is the encryption boundary; finer boundaries are a non-goal ([scope.md](scope.md#non-goals)).
-
-### TH-17: Stolen owner key takes over a team
-
-Actor: owner-key thief (A6).
-
-Attack: uses the owner's keys to admit members they control, or to remove the other owners.
-
-Impact: reads future items; may lock out the honest owners.
-
-Disposition: partly mitigated by SP-15, which is detection, not prevention. Every owner-list change and every roster change is reported on all members' clients (D-44), but the attacker can act before anyone reads the reports. The warning shown when an owner is removed (members whose current version that owner signed) can be washed out by a later rotation by another owner. Owner keys must match the accounts' published member keys, so a report can't show an attacker's key under another member's name, unless the server also forges that member's keys record. The honest owners recover by removing the stolen key while they are still owners (its signatures are then refused for every later version, SP-05), or, if locked out, by creating a new team and moving members to it out of band. A single stolen owner key allowing a takeover is accepted (D-06): a quorum wouldn't prevent the more damaging attack, admitting a fake member. Automatic approvals never change the owner list: an owner's re-key, even proven by their recovery key, needs another owner's approval (SP-23, TH-41).
-
-### TH-18: Owner loses their credentials
-
-Actor: none; this is an availability failure.
-
-Attack: an owner loses both their PIN and recovery phrase, or leaves.
-
-Impact: if nobody else can act as owner, nobody can admit members or rotate the team key ever again. The team is frozen.
-
-Disposition: mitigated by SP-16 for teams with two or more owners. A team with a single owner is accepted, with a clear warning to add a co-owner. The only owner can't leave the team (the library refuses with `LAST_OWNER`) and the integration must not delete their account until another owner is added, so a team never loses its last owner through an ordinary action. No server-side recovery exists: it would be a backdoor (SP-19).
-
-## Application and isolation
-
-### TH-19: One team's compromise spreads to the user's other teams
-
-Actor: injected script (A9) running where one team is used.
-
-Attack: script injected in team A's page tries to reach the user's keys for team B, or the account key.
-
-Impact: every team of the user, from one injection point.
-
-Disposition: mitigated by SP-02. A team session receives only that team's keys, directly or through a sealed transfer (TH-39). The protection is as strong as the integration's isolation between the vault and team sessions ([Key custody](scope.md#key-custody)).
-
-### TH-20: Injected script in the account vault
-
-Actor: injected script (A9) running where the account vault runs, or where the PIN or recovery phrase is typed.
-
-Attack: reads the account key, or captures the PIN or phrase as it is typed.
-
-Impact: every team of the user.
-
-Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them.
-
-## Outsiders
-
-### TH-21: Server swaps an inbox key
-
-Actor: malicious server (A2).
-
-Attack: an outside sender has no team keys to check anything against. If the sender gets the inbox public key from the server, the server can hand over its own key instead.
-
-Impact: the server reads the submission.
-
-Disposition: the inbox link carries the inbox public key itself, in the URL fragment, which browsers don't send to the server. When the link reaches the sender outside the server (the team sends it from its own email, chat or website), the sender seals to the right key: mitigated by SP-14. When the server delivers the link (for example a notification email sent by the product's own server), the server can change the key in the link: accepted, because an anonymous sender can't authenticate anything the server alone provides.
-
-### TH-22: Inbox sender reads other submissions
-
-Actor: outsider (A10) with an inbox link.
-
-Attack: uses the inbox link to read other people's submissions.
-
-Impact: submissions of other senders exposed.
-
-Disposition: mitigated by SP-14. A sender only has the public key and their own content key; each submission is sealed with a fresh content key that only the team can open.
-
-### TH-23: Leaked share link
-
-Actor: outsider (A10) who obtains a share link.
-
-Attack: opens the link.
-
-Impact: the shared item.
-
-Disposition: accepted (D-22). The link is the capability: whoever holds it can decrypt the item. Expiry and one-time viewing are server-side controls of the integration. The library keeps the key out of what the server sees, as long as the integration puts it in the URL fragment and follows the share-link checklist ([scope.md](scope.md#what-the-integration-does)). Two cases where the key does reach a server:
-
-- the integration's own server sends the link (for example by email): that server sees the key, as in TH-21;
-- an email security service rewrites links, fragment included, into its own URLs: that service sees the key.
-
-## Protocol and implementation
-
 ### TH-24: Downgrade to an old version or weak algorithm
 
 Actor: malicious server (A2).
@@ -424,26 +242,6 @@ Impact: at most what a malicious server could do (TH-01 to TH-06).
 
 Disposition: mitigated by TLS (AS-04) and, independently, by SP-01 and SP-03: traffic carries only ciphertexts, wrapped keys and signed records.
 
-### TH-30: Removed member opens new submissions to an existing inbox
-
-Actor: removed member (A4), together with access to the ciphertexts: a data thief (A1), an insider, a server authorization bug, or a current member passing data on.
-
-Attack: an inbox's private key is wrapped by the team key version current when the inbox was created, and its public key is in the link. A member removed later still holds that version, and may have copied the inbox private key itself (AS-07). Senders keep sealing to the same public key, so the removed member can open every later submission to that inbox once they obtain the ciphertexts.
-
-Impact: confidentiality of submissions sent after the removal, to inboxes created before it. The integration's access control is the only barrier; a database leak alone is enough to break it.
-
-Disposition: accepted in v1 (D-20), stated plainly in the assets. Rotating the team key doesn't help; only a new key pair does, and a new key pair means a new link. The library offers "replace inbox"; the integration decides when (for example sensitive requests, or links not yet sent). Integrations should give inboxes a lifetime and replace long-lived ones after a member leaves, which bounds the exposure. A later version can close this without changing links, with signed rotating inbox keys (D-20).
-
-### TH-31: Anyone with an inbox link submits fake content
-
-Actor: outsider (A10).
-
-Attack: sends content that pretends to come from someone else, or sends a large volume of submissions.
-
-Impact: misleading or unwanted submissions.
-
-Disposition: accepted, out of scope. Inbox submissions are anonymous by design: the protocol protects their confidentiality, not the sender's identity. Rate limiting and abuse handling belong to the integration.
-
 ### TH-32: Recorded ciphertexts broken by a future quantum computer
 
 Actor: data thief (A1), malicious server (A2), keeping records for years.
@@ -454,17 +252,71 @@ Impact: sealed team keys and inbox submissions recorded today become readable la
 
 Disposition: accepted in v1. Every record names its algorithm suite (SP-17), so a later suite can add a post-quantum key exchange without changing the rest of the protocol.
 
-## Second pass: threats specific to keys
+### TH-38: Split view
 
-### TH-33: Removed owner signs grants for versions they owned
+Actor: a malicious or stolen owner key (A6) together with a malicious server (A2).
 
-Actor: removed owner (A4), or someone holding their stolen key (A6).
+Attack: the owner key signs two different records for the same version, and the server shows each to a different group of members. Each group sees a valid chain.
 
-Attack: after removal, signs a grant of a version they were an owner of, for example to a fake member.
+Impact: members are silently split; each group may admit members or rotate without the other knowing.
 
-Impact: the fake member opens that version and every earlier one.
+Disposition: accepted. It needs both an owner key and the server: an honest server stores one record per version (write-once). Members on different branches can't open each other's new items, so the split surfaces as failures. A full fix needs a verifiable, append-only directory that every client checks (key transparency), which is out of v1.
 
-Disposition: not applicable in v1. There are no grants (D-37): a version is held only through the roster of its own record, and a removed owner isn't in the owner list of any version after their removal, so they can't sign one (SP-05). They still hold the versions they had (AS-07).
+### TH-40: The server confirms a stored file from its reference
+
+Actor: the server or a database thief (A2, A1) holding a candidate file.
+
+Attack: the integration sends its server a reference for each part, for deduplication or as an attachment id. If the reference is a plain hash of the content, anyone with a candidate file computes its hash and checks whether it was stored, and sees which items share a file.
+
+Impact: confirmation of a file's presence, and links between items, without decrypting anything.
+
+Disposition: mitigated by SP-21 for references made with `partRef` (D-28). Values the integration computes from plaintext by other means stay its responsibility ([scope.md](scope.md#what-the-integration-does)).
+
+## PIN and recovery phrase
+
+Attacks on the credentials that open the account: guessing, leaking, spending the budget (A1, A2, A8, A11).
+
+### TH-07: Offline PIN guessing from a stolen backup
+
+Actor: data thief (A1).
+
+Attack: takes the PIN-protected wrap of the account key and tries every possible PIN offline. A short PIN has few enough possibilities to search them all.
+
+Impact: the account key and every team the user belongs to.
+
+Disposition: mitigated by SP-08. A guess can't be checked without one evaluation by the server, which the thief can't perform offline.
+
+### TH-08: Online PIN guessing with a stolen session
+
+Actor: a session thief (A11), or an injected script (A9), holding the user's session but not the PIN.
+
+Attack: submits PIN guesses through the server.
+
+Impact: the account key, if a guess succeeds.
+
+Disposition: mitigated by SP-08 together with the server rate limit (AS-05): each guess costs one server evaluation, and the server allows only a few per day. The budget is one total across purposes: an `enroll` evaluation produces the same PIN key as an `unlock` one, so it is a guess too. Weak PINs are refused at creation, by a rule the integration sets.
+
+Residual, accepted: someone holding the session can use up the budget on purpose and lock the user out of PIN unlocks for a while. The recovery phrase still unlocks the account and registers the device without any server evaluation; only setting a new PIN waits for the budget.
+
+### TH-09: The server operator brute-forces a PIN
+
+Actor: malicious server (A2), or an attacker who stole both the OPRF key and the database.
+
+Attack: holds the OPRF key and the backup, so it can evaluate guesses itself, offline, with no rate limit.
+
+Impact: the account key of any user with a short PIN.
+
+Disposition: accepted. A short PIN can't resist someone who holds every piece. Integrations can reduce the exposure by isolating the OPRF key from the database, and by offering a longer passphrase or a hardware-backed secret (such as a passkey) instead of a PIN. The recovery phrase (128 bits) is not affected.
+
+### TH-11: Leaked PIN or recovery phrase
+
+Actor: credential thief (A8).
+
+Attack: uses the leaked PIN (with a session for the OPRF evaluation) or the leaked recovery phrase to open the account key.
+
+Impact: the account key and every team.
+
+Disposition: partly mitigated by SP-09 and SP-19. The user changes the PIN or replaces the recovery phrase, and the old one stops opening anything. If the thief may already have used it, the user also rotates the account key (TH-12). A thief who also holds a session can act first: with the PIN, replace the phrase and rotate (D-41 lets the PIN replace a lost phrase), locking the user out. Accepted, with a support restore of the account key version from before as the remedy (SP-26, D-42).
 
 ### TH-34: PIN hashing cost set too low
 
@@ -476,17 +328,105 @@ Impact: faster PIN guessing.
 
 Disposition: mitigated. Readers refuse costs outside their bounds, and the library has a hard floor (2 passes, 64 MiB) that no integration setting can go under (D-17, SP-08). The cost is bound into the wrap's associated data, so the server can't change it on an existing wrap.
 
-### TH-35: A timestamp shown as proof of when something was sent
+### TH-41: A leaked recovery phrase replaces a member's keys
 
-Actor: malicious member (A5), outside sender (A10).
+Actor: credential thief (A8) holding a member's recovery phrase.
 
-Attack: writes any `createdAt` value: backdates an item, or post-dates a submission to look on time.
+Attack: publishes new member keys signed with the recovery key in every team of the account. Owners' `reconcile` approves them as proven re-keys, and the real member's keys stop receiving new versions. The real member re-keys with the same phrase; the two race.
 
-Impact: misleading dates, if the integration presents them as trustworthy.
+Impact: the thief reads what the teams write next, and the real member is cut out until a human intervenes. The phrase also opens the account key, so the thief already read everything the account could (TH-11).
 
-Disposition: accepted. Timestamps are authenticated so the server can't change them, but the writer chooses them freely. The protocol never uses them for a security decision, and integrations must not present them as a trusted time. When a trusted time matters, the integration uses the time its server received the record.
+Disposition: partly mitigated. An owner's re-key is never approved automatically, so the owner list can't change this way (SP-23). Each approved re-key is reported (SP-15), and the cut-out member sees `pending` and a `key_mismatch` on their next open. Accepted: the race itself; it ends when an owner removes the account or approves one set of keys by hand, after the user has replaced the phrase.
 
-## Third pass: session theft and equivocation
+### TH-44: Session thief spends the PIN budget
+
+Actor: session thief (A11) who could also change the PIN: through an unlocked vault (A7, A9) or a leaked PIN (A8). A session alone only spends the budget (TH-08).
+
+Attack: changes the PIN, then calls the OPRF until the account's budget is spent. Every operation that makes a PIN wrap needs an evaluation, so the user can't replace the PIN, and can't rotate the account key to cut the thief out, until the budget resets (up to the integration's longest window).
+
+Impact: the thief's PIN keeps opening the account, and the thief's devices stay registered, while the user waits.
+
+Disposition: mitigated by D-40 (SP-11): `secureAccount` and `rotate` run with the recovery phrase alone, retire every wrap of the old version (the thief's PIN and devices), and leave the PIN to be set once the budget allows. The integration may also reset the budget through its support process. Residual, accepted: until the budget resets or is reset, the account has no PIN and unlocks with the phrase or a registered device only.
+
+## Devices and the open vault
+
+Someone holding a device or code where keys are used: a device thief (A7) or an injected script (A9). An open vault proves possession of a device, not of the account.
+
+### TH-10: Lost or stolen device
+
+Actor: device thief (A7).
+
+Attack: uses a device where the account was unlocked. Same-device unlocks don't ask for the PIN, so the device can open the account key.
+
+Impact: everything the account can reach, for as long as the device keeps working.
+
+Disposition: partly mitigated by SP-10. The user revokes the device from another one: the server stops serving its wrap, so the device can't unlock again. That stops a thief who hasn't used the device yet. The integration can also have the server stop serving device wraps after a period of inactivity, so a forgotten device asks for the PIN again (protocol §5.5).
+
+A thief who used the device while it was unlocked may have copied the account key and the member keys of every team it opened. Revocation alone doesn't evict them (D-21). The full remedy is `secureAccount` (D-36): it rotates the account key (SP-11), with a new PIN or none (D-40), and re-keys every team with a recovery proof (SP-23), which each team's owners approve at their next `reconcile`, without an out-of-band check, unless the account is an owner there. The user enters the recovery phrase on a device the thief didn't control. The thief can't take this remedy away first: the device alone can't change the account's credentials (SP-25, TH-45). Anything already decrypted, and what a team writes before its owners reconcile, is accepted as lost.
+
+### TH-12: Account key leaked
+
+Actor: injected script in the vault (A9), device thief (A7).
+
+Attack: extracts the account key from memory or storage.
+
+Impact: every team key and item the account can reach.
+
+Disposition: mitigated by SP-11 and SP-12 together, in one operation (`secureAccount`, D-36). Rotating the account key retires it, but member keys don't change. An attacker who held the account key could have opened every member keys bundle, so team access only ends once the member re-keys in each team and the team key is rotated (TH-13). The recovery phrase isn't under the account key, so it still proves the re-keys (SP-23). What the attacker opened before is accepted as lost.
+
+### TH-13: Member keys of one team leaked
+
+Actor: injected script (A9), device thief (A7).
+
+Attack: extracts a member's private keys for one team.
+
+Impact: the attacker can open every team key version given to that member, and sign as that member.
+
+Disposition: mitigated by SP-12. The member gets new keys, approved by an owner, and the team key is rotated, so the old keys open nothing new. A key can't vouch for its own replacement, since the attacker holds it too; the recovery key, which isn't stored anywhere, can (SP-23). Past versions are accepted as lost.
+
+### TH-19: One team's compromise spreads to the user's other teams
+
+Actor: injected script (A9) running where one team is used.
+
+Attack: script injected in team A's page tries to reach the user's keys for team B, or the account key.
+
+Impact: every team of the user, from one injection point.
+
+Disposition: mitigated by SP-02. A team session receives only that team's keys, directly or through a sealed transfer (TH-39). The protection is as strong as the integration's isolation between the vault and team sessions ([Key custody](scope.md#key-custody)).
+
+### TH-20: Injected script in the account vault
+
+Actor: injected script (A9) running where the account vault runs, or where the PIN or recovery phrase is typed.
+
+Attack: reads the account key, or captures the PIN or phrase as it is typed.
+
+Impact: every team of the user.
+
+Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them.
+
+### TH-39: A team's keys reach the wrong context
+
+Actor: injected script (A9) in another page or context, or anyone on the channel between contexts (A3).
+
+Attack: when the vault and team sessions run in separate contexts, the attacker reads one team's member keys in transit, replays a transfer captured earlier, or asks the vault for the keys of a team it shouldn't reach.
+
+Impact: that team's keys, in a context the integration didn't intend.
+
+Disposition: mitigated by SP-02. A transfer is sealed to an ephemeral receiver created in the receiving context, names its account and team inside the box, and opens once: reading or replaying it gives nothing (§3.8). Which context may ask for which team is the integration's decision, as is the channel (D-29); a vault that exports to any requester gives away what it exports.
+
+### TH-45: An unlocked vault replaces the account's credentials
+
+Actor: device thief (A7) or injected script in the vault (A9), holding an open vault but no credential. Same-device unlocks need none.
+
+Attack: replaces the recovery phrase, changes the PIN, or rotates the account key, so the user's credentials stop working and `secureAccount` can't run.
+
+Impact: account takeover: the user loses the account and every team only it could open.
+
+Disposition: mitigated by SP-25 (D-41): each of these needs a current credential besides the open vault. Residual, accepted: the thief can still revoke the user's other devices, which register again with the PIN or the phrase; publish unproven re-keys, which only a human approves (TH-37); or leave teams, which support undoes from the archive (TH-46).
+
+## Sessions
+
+Someone holding the user's sign-in session with the integration, but no credential (A11): they can call every API the user can.
 
 ### TH-36: Session thief destroys the account
 
@@ -513,47 +453,160 @@ Disposition: partly mitigated.
 
 Residual, accepted: an owner who approves an unproven request without checking. Invite proofs, which would cover first joins, are deferred (D-32).
 
-### TH-38: Split view
+### TH-46: Session thief corrupts private team records
 
-Actor: a malicious or stolen owner key (A6) together with a malicious server (A2).
+Actor: session thief (A11).
 
-Attack: the owner key signs two different records for the same version, and the server shows each to a different group of members. Each group sees a valid chain.
+Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records.
 
-Impact: members are silently split; each group may admit members or rotate without the other knowing.
+Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it.
 
-Disposition: accepted. It needs both an owner key and the server: an honest server stores one record per version (write-once). Members on different branches can't open each other's new items, so the split surfaces as failures. A full fix needs a verifiable, append-only directory that every client checks (key transparency), which is out of v1.
+Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
 
-### TH-39: A team's keys reach the wrong context
+### TH-47: Session thief takes a member's key version numbers
 
-Actor: injected script (A9) in another page or context, or anyone on the channel between contexts (A3).
+Actor: session thief (A11).
 
-Attack: when the vault and team sessions run in separate contexts, the attacker reads one team's member keys in transit, replays a transfer captured earlier, or asks the vault for the keys of a team it shouldn't reach.
+Attack: publishes `member-keys` records under the victim's account at the versions the member's next join or re-key would use.
 
-Impact: that team's keys, in a context the integration didn't intend.
+Impact: the member's own write collides forever (`STALE_VERSION`): no join, and no re-key, including those of `secureAccount`.
 
-Disposition: mitigated by SP-02. A transfer is sealed to an ephemeral receiver created in the receiving context, names its account and team inside the box, and opens once: reading or replaying it gives nothing (§3.8). Which context may ask for which team is the integration's decision, as is the channel (D-29); a vault that exports to any requester gives away what it exports.
+Disposition: mitigated by SP-12 (D-43): new keys take the newest published version plus one, the server accepts keys only from their account at its next version, and the vault reports keys it didn't make (`foreign-member-keys`). The bait keys stay unproven, so only a human approves them (TH-37).
 
-### TH-40: The server confirms a stored file from its reference
+## Members and owners
 
-Actor: the server or a database thief (A2, A1) holding a candidate file.
+Current, removed and malicious members, and stolen owner keys (A4, A5, A6).
 
-Attack: the integration sends its server a reference for each part, for deduplication or as an attachment id. If the reference is a plain hash of the content, anyone with a candidate file computes its hash and checks whether it was stored, and sees which items share a file.
+### TH-14: Removed member keeps reading
 
-Impact: confirmation of a file's presence, and links between items, without decrypting anything.
+Actor: removed member (A4).
 
-Disposition: mitigated by SP-21 for references made with `partRef` (D-28). Values the integration computes from plaintext by other means stay its responsibility ([scope.md](scope.md#what-the-integration-does)).
+Attack: keeps the team keys they held and reads items, including new ones.
 
-## Fourth pass: autopilot, proofs and rosters
+Impact: continued access after removal.
 
-### TH-41: A leaked recovery phrase replaces a member's keys
+Disposition: mitigated by SP-06 for items and inboxes created after the next rotation. An owner's `reconcile` rotates as soon as an account holding the current version is no longer in the integration's active list (SP-22); the list of who holds a version is signed chain data (TH-42). Rotations take a list of accounts to keep, so forgetting a removed member costs them access instead of leaving them in. The member keeps every key they had (AS-07), so items they could read before removal are accepted as lost, as in any E2EE system. Inboxes created before the rotation are covered by TH-30. A member re-admitted later can open the versions created while they were away (D-07); this is accepted.
 
-Actor: credential thief (A8) holding a member's recovery phrase.
+### TH-15: Member forges an item's author
 
-Attack: publishes new member keys signed with the recovery key in every team of the account. Owners' `reconcile` approves them as proven re-keys, and the real member's keys stop receiving new versions. The real member re-keys with the same phrase; the two race.
+Actor: malicious member (A5).
 
-Impact: the thief reads what the teams write next, and the real member is cut out until a human intervenes. The phrase also opens the account key, so the thief already read everything the account could (TH-11).
+Attack: creates an item that claims another member wrote it.
 
-Disposition: partly mitigated. An owner's re-key is never approved automatically, so the owner list can't change this way (SP-23). Each approved re-key is reported (SP-15), and the cut-out member sees `pending` and a `key_mismatch` on their next open. Accepted: the race itself; it ends when an owner removes the account or approves one set of keys by hand, after the user has replaced the phrase.
+Impact: false attribution, for example a fake instruction attributed to an owner.
+
+Disposition: accepted in v1. Author signatures are deferred (D-09, SP-13): any member can claim any author. The server still can't change the author recorded on an item (SP-03).
+
+### TH-16: Member reads everything in the team
+
+Actor: malicious member (A5).
+
+Attack: reads every item of the team, including items unrelated to their work.
+
+Impact: the team's items, within the team.
+
+Disposition: accepted by design. The team is the encryption boundary; finer boundaries are a non-goal ([scope.md](scope.md#non-goals)).
+
+### TH-17: Stolen owner key takes over a team
+
+Actor: owner-key thief (A6).
+
+Attack: uses the owner's keys to admit members they control, or to remove the other owners.
+
+Impact: reads future items; may lock out the honest owners.
+
+Disposition: partly mitigated by SP-15, which is detection, not prevention. Every owner-list change and every roster change is reported on all members' clients (D-44), but the attacker can act before anyone reads the reports. The warning shown when an owner is removed (members whose current version that owner signed) can be washed out by a later rotation by another owner. Owner keys must match the accounts' published member keys, so a report can't show an attacker's key under another member's name, unless the server also forges that member's keys record. The honest owners recover by removing the stolen key while they are still owners (its signatures are then refused for every later version, SP-05), or, if locked out, by creating a new team and moving members to it out of band. A single stolen owner key allowing a takeover is accepted (D-06): a quorum wouldn't prevent the more damaging attack, admitting a fake member. Automatic approvals never change the owner list: an owner's re-key, even proven by their recovery key, needs another owner's approval (SP-23, TH-41).
+
+### TH-18: Owner loses their credentials
+
+Actor: none; this is an availability failure.
+
+Attack: an owner loses both their PIN and recovery phrase, or leaves.
+
+Impact: if nobody else can act as owner, nobody can admit members or rotate the team key ever again. The team is frozen.
+
+Disposition: mitigated by SP-16 for teams with two or more owners. A team with a single owner is accepted, with a clear warning to add a co-owner. The only owner can't leave the team (the library refuses with `LAST_OWNER`) and the integration must not delete their account until another owner is added, so a team never loses its last owner through an ordinary action. No server-side recovery exists: it would be a backdoor (SP-19).
+
+### TH-30: Removed member opens new submissions to an existing inbox
+
+Actor: removed member (A4), together with access to the ciphertexts: a data thief (A1), an insider, a server authorization bug, or a current member passing data on.
+
+Attack: an inbox's private key is wrapped by the team key version current when the inbox was created, and its public key is in the link. A member removed later still holds that version, and may have copied the inbox private key itself (AS-07). Senders keep sealing to the same public key, so the removed member can open every later submission to that inbox once they obtain the ciphertexts.
+
+Impact: confidentiality of submissions sent after the removal, to inboxes created before it. The integration's access control is the only barrier; a database leak alone is enough to break it.
+
+Disposition: accepted in v1 (D-20), stated plainly in the assets. Rotating the team key doesn't help; only a new key pair does, and a new key pair means a new link. The library offers "replace inbox"; the integration decides when (for example sensitive requests, or links not yet sent). Integrations should give inboxes a lifetime and replace long-lived ones after a member leaves, which bounds the exposure. A later version can close this without changing links, with signed rotating inbox keys (D-20).
+
+### TH-35: A timestamp shown as proof of when something was sent
+
+Actor: malicious member (A5), outside sender (A10).
+
+Attack: writes any `createdAt` value: backdates an item, or post-dates a submission to look on time.
+
+Impact: misleading dates, if the integration presents them as trustworthy.
+
+Disposition: accepted. Timestamps are authenticated so the server can't change them, but the writer chooses them freely. The protocol never uses them for a security decision, and integrations must not present them as a trusted time. When a trusted time matters, the integration uses the time its server received the record.
+
+## Outsiders
+
+Inbox senders and link holders (A10).
+
+### TH-21: Server swaps an inbox key
+
+Actor: malicious server (A2).
+
+Attack: an outside sender has no team keys to check anything against. If the sender gets the inbox public key from the server, the server can hand over its own key instead.
+
+Impact: the server reads the submission.
+
+Disposition: the inbox link carries the inbox public key itself, in the URL fragment, which browsers don't send to the server. When the link reaches the sender outside the server (the team sends it from its own email, chat or website), the sender seals to the right key: mitigated by SP-14. When the server delivers the link (for example a notification email sent by the product's own server), the server can change the key in the link: accepted, because an anonymous sender can't authenticate anything the server alone provides.
+
+### TH-22: Inbox sender reads other submissions
+
+Actor: outsider (A10) with an inbox link.
+
+Attack: uses the inbox link to read other people's submissions.
+
+Impact: submissions of other senders exposed.
+
+Disposition: mitigated by SP-14. A sender only has the public key and their own content key; each submission is sealed with a fresh content key that only the team can open.
+
+### TH-23: Leaked share link
+
+Actor: outsider (A10) who obtains a share link.
+
+Attack: opens the link.
+
+Impact: the shared item.
+
+Disposition: accepted (D-22). The link is the capability: whoever holds it can decrypt the item. Expiry and one-time viewing are server-side controls of the integration. The library keeps the key out of what the server sees, as long as the integration puts it in the URL fragment and follows the share-link checklist ([scope.md](scope.md#what-the-integration-does)). Two cases where the key does reach a server:
+
+- the integration's own server sends the link (for example by email): that server sees the key, as in TH-21;
+- an email security service rewrites links, fragment included, into its own URLs: that service sees the key.
+
+### TH-31: Anyone with an inbox link submits fake content
+
+Actor: outsider (A10).
+
+Attack: sends content that pretends to come from someone else, or sends a large volume of submissions.
+
+Impact: misleading or unwanted submissions.
+
+Disposition: accepted, out of scope. Inbox submissions are anonymous by design: the protocol protects their confidentiality, not the sender's identity. Rate limiting and abuse handling belong to the integration.
+
+## Dormant threats
+
+Not applicable in v1: they describe mechanisms v1 removed or deferred, and return if those come back (D-32, D-37).
+
+### TH-33: Removed owner signs grants for versions they owned
+
+Actor: removed owner (A4), or someone holding their stolen key (A6).
+
+Attack: after removal, signs a grant of a version they were an owner of, for example to a fake member.
+
+Impact: the fake member opens that version and every earlier one.
+
+Disposition: not applicable in v1. There are no grants (D-37): a version is held only through the roster of its own record, and a removed owner isn't in the owner list of any version after their removal, so they can't sign one (SP-05). They still hold the versions they had (AS-07).
 
 ### TH-42: The server hides grants to suppress a rotation
 
@@ -574,45 +627,3 @@ Attack: uses a join secret in the invite link to publish keys with a valid invit
 Impact: the owner sees a proof that doesn't mean what it claims, or, with automatic approval, the attacker is admitted.
 
 Disposition: not applicable in v1: invite proofs are deferred (D-32), and an invite link carries only the team's anchor, which is not a secret (§6.4). The threat returns with D-32.
-
-### TH-44: Session thief spends the PIN budget
-
-Actor: session thief (A11) who could also change the PIN: through an unlocked vault (A7, A9) or a leaked PIN (A8). A session alone only spends the budget (TH-08).
-
-Attack: changes the PIN, then calls the OPRF until the account's budget is spent. Every operation that makes a PIN wrap needs an evaluation, so the user can't replace the PIN, and can't rotate the account key to cut the thief out, until the budget resets (up to the integration's longest window).
-
-Impact: the thief's PIN keeps opening the account, and the thief's devices stay registered, while the user waits.
-
-Disposition: mitigated by D-40 (SP-11): `secureAccount` and `rotate` run with the recovery phrase alone, retire every wrap of the old version (the thief's PIN and devices), and leave the PIN to be set once the budget allows. The integration may also reset the budget through its support process. Residual, accepted: until the budget resets or is reset, the account has no PIN and unlocks with the phrase or a registered device only.
-
-## Sixth pass: open vaults, sessions and support restores
-
-### TH-45: An unlocked vault replaces the account's credentials
-
-Actor: device thief (A7) or injected script in the vault (A9), holding an open vault but no credential. Same-device unlocks need none.
-
-Attack: replaces the recovery phrase, changes the PIN, or rotates the account key, so the user's credentials stop working and `secureAccount` can't run.
-
-Impact: account takeover: the user loses the account and every team only it could open.
-
-Disposition: mitigated by SP-25 (D-41): each of these needs a current credential besides the open vault. Residual, accepted: the thief can still revoke the user's other devices, which register again with the PIN or the phrase; publish unproven re-keys, which only a human approves (TH-37); or leave teams, which support undoes from the archive (TH-46).
-
-### TH-46: Session thief corrupts private team records
-
-Actor: session thief (A11).
-
-Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records.
-
-Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it.
-
-Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
-
-### TH-47: Session thief takes a member's key version numbers
-
-Actor: session thief (A11).
-
-Attack: publishes `member-keys` records under the victim's account at the versions the member's next join or re-key would use.
-
-Impact: the member's own write collides forever (`STALE_VERSION`): no join, and no re-key, including those of `secureAccount`.
-
-Disposition: mitigated by SP-12 (D-43): new keys take the newest published version plus one, the server accepts keys only from their account at its next version, and the vault reports keys it didn't make (`foreign-member-keys`). The bait keys stay unproven, so only a human approves them (TH-37).
