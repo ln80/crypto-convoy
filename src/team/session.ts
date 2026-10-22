@@ -11,7 +11,7 @@ import { encodeLinkKey } from "../encoding/link.js";
 import { itemToJson, openItemKey, parseItem, sealItem, type Item } from "../records/item.js";
 import { advanceAnchor } from "./anchors.js";
 import { chainFrom, loadChain } from "./load.js";
-import { isOwner, type OwnerChange, type VerifiedChain } from "./chain.js";
+import { isOwner, type MemberChange, type OwnerChange, type VerifiedChain } from "./chain.js";
 import { commitTeam, type MemberBundle, type TeamPorts } from "./context.js";
 import { holdersOf, openOwnAccess, type Holder, type OwnAccess } from "./access.js";
 import { TeamOwner } from "./owner.js";
@@ -66,6 +66,7 @@ export class TeamSession {
   #own: OwnAccess | undefined;
   #keys = new Map<number, Uint8Array>();
   #ownerChanges: OwnerChange[] = [];
+  #memberChanges: MemberChange[] = [];
 
   private constructor(ports: TeamPorts, accountId: string, teamId: string, bundles: readonly MemberBundle[], invite?: Anchor) {
     this.#ports = ports;
@@ -121,6 +122,11 @@ export class TeamSession {
   /** Owner list changes since this account's last verified state (SP-15). */
   get ownerChanges(): readonly OwnerChange[] {
     return this.#ownerChanges;
+  }
+
+  /** Roster changes since this account's last verified state: who was added, removed or re-keyed, and by whom (SP-15, D-44). */
+  get memberChanges(): readonly MemberChange[] {
+    return this.#memberChanges;
   }
 
   /** The owners of the current version. */
@@ -294,6 +300,7 @@ export class TeamSession {
 
     this.#chain = own?.chain ?? chain;
     this.#ownerChanges = [...chain.ownerChanges];
+    this.#memberChanges = [...chain.memberChanges];
     this.close();
     this.#own = own ?? undefined;
     if (own) this.#keys.set(own.teamKeyVersion, own.teamKey);

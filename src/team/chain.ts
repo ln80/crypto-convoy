@@ -15,11 +15,24 @@ export interface OwnerChange {
   readonly rekeyed: readonly string[];
 }
 
+/** One accepted change of the roster, for the integration to show (SP-15, D-44). */
+export interface MemberChange {
+  readonly version: number;
+  readonly signer: string;
+  /** Accounts receiving this version that didn't hold the previous one. */
+  readonly added: readonly string[];
+  /** Accounts that held the previous version and don't receive this one. */
+  readonly removed: readonly string[];
+  /** Accounts receiving this version with other keys than the previous one (an approved re-key, §6.8). */
+  readonly rekeyed: readonly string[];
+}
+
 export interface VerifiedChain {
   /** Consecutive records, from the first one fetched to the newest. */
   readonly records: readonly TeamKeyVersion[];
   readonly hashes: ReadonlyMap<number, Uint8Array>;
   readonly ownerChanges: readonly OwnerChange[];
+  readonly memberChanges: readonly MemberChange[];
 }
 
 export const sameSigner = (a: SignerRef, b: SignerRef, equal: (x: Uint8Array, y: Uint8Array) => boolean) =>
@@ -84,8 +97,17 @@ export function verifyChain(input: {
 
   const highestAnchor = anchors.length > 0 ? Math.max(...anchors.map((a) => a.version)) : 0;
   const ownerChanges: OwnerChange[] = [];
+  const memberChanges: MemberChange[] = [];
   records.forEach((record, i) => {
     if (record.version <= highestAnchor) return;
+    const previous = new Map((records[i - 1]?.roster ?? []).map((e) => [e.accountId, e.keysHash]));
+    const current = new Map(record.roster.map((e) => [e.accountId, e.keysHash]));
+    const joined = [...current.keys()].filter((id) => !previous.has(id));
+    const left = [...previous.keys()].filter((id) => !current.has(id));
+    const newKeys = [...current].filter(([id, hash]) => previous.has(id) && !record.suite.equal(previous.get(id)!, hash)).map(([id]) => id);
+    if (joined.length > 0 || left.length > 0 || newKeys.length > 0) {
+      memberChanges.push({ version: record.version, signer: record.signer.accountId, added: joined, removed: left, rekeyed: newKeys });
+    }
     const before = new Set((records[i - 1]?.owners ?? []).map((o) => o.accountId));
     const after = new Set(record.owners.map((o) => o.accountId));
     const added = [...after].filter((id) => !before.has(id));
@@ -100,7 +122,7 @@ export function verifyChain(input: {
       ownerChanges.push({ version: record.version, signer: record.signer.accountId, added, removed, rekeyed });
     }
   });
-  return { records, hashes, ownerChanges };
+  return { records, hashes, ownerChanges, memberChanges };
 }
 
 /**
@@ -122,5 +144,5 @@ export function extendChain(chain: VerifiedChain, older: readonly TeamKeyVersion
     next = record;
   }
   if (next.version === 1 && !next.prevHash.every((byte) => byte === 0)) throw trustFailure("chain_conflict");
-  return { records: [...older, ...chain.records], hashes, ownerChanges: chain.ownerChanges };
+  return { records: [...older, ...chain.records], hashes, ownerChanges: chain.ownerChanges, memberChanges: chain.memberChanges };
 }

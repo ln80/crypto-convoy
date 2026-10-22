@@ -1,6 +1,6 @@
 /**
  * SP-15: Owner and membership changes are visible.
- * Threats: TH-17.
+ * Threats: TH-17, TH-41.
  */
 import { describe, expect, it } from "vitest";
 import { team } from "../support/teams.js";
@@ -97,5 +97,36 @@ describe("SP-15: owners see each member's access and what needs their action", (
     const reopened = await members.alice!.vault.openTeam("team-1");
     expect(reopened.currentVersion).toBe(2);
     expect((await reopened.members()).map((m) => m.accountId).sort()).toEqual(["alice", "bob"]);
+  });
+
+  it("D-44: a member admitted and removed again between two opens is reported, with each signer", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const bob = members.bob!;
+    (await bob.vault.openTeam("team-1")).close();
+    const mallory = await w.account("mallory");
+    await mallory.vault.joinTeam("team-1");
+    await aliceTeam.owner().approve([{ accountId: "mallory", memberKeysVersion: 1 }]);
+    await aliceTeam.owner().remove(["mallory"]);
+
+    const seen = await bob.vault.openTeam("team-1");
+    expect(seen.memberChanges.map(({ signer, added, removed, rekeyed }) => ({ signer, added, removed, rekeyed }))).toEqual([
+      { signer: "alice", added: ["mallory"], removed: [], rekeyed: [] },
+      { signer: "alice", added: [], removed: ["mallory"], rekeyed: [] },
+    ]);
+    expect(seen.memberChanges[1]!.version).toBe(seen.currentVersion);
+    // Already seen: not reported again.
+    expect((await bob.vault.openTeam("team-1")).memberChanges).toEqual([]);
+  });
+
+  it("D-44: an approved re-key is reported; a rotation that changes no keys reports nothing", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    (await bob.vault.openTeam("team-1")).close();
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
+    expect((await bob.vault.openTeam("team-1")).memberChanges).toEqual([]);
+    await bob.vault.rekey("team-1");
+    await aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: 2 }]);
+    const seen = await bob.vault.openTeam("team-1");
+    expect(seen.memberChanges).toEqual([{ version: seen.currentVersion, signer: "alice", added: [], removed: [], rekeyed: ["bob"] }]);
   });
 });

@@ -19,7 +19,7 @@ export type {
   ProofKind,
   TeamOverview,
 } from "./team/membership.js";
-export type { OwnerChange } from "./team/chain.js";
+export type { MemberChange, OwnerChange } from "./team/chain.js";
 export { createTeamKeyReceiver, type ReceiverPorts, type TeamKeyReceiver } from "./team/receiver.js";
 export { createLinkClient, type LinkClient, type LinkClientOptions } from "./content/link-client.js";
 export type { PartInfo, PartOptions, PartSource } from "./content/context.js";
