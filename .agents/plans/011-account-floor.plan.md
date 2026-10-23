@@ -24,3 +24,10 @@ Review 005 (`.agents/reviews/005-plan-010.md`):
 3. **Notes:** execution notes, review 005 and ledger updated.
 
 ## Execution notes
+
+- **As built:** `newestTrustedAnchor` reads the bundles' floors and the `team-state` anchor only. The read rule (§6.1 step 1, `loadChain`) is unchanged.
+- **Tests:** two in `account-rotation.test.ts`, from review 005's throwaway cases: a garbage local anchor stays out of the floor at a re-key and at `secureAccount`, and a new device opens the team; a local anchor naming a version the server forged doesn't reach the floor, and a new device served that version with `team-state` withheld refuses it (`chain_conflict`). Putting the local anchor back fails both.
+- **Checks:** `typecheck`, `npm test` (712 tests) and `check:spec` pass.
+- **No layout, vector or API change.** Integration (doconvoy e2eev2): nothing to change.
+- **Left:** review 005 C (the local course), through maintain-course.
+
