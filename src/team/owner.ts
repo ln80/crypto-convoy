@@ -186,6 +186,13 @@ export class TeamOwner {
     const holders = await this.#holders();
     const keys = await this.#allKeys();
     const holding = new Set(holders.map((h) => h.accountId));
+    // The held keys are the ones the roster pins: a proof is checked against their recovery key (§4.2),
+    // so a record the server serves for a held version must have the roster's keys hash.
+    const { suite } = core.ports;
+    for (const holder of holders) {
+      const record = keys.get(holder.accountId)?.find((k) => k.memberKeysVersion === holder.memberKeysVersion);
+      if (record && !suite.equal(keysHash(suite, record), holder.keysHash)) throw core.markUnverified(trustFailure("key_mismatch"));
+    }
 
     // Accounts with keys but no current access: did they hold an older version (outdated) or never (§6.9)?
     const heldBefore = new Set<string>();
@@ -202,7 +209,6 @@ export class TeamOwner {
     }
 
     // Keys the caller holds: the same version and keys hash as the published record (§4.3, D-47).
-    const { suite } = core.ports;
     const selfHeld = new Set(
       core
         .ownKeys()

@@ -94,3 +94,29 @@ describe("SP-23: recovery-proven re-keys", () => {
     await expect(bob.vault.rekey("team-1", { phrase: other })).rejects.toMatchObject({ code: "WRONG_CREDENTIAL" });
   });
 });
+
+describe("SP-23: the server can't choose the recovery key a proof is checked against (review 009 A)", () => {
+  it("a record served for a held version must have the roster's keys hash, else nothing is approved", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const attacker = strangerKeys();
+    const fakeRecovery = cc1.signingKeyPair(cc1.randomBytes(32));
+    // Bait at bob's next version, proven by the attacker's recovery key (A2, or A11 through the server rule).
+    await w.server.as("bob").commit([create("bob", 2, forgeMemberKeys("bob", 2, attacker, { recoverySigner: fakeRecovery }))]);
+    // A2 serves, for bob's held version, a record naming the attacker's recovery key.
+    members.alice!.store.replace({ type: "member-keys", accountId: "bob", memberKeysVersion: 1 }, forgeMemberKeys("bob", 1, strangerKeys(), { recovery: fakeRecovery.publicKey }));
+    await expect(aliceTeam.owner().reconcile(["alice", "bob"])).rejects.toMatchObject({ code: "TRUST_FAILURE", reason: "key_mismatch" });
+    members.alice!.store.reset();
+    // No rotation was written.
+    expect(await members.alice!.store.get({ type: "team-key-version", teamId: "team-1", version: 3 })).toBeNull();
+  });
+
+  it("overview doesn't show such a re-key as proven either", async () => {
+    const { members, w } = await team("bob");
+    const owner = (await members.alice!.vault.openTeam("team-1")).owner();
+    const fakeRecovery = cc1.signingKeyPair(cc1.randomBytes(32));
+    await w.server.as("bob").commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys(), { recoverySigner: fakeRecovery }))]);
+    members.alice!.store.replace({ type: "member-keys", accountId: "bob", memberKeysVersion: 1 }, forgeMemberKeys("bob", 1, strangerKeys(), { recovery: fakeRecovery.publicKey }));
+    await expect(owner.overview(["alice", "bob"])).rejects.toMatchObject({ code: "TRUST_FAILURE", reason: "key_mismatch" });
+  });
+});
+

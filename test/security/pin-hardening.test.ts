@@ -156,6 +156,23 @@ describe("SP-08: a PIN guess needs a server evaluation", () => {
     await device.vault.unlockWithPin("1234");
     expect((await device.vault.status()).account).toBe("unlocked");
     expect((await pinWrapOf(device.store))!.kdf.oprfKeyId).toBe(1);
+    expect(await device.vault.warnings()).toContainEqual({ code: "pin-upgrade-failed", teamIds: [], action: "changePin" });
+  });
+
+  it("TH-51: a forged evaluation at the upgrade is reported, and not retried at each unlock (review 009 D)", async () => {
+    const w = world();
+    await w.account("alice");
+    w.oprf.rotateKey();
+    const forger = new FakeOprfServer();
+    forger.rotateKey();
+    const front: OprfService = { evaluate: (r) => (r.oprfKeyId === 2 ? forger.evaluate(r) : w.oprf.evaluate(r)) };
+    const device = await w.device("alice", { oprf: front });
+    await device.vault.unlockWithPin("1234");
+    expect(await device.vault.warnings()).toContainEqual({ code: "pin-upgrade-failed", teamIds: [], action: "report" });
+    device.vault.lock();
+    const before = w.oprf.attempts("alice") + forger.attempts("alice");
+    await device.vault.unlockWithPin("1234");
+    expect(w.oprf.attempts("alice") + forger.attempts("alice") - before).toBe(1);
   });
 
   it("refuses OPRF settings with an invalid public key or a writeKeyId with no key", async () => {

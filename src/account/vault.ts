@@ -79,14 +79,18 @@ export interface DeviceEntry {
 
 /** Something about the account the user should act on, with the operation that clears it (§12). */
 export interface VaultWarning {
-  readonly code: "recovery-not-set-up" | "pin-not-set-up" | "rekey-needed" | "foreign-member-keys";
+  readonly code: "recovery-not-set-up" | "pin-not-set-up" | "rekey-needed" | "foreign-member-keys" | "pin-upgrade-failed";
   /**
    * For `rekey-needed`: teams whose member keys don't carry the current recovery key. For
    * `foreign-member-keys`: teams with keys published under the account that this vault didn't make
    * (D-43): someone may hold the session; end other sessions, then re-key.
    */
   readonly teamIds: readonly string[];
-  readonly action: "beginRecoverySetup" | "changePin" | "rekey";
+  /**
+   * `report` for `pin-upgrade-failed` with a failed proof: the OPRF service answered with a key
+   * the client doesn't pin (TH-51); `changePin` for any other upgrade failure.
+   */
+  readonly action: "beginRecoverySetup" | "changePin" | "rekey" | "report";
 }
 
 export type { RekeyReport };
@@ -129,6 +133,8 @@ export class Vault {
   #account: OpenAccount | null = null;
   /** A phrase shown to the user and not yet confirmed (§5.10). Memory only. */
   #pendingPhrase: string | null = null;
+  /** Set when a PIN wrap's upgrade failed: reported, and not tried again by this vault (§5.4). */
+  #upgradeFailure: ConvoyError | null = null;
 
   /** @internal Use `createVault`. */
   constructor(ports: AccountPorts, accountId: string) {
@@ -238,12 +244,15 @@ export class Vault {
     const { argon2, oprf } = this.#ports.settings;
     const kdf = wrap.kdf!;
     // The key id is the settings', never the server's (D-53).
-    if (kdf.opslimit < argon2.write.opslimit || kdf.memlimit < argon2.write.memlimit || (oprf.writeKeyId !== null && kdf.oprfKeyId !== oprf.writeKeyId)) {
+    const outdated = kdf.opslimit < argon2.write.opslimit || kdf.memlimit < argon2.write.memlimit || (oprf.writeKeyId !== null && kdf.oprfKeyId !== oprf.writeKeyId);
+    if (outdated && !this.#upgradeFailure) {
       try {
         ops.push(...replaceWrap(await pinWrap(this.#ports, account, pin)));
       } catch (error) {
-        // The PIN was verified: only the upgrade failed, so the unlock stands with the old wrap (§5.4).
+        // The PIN was verified: only the upgrade failed, so the unlock stands with the old wrap; it is
+        // reported, and not tried again here, so it never spends an evaluation per unlock (§5.4).
         if (!isConvoyError(error)) throw error;
+        this.#upgradeFailure = error;
       }
     }
     if (ops.length > 0) await commit(this.#ports, ops);
@@ -390,6 +399,10 @@ export class Vault {
     if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
     const foreign = await teamsWithForeignKeys(this.#ports, account);
     if (foreign.length > 0) warnings.push({ code: "foreign-member-keys", teamIds: foreign, action: "rekey" });
+    if (this.#upgradeFailure) {
+      const proof = isConvoyError(this.#upgradeFailure, "TRUST_FAILURE");
+      warnings.push({ code: "pin-upgrade-failed", teamIds: [], action: proof ? "report" : "changePin" });
+    }
     return warnings;
   }
 
