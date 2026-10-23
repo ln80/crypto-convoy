@@ -1,5 +1,5 @@
 /**
- * SP-07: A client never goes back to an older team state; with no anchor, it starts from its keys' floor (D-48).
+ * SP-07: A client never goes back to an older team state, nor below its keys' floor (D-48, D-50).
  * Threats: TH-04, TH-05, TH-46.
  */
 import { sessionInternals } from "../../src/team/session.js";
@@ -10,7 +10,7 @@ import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { openBundles } from "../../src/account/member-custody.js";
 import { vaultInternals, type Vault } from "../../src/account/vault.js";
 import { StoreConflictError } from "../../src/errors.js";
-import { recordHash } from "../../src/records/team-key-version.js";
+import { parseTeamKeyVersion, recordHash } from "../../src/records/team-key-version.js";
 import { createTeamState, teamStateToJson } from "../../src/records/team-state.js";
 import type { TamperingStore } from "../support/fake-store.js";
 import { bundleOf, forgeFirstVersion, forgeVersion, versionRecord } from "../support/forge.js";
@@ -174,14 +174,63 @@ describe("SP-07: a client never goes back", () => {
       expect((await receiver.openTeam(page, transfer)).failure).toEqual(trust("chain_conflict"));
     });
 
-    it("Limit (TH-04): a member who joined without an invite anchor, before any re-key, is on first contact", async () => {
+    it("a joiner without an invite anchor is protected from its join on: its floor is the chain verified at join (D-50)", async () => {
       const { w } = await team("bob");
       const fresh = await w.device("bob");
       await fresh.vault.unlockWithPin("1234");
       fresh.store.drop(stateOf("bob"));
       await forgedTeam(w, fresh, "bob");
-      expect((await fresh.vault.openTeam("team-1")).state).toBe("ready");
+      expect((await fresh.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
     });
+
+    it("an archived team-state below the floor isn't followed (D-50)", async () => {
+      const { members, aliceTeam, w } = await team("bob");
+      const bob = members.bob!;
+      const old = await bob.store.get(stateKey);
+      await aliceTeam.owner().rotate({ keep: ["bob"] });
+      await (await members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
+      expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(4);
+      await bob.vault.rekey("team-1");
+      expect((await bundleOf(bob.vault)).floor?.version).toBe(4);
+      const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+      await phone.vault.unlockWithPin("1234");
+      phone.store.replace(stateKey, old).rollback("team-1", 3);
+      expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
+    });
+
+    it("Limit (TH-04): without an invite anchor, the join is the first contact: a forged chain served then is trusted", async () => {
+      const { w } = await team();
+      const mallory = await w.account("mallory");
+      await mallory.vault.joinTeam("team-1");
+      const m = await bundleOf(mallory.vault);
+      const owner = { accountId: "mallory", keys: m.pairs, published: m.published };
+      const forged = forgeFirstVersion({ owner, roster: [owner] });
+      const dave = await w.account("dave");
+      dave.store.rollback("team-1", 1).fork("team-1", 1, forged);
+      await dave.vault.joinTeam("team-1");
+      expect((await bundleOf(dave.vault)).floor).toEqual({ version: 1, hash: recordHash(parseTeamKeyVersion(forged, { teamId: "team-1" })) });
+    });
+  });
+
+  it("an existing member's join with an invite anchor checks it, writes nothing and keeps the floor (D-50)", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
+    const anchor = aliceTeam.inviteAnchor();
+    const floor = (await bundleOf(bob.vault)).floor;
+    const commits = bob.store.commits.length;
+    await bob.vault.joinTeam("team-1", { anchor });
+    bob.store.rollback("team-1", 2);
+    await expect(bob.vault.joinTeam("team-1", { anchor })).rejects.toEqual(trust("rollback"));
+    expect(bob.store.commits.length).toBe(commits);
+    expect((await bundleOf(bob.vault)).floor).toEqual(floor);
+  });
+
+  it("a join to a team with no chain is refused at join, before any key is written (D-50)", async () => {
+    const { w } = await team();
+    const dave = await w.account("dave");
+    await expect(dave.vault.joinTeam("team-2")).rejects.toEqual(trust("rollback"));
+    expect(await dave.store.list({ type: "member-keys", teamId: "team-2", accountId: "dave" })).toEqual([]);
   });
 
   it("§6.1 step 7: a concurrent team-state written under the older bundle's key is reloaded, not refused", async () => {

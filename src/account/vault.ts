@@ -395,18 +395,24 @@ export class Vault {
 
   /**
    * Creates this account's member keys for a team, if it has none; it stays `pending` until an
-   * owner approves them (§6.4). Pass the invite link's `anchor`: the served chain must contain it,
-   * checked before anything is written, and the keys carry it as their floor, so every device and
-   * context starts from it (D-48). Open the team then, here or in another context. Throws
-   * `RECOVERY_NOT_SET_UP`, `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `TRUST_FAILURE`.
+   * owner approves them (§6.4). Verifies the served chain first, from the invite link's `anchor`
+   * if given, else from version 1 (the member's first contact); the keys carry its tip as their
+   * floor, so every device and context starts from it (D-48, D-50). With keys already, only checks
+   * the anchor. Open the team then, here or in another context. Throws `RECOVERY_NOT_SET_UP`,
+   * `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `TRUST_FAILURE`.
    */
   async joinTeam(teamId: string, options: { anchor?: string } = {}): Promise<void> {
     const account = this.#requireAccount();
-    const floor = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
-    if ((await openBundles(this.#ports, account, teamId)).length > 0) return;
-    if (floor) await verifiedChain(this.#ports, teamId, [floor]);
-    const keys = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account), ...(floor ? { floor } : {}) };
-    await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, await nextMemberKeysVersion(this.#ports, account, teamId), keys).ops);
+    const anchors = options.anchor !== undefined ? [decodeAnchor(options.anchor)] : [];
+    if ((await openBundles(this.#ports, account, teamId)).length > 0) {
+      if (anchors.length > 0) await verifiedChain(this.#ports, teamId, anchors);
+      return;
+    }
+    const recovery = await recoveryPublicKey(this.#ports, account);
+    const chain = await verifiedChain(this.#ports, teamId, anchors);
+    const tip = chain.records.at(-1)!;
+    const floor = { version: tip.version, hash: chain.hashes.get(tip.version)! };
+    await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, await nextMemberKeysVersion(this.#ports, account, teamId), { recoveryPublicKey: recovery, floor }).ops);
   }
 
   /**

@@ -79,6 +79,7 @@ What the expensive writes cost, to set product limits against (teams per account
 | `secureAccount` (§5.11) | that rotation, then one 2-record write per team |
 | Team key version record (§4.5) | about 360 bytes per roster entry: 36 KB for 100 members, 384 KiB at most. One per join, re-key and removal (D-37) |
 | Opening a team | the version records since its anchor, and every published `member-keys` record of the team |
+| Joining a team (§6.4) | the version records from the invite anchor, or from version 1 without one, and every published `member-keys` record of the team (D-50) |
 
 For DynamoDB, a rotation must fit `TransactWriteItems` (100 items): cap the teams per account well below that.
 

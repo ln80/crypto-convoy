@@ -1,7 +1,7 @@
 /**
  * SP-11: The account key can be rotated.
  * SP-25: An open vault alone can't change the account's credentials (rotation needs the phrase).
- * SP-07: the member keys' anchor floor survives rotations and re-keys (D-48).
+ * SP-07: the member keys' anchor floor moves to the newest trusted anchor at rotations and re-keys (D-50).
  * Threats: TH-04, TH-10, TH-12, TH-20, TH-45.
  */
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,15 @@ import { world } from "../support/fixtures.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
+import { openBundles } from "../../src/account/member-custody.js";
+import { vaultInternals, type Vault } from "../../src/account/vault.js";
+import { recordHash } from "../../src/records/team-key-version.js";
+import type { RecordStore } from "../../src/ports.js";
+import { MemoryLocalKeyStore } from "../../src/testing/index.js";
+import { versionRecord } from "../support/forge.js";
+
+const bundlesOf = (vault: Vault) => openBundles(vaultInternals(vault).ports, vaultInternals(vault).account(), "team-1");
+const anchorAt = async (store: RecordStore, version: number) => ({ version, hash: recordHash(await versionRecord(store, "team-1", version)) });
 
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -90,32 +99,31 @@ describe("SP-11: teams survive an account key rotation", () => {
     expect((await accessOf(bob.store, "bob", 2))!.open(copied.pairs.encryption)).toHaveLength(32);
   });
 
-  it("SP-07: the keys' anchor floor survives a rotation and a re-key (D-48)", async () => {
-    const { members } = await team("bob");
-    const alice = members.alice!;
-    const floor = (await bundleOf(alice.vault)).floor!;
-    expect(floor.version).toBe(1);
-    await alice.vault.rotate({ phrase: alice.recoveryPhrase });
-    expect((await bundleOf(alice.vault)).floor).toEqual(floor);
-    await alice.vault.rekey("team-1", { phrase: alice.recoveryPhrase });
-    expect((await bundleOf(alice.vault)).floor).toEqual(floor);
-  });
-
-  it("SP-07: a member who joined without an invite anchor gets a floor at its first re-key (D-48)", async () => {
+  it("SP-07: the floor moves to the newest trusted anchor at a rotation and a re-key (D-50)", async () => {
     const { members, aliceTeam } = await team("bob");
-    const bob = members.bob!;
-    expect((await bundleOf(bob.vault)).floor).toBeUndefined();
-    await bob.vault.rekey("team-1");
-    // Bob's first open anchored him at version 1; his local anchor is the floor.
-    expect((await bundleOf(bob.vault)).floor?.version).toBe(1);
-    expect(aliceTeam.currentVersion).toBe(2);
+    const alice = members.alice!;
+    expect((await bundleOf(alice.vault)).floor?.version).toBe(1);
+    await alice.vault.rotate({ phrase: alice.recoveryPhrase });
+    expect((await bundleOf(alice.vault)).floor).toEqual(await anchorAt(alice.store, 2));
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
+    (await alice.vault.openTeam("team-1")).close();
+    await alice.vault.rekey("team-1", { phrase: alice.recoveryPhrase });
+    expect((await bundleOf(alice.vault)).floor).toEqual(await anchorAt(alice.store, 3));
   });
 
-  it("SP-07: a member who joined without an invite anchor gets a floor at an account rotation (D-48)", async () => {
-    const { members } = await team("bob");
+  it("SP-07: a rotation gives every bundle of a team the newest anchor any of them reads (D-50)", async () => {
+    const { members, aliceTeam, w } = await team("bob");
     const bob = members.bob!;
-    expect((await bundleOf(bob.vault)).floor).toBeUndefined();
-    await bob.vault.rotate({ phrase: bob.recoveryPhrase });
-    expect((await bundleOf(bob.vault)).floor?.version).toBe(1);
+    // A device with no local anchors: the floor comes from the bundles and the team-state.
+    const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+    await phone.vault.unlockWithPin(bob.pin);
+    await phone.vault.rekey("team-1");
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
+    // Bob's laptop writes the team-state at version 3 under the newest bundle's key only.
+    (await bob.vault.openTeam("team-1")).close();
+    await phone.vault.rotate({ phrase: bob.recoveryPhrase, newPin: bob.pin });
+    const floors = (await bundlesOf(phone.vault)).map((b) => b.floor);
+    expect(floors).toHaveLength(2);
+    for (const floor of floors) expect(floor).toEqual(await anchorAt(bob.store, 3));
   });
 });

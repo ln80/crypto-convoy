@@ -54,8 +54,8 @@ export async function accountTeams(ports: AccountPorts, account: OpenAccount): P
 }
 
 /**
- * New member keys in one team (§6.8), with a recovery signature when `signer` is given, keeping
- * the anchor floor (D-48). Throws `NOT_GRANTED` without keys for the team.
+ * New member keys in one team (§6.8), with a recovery signature when `signer` is given, and the
+ * newest trusted anchor as floor (D-50). Throws `NOT_GRANTED` without keys for the team.
  */
 export async function rekeyTeam(
   ports: AccountPorts,
@@ -67,24 +67,30 @@ export async function rekeyTeam(
   const bundles = await openBundles(ports, account, teamId);
   const [newest] = bundles;
   if (!newest) throw new ConvoyError("NOT_GRANTED");
-  const floor = newest.floor ?? (await trustedAnchor(ports, account, teamId, bundles));
+  const floor = await newestTrustedAnchor(ports, account, teamId, bundles);
   const options = { recoveryPublicKey, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}), ...(floor ? { floor } : {}) };
   await commit(ports, newMemberKeys(ports, account, teamId, await nextMemberKeysVersion(ports, account, teamId), options).ops);
 }
 
 /**
- * A floor for keys that have none: an anchor this account already trusts, its local one, else its
- * `team-state` (§5.9, D-48). None if neither reads: a garbage `team-state` never blocks a re-key (TH-46).
+ * The floor for new or re-wrapped keys: the highest of the bundles' floors, the local anchor and the
+ * `team-state` anchor (§5.9, D-50). A garbage `team-state` is skipped, so it never blocks a re-key (TH-46).
  */
-export async function trustedAnchor(ports: AccountPorts, account: OpenAccount, teamId: string, bundles: readonly MemberBundle[]): Promise<Anchor | undefined> {
+export async function newestTrustedAnchor(
+  ports: AccountPorts,
+  account: OpenAccount,
+  teamId: string,
+  bundles: readonly MemberBundle[],
+): Promise<Anchor | undefined> {
   const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(account.accountId, teamId)) : null;
-  if (local) return local;
+  let server: Anchor | undefined;
   try {
-    return (await readServerState(ports, account.accountId, teamId, bundles))?.anchor;
+    server = (await readServerState(ports, account.accountId, teamId, bundles))?.anchor;
   } catch (error) {
-    if (isConvoyError(error, "TRUST_FAILURE")) return undefined;
-    throw error;
+    if (!isConvoyError(error, "TRUST_FAILURE")) throw error;
   }
+  const anchors = [...bundles.map((b) => b.floor), local, server].filter((a): a is Anchor => a !== null && a !== undefined);
+  return anchors.reduce<Anchor | undefined>((best, a) => (!best || a.version > best.version ? a : best), undefined);
 }
 
 /** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11). */

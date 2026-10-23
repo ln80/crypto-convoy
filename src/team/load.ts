@@ -24,9 +24,9 @@ export async function loadChain(
   const server = await readServerState(ports, accountId, teamId, bundles);
   const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(accountId, teamId)) : null;
   const anchors = [local, server?.anchor].filter((a): a is Anchor => a !== null && a !== undefined);
-  // With no other anchor, the newest bundle's floor: never first contact for keys that carry one (D-48).
-  const floor = bundles.find((b) => b.floor)?.floor;
-  if (anchors.length === 0 && floor) anchors.push(floor);
+  // The newest bundle's floor, unless below every other anchor: it never adds a download, and no older team-state wins (D-50).
+  const floor = bundles[0]?.floor;
+  if (floor && (anchors.length === 0 || anchors.some((a) => a.version <= floor.version))) anchors.push(floor);
   return { chain: await verifiedChain(ports, teamId, anchors), server };
 }
 
