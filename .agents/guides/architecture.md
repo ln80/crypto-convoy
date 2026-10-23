@@ -51,7 +51,7 @@ export function suiteFor(id: string): Suite  // throws UNSUPPORTED_VERSION for u
 
 - **Writers** use `CURRENT_SUITE`. **Readers** use `suiteFor(record.suite)`.
 - **Seals use the recipient key's suite**, not the current one: a key type must match its seal.
-- A new suite is registered for reading one release before `CURRENT_SUITE` switches to it (two-release rollout). See [add-algorithm-suite](../workflows/add-algorithm-suite.md).
+- A new suite is registered for reading one release before `CURRENT_SUITE` switches to it (two-release rollout). See [add-algorithm-suite](../skills/add-algorithm-suite/SKILL.md).
 
 ## Record version dispatch
 

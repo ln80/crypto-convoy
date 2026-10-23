@@ -1,6 +1,6 @@
 # Forgeability table
 
-Every value a component of the library accepts from outside itself: who can produce it, what authenticates it, and what happens when it is missing or stale. Kept by the `adversarial` and `design` modes of [protocol-review](../workflows/protocol-review.md).
+Every value a component of the library accepts from outside itself: who can produce it, what authenticates it, and what happens when it is missing or stale. Kept by the `adversarial` and `design` modes of [protocol-review](../skills/protocol-review/SKILL.md).
 
 **Status:** seeded from the specs at `19de2d5` (after plan 010), not yet checked by an `adversarial` review. A row is a finding when someone in "Who can produce it" shouldn't, and "Authenticated by" doesn't stop them.
 

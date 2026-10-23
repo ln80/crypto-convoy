@@ -1,9 +1,0 @@
----
-description: "Update crypto-convoy's local protocol course in learning/course when the protocol, a decision, or the public API changes. Correct stale lessons before adding lifecycles, state diagrams, or comparisons."
-globs: learning/course/**/*.md
-alwaysApply: false
----
-
-Follow this workflow step by step, together with the rules in AGENTS.md.
-
-@.agents/workflows/maintain-course.md

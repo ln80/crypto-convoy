@@ -1,3 +1,8 @@
+---
+name: capture-learning
+description: "Capture a security-engineering or applied-cryptography pattern, concept or lesson from the session as a short note in crypto-convoy's local learning/ folder and index it."
+---
+
 # Workflow: capture a learning note
 
 **Use when** a session produced a reusable pattern, an important concept, or a lesson from a mistake made or caught.

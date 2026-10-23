@@ -1,3 +1,8 @@
+---
+name: maintain-course
+description: "Update crypto-convoy's local protocol course in learning/course when the protocol, a decision, or the public API changes. Correct stale lessons before adding lifecycles, state diagrams, or comparisons. Use when the user asks to update, extend, or maintain the course."
+---
+
 # Workflow: maintain the protocol course
 
 **Use when** the protocol, a decision, or the public API changed, or when extending `learning/course/`. The course is local and gitignored. The short notes in `learning/patterns/`, `learning/concepts/`, and `learning/lessons/` are design history. Do not rewrite them to match a deferred or superseded decision. The course says when a note describes one.

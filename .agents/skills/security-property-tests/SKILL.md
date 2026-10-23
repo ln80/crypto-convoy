@@ -1,3 +1,8 @@
+---
+name: security-property-tests
+description: "Write or extend the tests for a crypto-convoy security property (SP-xx): adversarial scenarios from its threats with the fake store, exact error assertions, the property's Limit, and proof that each test guards its rule."
+---
+
 # Workflow: write the tests for a security property
 
 **Use when** a property (SP-) has no tests yet, or a change touches what a property guarantees.
@@ -5,7 +10,7 @@
 ## Steps
 
 1. **Read the property:** its statement, Limit, Assumptions, Verification paths and related threats (TH-). Read each threat's Attack.
-2. **Create or open** each test file named under Verification. Add the header citing the SP and TH ids (guide: [testing](../guides/testing.md)).
+2. **Create or open** each test file named under Verification. Add the header citing the SP and TH ids (guide: [testing](../../guides/testing.md)).
 3. **One test per attack:** turn each threat's attack into a scenario with the fake store's tamper hooks (swap, replay, rollback, drop, fork, garbage, withhold).
 4. **Assert precisely:** the exact error code and reason, the resulting team state (for example `unverified`), and that no plaintext or key was returned.
 5. **Test the Limit** as specified behaviour, so a future change that silently alters it is noticed.

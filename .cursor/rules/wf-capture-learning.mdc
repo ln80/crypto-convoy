@@ -1,9 +1,0 @@
----
-description: "Capture a security-engineering or applied-cryptography pattern, concept or lesson from the session as a short note in crypto-convoy's local .learning/ folder and index it."
-globs:
-alwaysApply: false
----
-
-Follow this workflow step by step, together with the rules in AGENTS.md.
-
-@.agents/workflows/capture-learning.md

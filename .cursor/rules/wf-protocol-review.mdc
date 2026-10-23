@@ -1,9 +1,0 @@
----
-description: "Review crypto-convoy's protocol in one of five modes: change, design, adversarial (forgeable inputs, combined attackers, fresh-context reviewer), complexity, residuals. Reproduces findings, rates them, writes .agents/reviews/NNN-name.md and updates the ledger. Read only."
-globs:
-alwaysApply: false
----
-
-Follow this workflow step by step, together with the rules in AGENTS.md. For the fresh-context reviewer, open a new chat with only the mode's brief.
-
-@.agents/workflows/protocol-review.md

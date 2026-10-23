@@ -1,6 +1,6 @@
 # Editing the specs (`docs/`)
 
-The documents in `docs/` are the source of truth for the library. Code follows them; a behaviour change starts here ([protocol-change](../workflows/protocol-change.md)).
+The documents in `docs/` are the source of truth for the library. Code follows them; a behaviour change starts here ([protocol-change](../skills/protocol-change/SKILL.md)).
 
 ## Order and roles
 

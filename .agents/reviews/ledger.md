@@ -1,6 +1,6 @@
 # Review ledger
 
-Every review finding and every accepted residual, kept by the [protocol-review](../workflows/protocol-review.md) workflow. Reviews cite this file instead of repeating old findings. Severities before review 004 were set by hand, before the rubric.
+Every review finding and every accepted residual, kept by the [protocol-review](../skills/protocol-review/SKILL.md) workflow. Reviews cite this file instead of repeating old findings. Severities before review 004 were set by hand, before the rubric.
 
 ## Stop rule
 

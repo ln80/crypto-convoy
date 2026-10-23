@@ -1,12 +1,17 @@
+---
+name: protocol-review
+description: "Review crypto-convoy's protocol in one of five modes: change (after a plan changes docs/), design (a proposal before code), adversarial (forgeable inputs, combined attackers, with a fresh-context reviewer), complexity (rules to delete or merge), residuals (accepted risks still acceptable). Reproduces findings, rates them with the severity rubric, writes .agents/reviews/NNN-name.md and updates the ledger. Read only. Use to review, harden or simplify the protocol, or before a freeze."
+---
+
 # Workflow: review the protocol
 
 **Use when** a plan changed `docs/` (change), before implementing a protocol change (design), periodically and before a freeze (adversarial, complexity, residuals), or when asked to harden or simplify the protocol. It finds what `check:spec` can't: claims nothing delivers, inputs someone can forge, attacks that need two actors, rules that can go, and accepted risks that no longer hold.
 
-Read only: a review writes a findings file and updates the [ledger](../reviews/ledger.md); it changes no spec or code. Fixes go through [protocol-change](protocol-change.md).
+Read only: a review writes a findings file and updates the [ledger](../../reviews/ledger.md); it changes no spec or code. Fixes go through [protocol-change](../protocol-change/SKILL.md).
 
 ## Modes
 
-Pick one per review; the findings file names it.
+Pick one per review; the findings file names it. The mode comes from the request or the skill's arguments (`change`, `design`, `adversarial`, `complexity`, `residuals`); without one, pick it from the "When" column and the ledger's stop-rule line, and say which.
 
 | Mode | When | Question | Reviewer |
 | --- | --- | --- | --- |
@@ -18,9 +23,9 @@ Pick one per review; the findings file names it.
 
 ## Steps, every mode
 
-1. **Baseline.** Run `npm run check:spec`; note its failures and `known` notes. Read the [ledger](../reviews/ledger.md), the latest plan, and `git log` since the last review.
+1. **Baseline.** Run `npm run check:spec`; note its failures and `known` notes. Read the [ledger](../../reviews/ledger.md), the latest plan, and `git log` since the last review.
 2. **Run the mode** (below).
-3. **Fresh-context reviewer** (`design`, `adversarial`; optional for the others). Give a reviewer who hasn't seen this work only `docs/`, `src/`, `test/` and the mode's brief (below): not the plans, the reviews, the ledger or this conversation. In Claude Code, an Agent subagent; in Cursor, a new chat. The point is a reader with no stake in the rationale. Ask it for candidate findings with their evidence, not for fixes.
+3. **Fresh-context reviewer** (`design`, `adversarial`; optional for the others). Give a reviewer who hasn't seen this work only `docs/`, `src/`, `test/` and the mode's brief (below): not the plans, the reviews, the ledger or this conversation. In Claude Code, an Agent subagent (`general-purpose`) given only the brief and the paths; in Cursor, a new chat. The point is a reader with no stake in the rationale. Ask it for candidate findings with their evidence, not for fixes.
 4. **Merge.** Put this session's candidates and the reviewer's together. Drop what the ledger already holds as fixed or accepted, unless the candidate shows the acceptance rests on a wrong premise: that is a finding.
 5. **Reproduce.** Each candidate that claims behaviour gets a throwaway test against the code (in `test/security/`, deleted after the review), or a quoted code path when a test isn't practical. Say which, per finding. A candidate nobody can show is dropped or listed as unconfirmed.
 6. **Rate** with the [severity rubric](#severity-rubric).
@@ -31,7 +36,7 @@ Finding kinds: overclaim, missing threat, wrong claim, stale text, spec → code
 
 ## Mode `change`
 
-1. **Read in order:** the changed sections of the [threat model](../../docs/threat-model.md), [security properties](../../docs/security-properties.md) and [protocol](../../docs/protocol.md), then the [decisions](../../docs/decisions.md) of the plan and the [server contract](../../docs/scope.md#server-contract). Skim `key-hierarchy.md`, `integration.md`, `using.md` and `README.md`, which repeat claims.
+1. **Read in order:** the changed sections of the [threat model](../../../docs/threat-model.md), [security properties](../../../docs/security-properties.md) and [protocol](../../../docs/protocol.md), then the [decisions](../../../docs/decisions.md) of the plan and the [server contract](../../../docs/scope.md#server-contract). Skim `key-hierarchy.md`, `integration.md`, `using.md` and `README.md`, which repeat claims.
 2. **Properties → protocol.** For each sentence of each changed property, name the § that delivers it. A sentence with no § is an **overclaim**: either the protocol misses a step, or the property needs a Limit.
 3. **Threats → mechanism.** For each changed threat, check that its actor really can't do the attack with what the protocol allows. For each "detected", "refused with" or "reported" claim, find the code path in `src/` or the test that produces exactly that error, reason or report.
 4. **Decisions → text.** For each decision of the plan, search every document for what it changed. Wording that still describes the old behaviour is **stale**; add it to `scripts/retired-terms.json` when you file the finding.
@@ -50,7 +55,7 @@ Input: the proposed plan or decision, before code.
 
 ## Mode `adversarial`
 
-1. **Forgeability.** Update the [forgeability table](../reviews/forgeability.md) from the protocol and the code: one row per value a component accepts. A row whose producer includes an actor who shouldn't produce it, and whose authentication doesn't stop them, is a **forgeable input**. A row nobody can explain is a finding too.
+1. **Forgeability.** Update the [forgeability table](../../reviews/forgeability.md) from the protocol and the code: one row per value a component accepts. A row whose producer includes an actor who shouldn't produce it, and whose authentication doesn't stop them, is a **forgeable input**. A row nobody can explain is a finding too.
 2. **Combined attackers.** For each pair in the list below, go through the public operations (§12) and the forgeable rows: what does the pair gain that neither gets alone? A harmful result no threat names is a **combined attack** (a missing threat).
 3. **Actors × operations.** For each actor alone, especially whoever holds an unlocked vault or a session, go through every public operation and ask what calling it gains them.
 4. **Assets.** For each asset of the threat model, name every path to it; a path no threat covers is a missing threat.
@@ -68,7 +73,7 @@ At least: A2 + A11 (server and session), A2 + A9 (server and injected script), A
 
 ## Mode `residuals`
 
-1. Read the residuals table of the [ledger](../reviews/ledger.md) and every accepted or partly mitigated threat.
+1. Read the residuals table of the [ledger](../../reviews/ledger.md) and every accepted or partly mitigated threat.
 2. For each residual: does its reason still hold after the decisions since it was accepted? Has its revisit condition happened?
 3. **Chains:** for each pair of residuals, can one actor or a pair use both to reach more than either allows? A chain is a combined attack.
 4. Before a freeze: list the residuals a user or integration must be told about, and check that each is in `scope.md`, the integration guide or the using guide.
@@ -82,7 +87,7 @@ Give the brief, the paths, and nothing else. Ask for candidates with evidence (q
 
 ## Forgeability table
 
-Kept in [`.agents/reviews/forgeability.md`](../reviews/forgeability.md), updated by every `adversarial` review and by any `design` review that adds an input. Columns: the value, the component that accepts it, who can produce it, what authenticates it, what the component does when it is missing or stale, and the rule (§) that covers it.
+Kept in [`.agents/reviews/forgeability.md`](../../reviews/forgeability.md), updated by every `adversarial` review and by any `design` review that adds an input. Columns: the value, the component that accepts it, who can produce it, what authenticates it, what the component does when it is missing or stale, and the rule (§) that covers it.
 
 ## Severity rubric
 
@@ -99,7 +104,7 @@ Simplifications and hardening without a current attack take the severity of the 
 
 ## Ledger
 
-[`.agents/reviews/ledger.md`](../reviews/ledger.md) holds every finding (id `NNN-X`, kind, severity, status `open`, `fixed`, `accepted` or `dropped`, and where it was resolved) and every accepted residual (threat, actor, why it is accepted, when to revisit). A finding leaves `open` only with a decision, a commit or an acceptance recorded. Reviews cite the ledger instead of repeating old findings.
+[`.agents/reviews/ledger.md`](../../reviews/ledger.md) holds every finding (id `NNN-X`, kind, severity, status `open`, `fixed`, `accepted` or `dropped`, and where it was resolved) and every accepted residual (threat, actor, why it is accepted, when to revisit). A finding leaves `open` only with a decision, a commit or an acceptance recorded. Reviews cite the ledger instead of repeating old findings.
 
 ## Stop rule
 

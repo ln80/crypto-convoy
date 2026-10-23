@@ -1,3 +1,8 @@
+---
+name: add-algorithm-suite
+description: "Add a new algorithm suite (new AEAD, post-quantum or hybrid key exchange, new signature scheme) to crypto-convoy with a decision entry, registry, frozen vectors, cohabitation tests and a two-release rollout."
+---
+
 # Workflow: add an algorithm suite
 
 **Use when** a primitive changes: a new AEAD, a post-quantum or hybrid key exchange, a new signature scheme, new password-hashing parameters that need a new construction.
@@ -8,7 +13,7 @@ A suite bundles every primitive of a protocol version; records name it in `suite
 
 1. **Decision first:** add a `D-` entry (problem, chosen primitives, rejected alternatives, rollout) and update the protocol: §2 (a new suite table), and any size that changes (keys, signatures, link values).
 2. **Pick a new id** (for example `cc2`). Ids are never reused or renamed.
-3. **Implement** the `Suite` interface in `src/suites/<id>.ts` (guide: [architecture](../guides/architecture.md)). Keep the same validation duties: strict signature checks, low-order or invalid-key checks, exact sizes.
+3. **Implement** the `Suite` interface in `src/suites/<id>.ts` (guide: [architecture](../../guides/architecture.md)). Keep the same validation duties: strict signature checks, low-order or invalid-key checks, exact sizes.
 4. **Register for reading only:** add it to `SUITES`. Do **not** change `CURRENT_SUITE` yet.
 5. **Vectors:** new frozen cases for every primitive of the suite, computed independently.
 6. **Cohabitation tests** (`compatibility`): records of the old suite and the new one in the same team; seals use the recipient key's suite; an unknown suite id is refused before any crypto.
