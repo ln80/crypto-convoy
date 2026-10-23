@@ -69,7 +69,7 @@ These keys live in the account vault ([Key custody](scope.md#key-custody)). A te
 | Attribute | Value |
 | --- | --- |
 | Purpose | Wraps the `accountKey` for the PIN. |
-| Algorithm | Argon2id over the PIN; then an OPRF evaluation by the server with a key specific to this account (RFC 9497, ristretto255-SHA512); then keyed BLAKE2b combining both. 256-bit result. |
+| Algorithm | Argon2id over the PIN; then a verifiable evaluation by the server, bound to this account (RFC 9497 POPRF, ristretto255-SHA512, D-53); then keyed BLAKE2b combining both. 256-bit result. |
 | Generation | Derived each time the user types the PIN. Each derivation costs one rate-limited server evaluation. |
 | Storage | Never stored, not even on the device (D-05). |
 | Access | Whoever knows the PIN **and** gets a server evaluation for this account. |

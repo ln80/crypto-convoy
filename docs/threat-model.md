@@ -50,7 +50,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | AS-02 | Users run the expected library and application code. Delivering it honestly is the integration's job (TH-26). |
 | AS-03 | A device is not compromised **while** it is in use (no malware, no malicious browser extension). A device stolen afterwards is in scope (TH-10). |
 | AS-04 | TLS protects traffic between clients and the server. |
-| AS-05 | The server keeps the OPRF key secret and enforces PIN rate limits ([server contract](scope.md#server-contract), rules 1–2). If not, see TH-09. |
+| AS-05 | The server keeps the OPRF key secret and enforces PIN rate limits ([server contract](scope.md#server-contract), rules 1–2). If not, see TH-09. Whatever answers PIN evaluations without the key can't fake them (TH-51). |
 | AS-06 | When an owner confirms a member's request (joining, new keys), they can check it is genuine through a channel the server doesn't control (in person, phone, another messenger). |
 | AS-07 | A member can copy every key they were given. Their keys are decrypted in their own browser, which they control: developer tools, a modified script or an extension can read them. Removal only protects what is encrypted with keys they never received. |
 
@@ -98,6 +98,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
 | TH-49 | A forged transfer opens a forged team | A2, A9 | Accepted: the integration's channel between contexts (SP-02 Limit, D-29) |
 | TH-50 | A key holder and the server rewrite or add items | A4 or A5 with A2 | Accepted: the server's write-once rule (SP-03 Limit, D-09 deferred) |
+| TH-51 | A server front end forges PIN evaluations | A2 then A1 | Mitigated: SP-08 (D-53) |
 | TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
 | TH-45 | An unlocked vault replaces the account's credentials | A7, A9 | Mitigated: SP-25 (D-41) |
@@ -305,7 +306,7 @@ Attack: holds the OPRF key and the backup, so it can evaluate guesses itself, of
 
 Impact: the account key of any user with a short PIN.
 
-Disposition: accepted: a short PIN can't resist someone who holds every piece. Integrations reduce the exposure by isolating the OPRF key from the database, or by offering a longer passphrase or a passkey; the 128-bit recovery phrase is not affected.
+Disposition: accepted: a short PIN can't resist someone who holds every piece. Integrations reduce the exposure by isolating the OPRF key from the database, or by offering a longer passphrase or a passkey; the 128-bit recovery phrase is not affected. Isolating the key holds against a server that controls the evaluations' answers without it (TH-51).
 
 ### TH-11: Leaked PIN or recovery phrase
 
@@ -316,6 +317,16 @@ Attack: uses the leaked PIN (with a session for the OPRF evaluation) or the leak
 Impact: the account key and every team.
 
 Disposition: partly mitigated by SP-09, SP-11 and SP-19: for a leaked PIN, the user secures the account with a new PIN; for a leaked phrase, with a new phrase as well (D-45), since securing otherwise keeps the phrase. Accepted: a thief who also holds a session can act first, replacing the phrase and rotating (D-41); the remedy is a support restore of the earlier account key version (SP-26, D-42), then securing with new credentials (TH-48).
+
+### TH-51: A server front end forges PIN evaluations
+
+Actor: malicious server (A2) that controls the answers to PIN evaluations but not the OPRF key (a compromised front end before an isolated key service), then a data thief (A1).
+
+Attack: answers enrolment evaluations with a key of its own, or sends writers to a key id it chose, so the PIN wraps written then can be checked offline without the real key.
+
+Impact: an offline guess on the PIN of every account that set or upgraded a PIN in that window, long after the compromise ends.
+
+Disposition: mitigated by SP-08 (D-53): every evaluation carries a proof checked against a public key the client's code pins for the key id, and the key id new wraps use is a client setting, never a server answer. Residual: the front end can still make guesses within each account's budget through the real service (TH-08), and nothing helps if it also serves the client's code (AS-02).
 
 ### TH-34: PIN hashing cost set too low
 

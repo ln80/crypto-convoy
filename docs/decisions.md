@@ -185,7 +185,7 @@ Problem: Argon2id at 256 MiB of memory may be too heavy for some devices, and a 
 
 Decision: the integration sets two values: the cost used when writing a PIN wrap (default: 3 passes, 256 MiB) and the minimum cost accepted when reading one (default: the same). Each PIN wrap records the cost it was made with, so readers follow the record within those bounds. Values that come from the server are only ever checked against the bounds, never used to change them. The library has a **hard floor** of 2 passes and 64 MiB (libsodium's interactive level): no setting can go below it, so a misconfigured minimum can't make a weak wrap acceptable.
 
-Consequence: an integration can change the cost for its users without a protocol change, as long as it keeps its own minimum consistent, and never below the floor. Wraps written with a different cost stay readable. After a successful PIN unlock, a wrap made with a cost below the current writer setting, or under a retired server OPRF key, is re-wrapped automatically (upgrade on unlock), so no user needs recovery because a setting changed.
+Consequence: an integration can change the cost for its users without a protocol change, as long as it keeps its own minimum consistent, and never below the floor. Wraps written with a different cost stay readable. After a successful PIN unlock, a wrap made with a cost below the current writer setting, or under a key id other than the setting's `writeKeyId` (D-53), is re-wrapped automatically (upgrade on unlock), so no user needs recovery because a setting changed.
 
 ## D-18: Fixed size limits for records
 
@@ -273,7 +273,7 @@ Status: Accepted.
 
 Problem: integrations need an honest server to test against, and a server implementation (in any language) needs a precise statement of the server contract. Both otherwise get written from prose, and drift.
 
-Decision: `crypto-convoy/testing` ships an in-memory `RecordStore` that applies every rule of protocol §11, a fake OPRF server (RFC 9497, one key and one total budget per account), an in-memory `LocalKeyStore` and a fixed clock. The tamper hooks used by the library's own adversarial tests stay outside the package.
+Decision: `crypto-convoy/testing` ships an in-memory `RecordStore` that applies every rule of protocol §11, a fake OPRF server (RFC 9497 POPRF, one key pair per key id and one total budget per account, D-53), an in-memory `LocalKeyStore` and a fixed clock. The tamper hooks used by the library's own adversarial tests stay outside the package.
 
 Rejected: keeping the fakes in the test folder only. Each integration would write its own, with weaker rules.
 
@@ -662,3 +662,24 @@ Rejected:
 - Taking the floor from the highest anchor read (D-50, D-51): an anchor is only as good as whoever wrote it.
 
 Consequence: an anchor written outside the vault can no longer choose the chain. A forged local anchor stops its own device; a forged `team-state` stops the account's devices with `state_conflict` or `rollback` until support restores the previous revision (TH-46). The floor stays near the tip, so a fetch from the floor costs about what a fetch from the lowest anchor did, and a vault open or export that sees a new version costs one more small write. Someone holding the account key can plant a floor; `secureAccount` on a device that has opened the team replaces it in each new bundle, and on one that hasn't, verifies from the floor it holds (TH-20). The server can serve an older wrap, whose older floor bounds a rollback as in TH-05.
+
+## D-53: PIN evaluations are verifiable, and the key id is a client setting
+
+Status: Accepted.
+
+Problem: PIN hardening ran RFC 9497's OPRF in base mode, with no proof, under a key id the server named (`currentKeyId`). A party that controlled the answers for a while without holding the key, such as a compromised front end before an isolated key service, could answer with a key of its own, at every enrolment and, by moving the key id, at every account's next unlock. Every PIN wrap written then could be checked offline by whoever later stole the database (review 006 E, TH-51).
+
+Decision:
+- The PIN evaluation is RFC 9497 POPRF (ristretto255-SHA512), with public info `enc(label("pin-oprf"), accountId)` built by the server from the account it charges. One key pair per `oprfKeyId`; each evaluation returns a proof.
+- The client checks the proof against the public key its settings pin for the key id, shipped in the integration's code (AS-02), never fetched from the server. An unpinned key id is `UNSUPPORTED_VERSION` before any work; a failed proof is `TRUST_FAILURE` (`bad_signature`) before anything is derived. Neither is retried.
+- New wraps use the settings' `writeKeyId`, as the Argon2id cost is a setting (D-17). `OprfService.currentKeyId` is removed. A key is replaced in two releases: pin it, then make it `writeKeyId`.
+- The unlock stands when only its upgrade fails; the old wrap is kept.
+- v1 isn't released (§13): cc1's PIN hardening is changed in place, the wrap layout stays, and POPRF key ids start above any id used before, so a base-mode wrap from a test deployment fails with `UNSUPPORTED_VERSION`, never as a wrong PIN.
+
+Rejected:
+- A verifiable OPRF with a key per account: its public keys can't be pinned in client code.
+- Keeping `currentKeyId` and upgrading only to pinned ids: the server could still send writers back to an older pinned key, or flip ids to spend the budget (review 008 A).
+- Accepting it in TH-09: isolating the OPRF key from the database would protect nothing against whoever answers in its name.
+- A mode field and a new wrap version: a fallback to delete later, for wraps no release ever wrote.
+
+Consequence: whatever answers PIN evaluations without the key can only refuse them. One key now serves every account of a key id, so a repeated proof nonce, or one account's tweaked key, reveals it for all: the integration draws nonces from a CSPRNG, exports no tweaked key, and rotates key ids or caps evaluations per key id (scope rule 2). POPRF rests on a stronger assumption than base mode (RFC 9497, security considerations). The integration ships each public key in its client code before using it. The server can still make guesses within each account's budget (TH-08), and a key holder is as strong as before (TH-09).

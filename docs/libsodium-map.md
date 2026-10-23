@@ -42,7 +42,7 @@ Not from libsodium, each for a stated reason.
 
 | Library and function | Protocol task | Why not libsodium | Source |
 | --- | --- | --- | --- |
-| `@noble/curves`: `ristretto255_oprf.oprf.blind`, `finalize` | OPRF client, RFC 9497 ristretto255-SHA512 base mode (§5.1). The blinding scalar's randomness is `randombytes_buf` | libsodium has ristretto255 arithmetic but no RFC 9497 construction; a hand-written one would be new code to audit | `cc1/index.ts` |
-| `@noble/curves`: `ristretto255_oprf.oprf.deriveKeyPair`, `blindEvaluate` | Server side of the OPRF, in the testing kit only (§5.1, D-24) | As above | `testing/` |
+| `@noble/curves`: `ristretto255_oprf.poprf(info).blind`, `finalize` | POPRF client, RFC 9497 ristretto255-SHA512 partially oblivious mode, proof checked in `finalize` (§5.1, D-53). The blinding scalar's randomness is `randombytes_buf` | libsodium has ristretto255 arithmetic but no RFC 9497 construction; a hand-written one would be new code to audit | `cc1/index.ts` |
+| `@noble/curves`: `ristretto255_oprf.poprf(info).deriveKeyPair`, `blindEvaluate` | Server side of the POPRF, in the testing kit only (§5.1, D-24); the proof nonce from `randombytes_buf` | As above | `testing/` |
 | `@scure/bip39`: `entropyToMnemonic`, `validateMnemonic`, `mnemonicToSeedSync` | Recovery phrase: 12 English words from 16 bytes of `randombytes_buf`, checksum, PBKDF2-HMAC-SHA512 seed (§5.2) | libsodium has no BIP-39 word list or PBKDF2 | `cc1/index.ts` |
 | WebCrypto `AES-GCM` (`generateKey` non-extractable, `encrypt`, `decrypt`) | Browser adapter's local storage (§3.7) | Only WebCrypto can make a key non-extractable (D-08) | `browser/` |

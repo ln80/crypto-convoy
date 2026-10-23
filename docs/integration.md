@@ -122,11 +122,11 @@ If the vault and team sessions run in different contexts (D-29), carry the trans
 
 The server side of PIN hardening (§5.1, SP-08):
 
-- **One key per account:** `DeriveKeyPair(seed, info)` of RFC 9497 (ristretto255-SHA512, OPRF mode), with `info = enc(string label("pin-oprf"), u32 oprfKeyId, accountId)` (protocol §1 encoding). Keep `seed` secret, outside the database that stores the wraps.
-- **Evaluate:** `BlindEvaluate(skS, blindedElement)`; return the 32-byte evaluated element.
-- **One total budget per account,** across `unlock` and `enroll` (rule 2). A refused evaluation is reported with `RateLimitedError`; it should not consume budget.
-- **Key replacement:** `currentKeyId` returns the id new wraps use. Keep evaluating with a retired id for a transition period: the library upgrades PIN wraps on the next unlock (§5.4).
-- `pin-key.v1.json` holds the RFC 9497 vectors and a full PIN key derivation to check an implementation against.
+- **One key pair per key id:** RFC 9497 POPRF (ristretto255-SHA512, partially oblivious mode), `DeriveKeyPair` or `GenerateKeyPair` per `oprfKeyId`. Keep the secret keys outside the database that stores the wraps (TH-09), and never derive or export a per-account tweaked key: anyone who gets one recovers the key of every account.
+- **Evaluate:** `BlindEvaluate(skS, blindedElement, info)` with `info = enc(string label("pin-oprf"), accountId)` (protocol §1 encoding), built from the account you charge, never from the request; return the 32-byte evaluated element and the 64-byte proof. Draw the proof nonce from a CSPRNG: a repeated or biased nonce reveals the key.
+- **One total budget per account,** across `unlock` and `enroll` (rule 2). A refused evaluation is reported with `RateLimitedError`; it should not consume budget. Every account's evaluations hit one key per key id, and anyone can open accounts: rotate key ids periodically, or cap evaluations per key id.
+- **Public keys in your client code:** pass `settings.oprf = { keys: { [oprfKeyId]: publicKey }, writeKeyId }` to `createVault`, from code your API servers don't serve (AS-02), never from an API response. Replace a key in two releases: first ship its public key in `keys`, so the clients that will see it can read its wraps, then make it `writeKeyId`. Keep evaluating a retired key while wraps made under it may remain; the library upgrades them on the next unlock (§5.4).
+- `pin-key.v1.json` holds the RFC 9497 POPRF vectors and a full PIN key derivation to check an implementation against. Its proofs use fixed nonces: test values only.
 
 ## LocalKeyStore and Clock
 

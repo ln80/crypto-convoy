@@ -72,7 +72,7 @@ Every `wrap`, `seal`, `sign`, `stream` and key derivation below encodes `string 
 | Short name | Used for |
 | --- | --- |
 | `pin-key` | Combining the Argon2id and OPRF outputs |
-| `pin-oprf` | The server's per-account OPRF key derivation (§5.1) |
+| `pin-oprf` | The public info of a PIN evaluation, naming the account (§5.1) |
 | `recovery-key` | Deriving the recovery key |
 | `recovery-signing-key` | Deriving the recovery signing key's seed (§5.2) |
 | `recovery-public-key` | Wrapping the recovery public key under the account key (§4.1) |
@@ -125,7 +125,7 @@ The fixed set of primitives used by every v1 record. All come from libsodium, ex
 | Hash | BLAKE2b-256 (`crypto_generichash`, 32-byte output; keyed where stated) | 32 |
 | Content stream | `crypto_secretstream_xchacha20poly1305` | key 32, header 24, 17 bytes per chunk, 4 MiB (4,194,304 bytes) of plaintext per chunk |
 | PIN hashing | Argon2id v1.3 (`crypto_pwhash`, `ALG_ARGON2ID13`) | salt 16, output 32 |
-| PIN hardening | OPRF, RFC 9497, ciphersuite ristretto255-SHA512, base mode | output 64 |
+| PIN hardening | POPRF, RFC 9497, ciphersuite ristretto255-SHA512, partially oblivious mode (D-53) | public key 32, proof 64, output 64 |
 | Recovery phrase | BIP-39, English word list, 128-bit entropy (12 words), seed by PBKDF2-HMAC-SHA512, 2048 rounds, empty passphrase | seed 64 |
 
 Two rules every implementation must apply identically, because the team key chain depends on every client accepting exactly the same records:
@@ -241,7 +241,7 @@ In a browser, `takeLinkKey()` (from `crypto-convoy/browser`) reads the fragment,
 
 ### 3.6 Random values
 
-Every key, nonce, id and salt comes from libsodium's `randombytes_buf`. There is no other source of randomness. This includes the two values drawn outside libsodium's own functions: the OPRF blinding scalar (the random generator handed to `Blind`, §5.1) and the 16 bytes of BIP-39 entropy behind a recovery phrase (§5.2).
+Every key, nonce, id and salt comes from libsodium's `randombytes_buf`. There is no other source of randomness. This includes the two values drawn outside libsodium's own functions: the OPRF blinding scalar (the random generator handed to `Blind`, §5.1; the server's proof nonce is the integration's, from a CSPRNG) and the 16 bytes of BIP-39 entropy behind a recovery phrase (§5.2).
 
 ### 3.7 Local storage (browser adapter)
 
@@ -492,15 +492,16 @@ What the account vault does. Each step that can fail names its error.
 ### 5.1 Deriving the PIN key
 
 1. Normalise the PIN to Unicode NFKC and encode it as UTF-8.
-2. Check the `kdf` bounds (§2), else `MALFORMED_RECORD`.
+2. Check the `kdf` bounds (§2), else `MALFORMED_RECORD`. Take the public key the settings pin for `oprfKeyId` (§12); with none, `UNSUPPORTED_VERSION`, before any work (D-53).
 3. `a` = Argon2id(PIN, `salt`, `opslimit`, `memlimit`), 32 bytes.
-4. `(blind, blindedElement)` = OPRF `Blind(a)` (RFC 9497 §3.3.1).
-5. `evaluatedElement` = `OprfService.evaluate(accountId, blindedElement, oprfKeyId, purpose)`, where `purpose` is `unlock` or `enroll`. This call is **never retried automatically**: each call spends one rate-limited attempt. A refusal is `PIN_RATE_LIMITED`.
-6. `y` = OPRF `Finalize(a, blind, evaluatedElement)`, 64 bytes.
+4. `info` = `enc(string label("pin-oprf"), accountId)`. `(blind, blindedElement, tweakedKey)` = POPRF `Blind(a, info, publicKey)` (RFC 9497 §3.3.3).
+5. `(evaluatedElement, proof)` = `OprfService.evaluate(accountId, blindedElement, oprfKeyId, purpose)`, where `purpose` is `unlock` or `enroll`. This call is **never retried automatically**: each call spends one rate-limited attempt. A refusal is `PIN_RATE_LIMITED`. An element that isn't 32 bytes or a proof that isn't 64 is `MALFORMED_RECORD`.
+6. Verify the proof against `tweakedKey`, else `TRUST_FAILURE` (`bad_signature`), before anything is derived; then `y` = POPRF `Finalize(a, blind, evaluatedElement, blindedElement, proof, info, tweakedKey)`, 64 bytes.
 7. `pinKey` = keyed BLAKE2b-256(key = `a`, message = `enc(string label("pin-key"), accountId, bytes y)`).
 
 Server side (SP-08):
-- The server evaluates with a key specific to the account. A conforming derivation is RFC 9497 `DeriveKeyPair(seed, info)` with `info = enc(string label("pin-oprf"), u32 oprfKeyId, accountId)`. `oprfKeyId` lets the server replace its seed. The server keeps a retired key working for a transition period; PIN wraps made under it are upgraded on the next unlock (§5.4), so no user needs recovery because of a key change.
+- The server holds one POPRF key pair per `oprfKeyId` and evaluates with `info` built from the account it charges the evaluation to, never from the request, so an evaluation for one account doesn't help guess another (SP-08). It returns the evaluated element and its proof; the proof's nonce comes from a CSPRNG, since a repeated one reveals the key. The public key of each `oprfKeyId` reaches clients in the integration's code, never from the server (AS-02, D-53).
+- The key id a new wrap uses is a client setting, `writeKeyId` (§12), as the Argon2id cost is (D-17). Replacing a key takes two releases: one that pins the new public key, so its wraps can be read, then one that makes it `writeKeyId`. The server keeps evaluating a retired key while wraps made under it may remain; they are upgraded on the next unlock (§5.4).
 - `purpose` only lets the server split its limits. Both purposes produce the same `pinKey`, so **every** evaluation is a usable PIN guess: the server must enforce one **total** budget per account across both purposes ([server contract](scope.md#server-contract), rule 2).
 
 ### 5.2 Deriving the recovery key
@@ -526,7 +527,7 @@ The account key opens only through one of these three paths (SP-19).
 
 - **Same device.** Read the `deviceKey` and `deviceId` from `LocalKeyStore`, fetch that device's wrap at the current version, and unwrap. If the wrap is gone (revoked, or removed by a rotation), the device must register again: `DEVICE_NOT_REGISTERED`.
 - **PIN.** Fetch the PIN wrap, derive the `pinKey` (purpose `unlock`), unwrap. Then register the device (§5.5). With no PIN wrap at the current version (after a rotation without a PIN, D-40): `PIN_NOT_SET_UP`, before any server evaluation.
-  - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the server's current one, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget.
+  - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the settings' `writeKeyId`, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget. If only the upgrade fails, the unlock stands and the old wrap is kept.
 - **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6), the phrase being the current credential. Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it. They happen first: if setting the PIN is refused (`PIN_RATE_LIMITED`), the account stays unlocked on this device with its previous PIN wrap. If someone else may have set that PIN, secure the account with the phrase alone (§5.11).
 
 ### 5.5 Registering and revoking a device
@@ -852,7 +853,7 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 | `item` | team, item | Write-once; `teamKeyVersion` must be current. Readable by the team's members, and by whoever the integration lets open the item's links, by the route it chooses. |
 | `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. Readable by the team's members. |
 | Team creation | — | Version 1 and the creator's member keys in one atomic batch. |
-| OPRF evaluation | account | Per-account key. One total budget per account across `unlock` and `enroll`; the purposes may only split it. |
+| OPRF evaluation | account | One key pair per `oprfKeyId`; `info` built from the account charged, never from the request; a proof with each evaluation (D-53). One total budget per account across `unlock` and `enroll`; the purposes may only split it. |
 | Account key version restore | account | A support action, outside `RecordStore` (D-42, SP-26): the chosen archived version becomes current again, the records of later versions are archived, and its own records are served again. |
 
 **Content, stored by the integration.** Item parts (team, item, index), submission records and their parts (team, inbox, submission, index) are checked by readers against their key record or envelope, wherever they are stored. Recommended, not relied on: keep them write-once, and don't present an item until its `item` record is stored. Parts of a draft never sealed (§7.1) open with no key and can be deleted.
@@ -954,13 +955,13 @@ What the library expects from each interface. A conforming server enforces the r
 
 A write that a server rule refuses (write-once, current version, compare-and-set, ordering) is reported by throwing the library's `StoreConflictError`: the library turns it into `STALE_VERSION`, or reloads and retries for a `team-state` (§6.1 step 7). Any other failure is `STORE_ERROR`. Private records (§11) are served only to their account: the integration authenticates the caller, the library never sees how.
 
-**`OprfService`.** `evaluate(accountId, blindedElement, oprfKeyId, purpose)` returns the evaluated element (§5.1); a refusal by the rate limit is reported by throwing `RateLimitedError`, which the library turns into `PIN_RATE_LIMITED`. `currentKeyId(accountId)` returns the server's current `oprfKeyId`, for enrolment and the upgrade on unlock (§5.4).
+**`OprfService`.** `evaluate(accountId, blindedElement, oprfKeyId, purpose)` returns the evaluated element and its proof (§5.1); a refusal by the rate limit is reported by throwing `RateLimitedError`, which the library turns into `PIN_RATE_LIMITED`. There is no key id query: the key id new wraps use is a setting (D-53).4).
 
 **`LocalKeyStore`.** Keeps, on this device: per account, the device key and `deviceId`, and the highest account key version accepted (SP-07), used by the vault; per account and team, the anchor (version, record hash), used by team sessions. In a split layout, each context implements the half it uses. Values that can't be read back are errors, never an empty result (§3.7).
 
 **`Clock`.** `now()` returns Unix seconds (§1).
 
-**Settings.** The Argon2id writer cost and reader minimum (§2, D-17), and `maxBufferedSize` (§3.4). The library refuses settings below its hard floor.
+**Settings.** The Argon2id writer cost and reader minimum (§2, D-17), `maxBufferedSize` (§3.4), and `oprf`: the public key of each `oprfKeyId` the client accepts and the `writeKeyId` new PIN wraps use (D-53). The library refuses settings below its hard floor, a public key that isn't a valid non-identity element, and a `writeKeyId` with no key (`MALFORMED_RECORD`).
 
 ---
 

@@ -120,7 +120,7 @@ The integration decides how far apart these two run:
 The library verifies everything it can on its own: signatures, the team key chain and its owners, authenticated encryption, versions. It never relies on the server for confidentiality or for the authenticity of keys. Some things only a server can do, though. A conforming server must:
 
 1. **Authenticate callers** and serve an account's private records (account key wraps, member key wraps, team state) only to that account.
-2. **Keep the OPRF key secret, use a separate OPRF key per account, and rate-limit PIN evaluations** with **one total budget per account**, whatever purpose a call declares: every evaluation is a usable PIN guess. This is the only thing standing between a stolen backup and a short PIN.
+2. **Keep the OPRF key secret, build each evaluation's `info` from the account it charges (never from the request), prove every evaluation, and rate-limit PIN evaluations** with **one total budget per account**, whatever purpose a call declares: every evaluation is a usable PIN guess. Proof nonces come from a CSPRNG, and no per-account tweaked key is ever exported: either reveals the key of every account (D-53). This is the only thing standing between a stolen backup and a short PIN.
 3. **Never overwrite write-once records:** team key versions, member key records, `item` and `inbox` records.
 4. **Use compare-and-set** for records that change in place (team state), so concurrent writers can't silently undo each other.
 5. **Apply atomic batches** where the protocol requires them: team creation, the switch to a new account key version.

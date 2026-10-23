@@ -30,7 +30,9 @@ import { FakeOprfServer, MemoryLocalKeyStore, MemoryRecordStore } from "crypto-c
 
 const keyStore = new MemoryRecordStore();   // in production: your RecordStore over your key store API
 const local = new MemoryLocalKeyStore();    // in a browser: createIndexedDbLocalKeyStore()
-const vault = await createVault({ store: keyStore.as("alice"), oprf: new FakeOprfServer(), deviceKeys: local, anchors: local }, "alice");
+const oprf = new FakeOprfServer();         // in production: your OprfService client
+const settings = { oprf: await oprf.clientSettings() }; // in production: OPRF public keys shipped in your client code (D-53)
+const vault = await createVault({ store: keyStore.as("alice"), oprf, deviceKeys: local, anchors: local, settings }, "alice");
 
 await vault.setup("1234");
 const { recoveryPhrase } = vault.beginRecoverySetup(); // show it, then ask the user to type it back
@@ -142,8 +144,8 @@ Every operation throws one class, `ConvoyError`, with a `code` from protocol §9
 | `LAST_OWNER` | Add another owner first |
 | `NOT_AN_OWNER` | Hide owner screens for this account |
 | `RECOVERY_NOT_SET_UP` | Run the recovery setup (`beginRecoverySetup`, `confirmRecoveryPhrase`) |
-| `TRUST_FAILURE` | Stop and show a security warning. A team session becomes `unverified` for good (`session.failure`) |
-| `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `DECRYPTION_FAILED` | Tampered or unsupported data: report, don't retry |
+| `TRUST_FAILURE` | Stop and show a security warning. A team session becomes `unverified` for good (`session.failure`). On a PIN operation, your OPRF service answered with an evaluation its pinned key didn't prove (D-53) |
+| `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `DECRYPTION_FAILED` | Tampered or unsupported data: report, don't retry. `UNSUPPORTED_VERSION` on a PIN operation: a key id your `settings.oprf` doesn't pin; ship its public key |
 | `STORE_ERROR` | Your `RecordStore` or `OprfService` failed (`error.cause`); retry, except PIN evaluations |
 
 Your `RecordStore` signals a refused write with `StoreConflictError`, and your `OprfService` a spent PIN budget with `RateLimitedError`.

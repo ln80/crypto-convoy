@@ -134,6 +134,16 @@
           "D-52"
         ]
       }
+    },
+    {
+      "pattern": "currentKeyId|separate OPRF key per account|per-account OPRF key|server's current one|base mode|key specific to (?:this|the) account",
+      "decision": "D-53",
+      "use": "one POPRF key pair per oprfKeyId, info built from the account; the key id new wraps use is the settings' writeKeyId",
+      "allow": {
+        "decisions.md": [
+          "D-53"
+        ]
+      }
     }
   ]
 }

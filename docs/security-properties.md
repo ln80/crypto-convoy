@@ -183,15 +183,15 @@ Related threats: TH-15.
 
 ### SP-08: A PIN guess needs a server evaluation
 
-Property: nothing stored (backup, device storage) allows checking a PIN guess offline. Every guess requires one OPRF evaluation by the server for that account, and an evaluation made for one account doesn't help guess another account's PIN. Every evaluation counts as a guess, whatever its declared purpose. The PIN hashing cost is never below the library's hard floor (D-17).
+Property: nothing stored (backup, device storage) allows checking a PIN guess offline. Every guess requires one OPRF evaluation by the server for that account, and an evaluation made for one account doesn't help guess another account's PIN. Every evaluation counts as a guess, whatever its declared purpose. Every evaluation carries a proof, checked against the public key the client's settings pin for the key id, and the key id new wraps use is a setting too: a server that answers without the real key, or picks the key id, is refused (`TRUST_FAILURE`, `UNSUPPORTED_VERSION`) instead of making a wrap that can be checked offline (D-53). The PIN hashing cost is never below the library's hard floor (D-17).
 
 Assumptions: AS-01, AS-05. Rate limiting, with one total budget per account, is enforced by the server ([server contract](scope.md#server-contract), rule 2).
 
 Verification:
-- `test/security/pin-hardening.test.ts`: try to open a backup with the correct PIN but no evaluation, with another account's evaluation, and with a wrong key.
-- `test/vectors/pin-key.v1.json` (including the RFC 9497 vectors).
+- `test/security/pin-hardening.test.ts`: try to open a backup with the correct PIN but no evaluation, with another account's evaluation, and with a wrong key; answer an evaluation with another key, a forged or replayed proof, or an unpinned key id (refused before any wrap is written); check that the server never chooses the key id, and that an unlock stands when only its upgrade fails.
+- `test/vectors/pin-key.v1.json` (including the RFC 9497 POPRF vectors).
 
-Related threats: TH-07, TH-08, TH-34.
+Related threats: TH-07, TH-08, TH-34, TH-51.
 
 ### SP-09: A replaced PIN or recovery phrase stops working
 
