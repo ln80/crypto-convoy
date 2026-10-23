@@ -122,6 +122,18 @@
           "D-51"
         ]
       }
+    },
+    {
+      "pattern": "newest trusted anchor|newest anchor the (?:vault|account)|unless it is below the lowest|never adds a download|floor counts unless|the team's floor, the newest",
+      "decision": "D-52",
+      "use": "the floor is the root of trust: always counted, moved only to the tip of a chain verified from it (vault open or export, re-key), kept by a rotation",
+      "allow": {
+        "decisions.md": [
+          "D-50",
+          "D-51",
+          "D-52"
+        ]
+      }
     }
   ]
 }

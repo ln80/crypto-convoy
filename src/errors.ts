@@ -22,6 +22,7 @@ export type TrustReason =
   | "chain_conflict"
   | "rollback"
   | "state_unreadable"
+  | "state_conflict"
   | "context_mismatch"
   | "key_mismatch";
 

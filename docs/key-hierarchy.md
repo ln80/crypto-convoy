@@ -150,7 +150,7 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 
 | Attribute | Value |
 | --- | --- |
-| Purpose | Encrypts this member's copy of the team state on the server: its anchor, the newest team key version record it verified (SP-07). A new device starts from that anchor, or from the anchor floor the member keys bundle carries when the server doesn't serve it or serves one older than the floor (D-48, D-50). |
+| Purpose | Encrypts this member's copy of the team state on the server: its anchor, the newest team key version record it verified (SP-07). A new device starts from the anchor floor the member keys bundle carries, and follows this anchor when the chain from the floor contains it (D-48, D-52). |
 | Algorithm | 256-bit symmetric key, used with XChaCha20-Poly1305. |
 | Generation | Random, in the member keys bundle. |
 | Storage | In the member keys bundle. |
@@ -402,7 +402,7 @@ A team with a single owner can't do this. Nobody can manage the team any more (T
 
 ### Re-keying after a suspected leak of member keys
 
-1. The member's vault generates new member keys for the team and publishes them, signed by the recovery key if the user enters the phrase. The new bundle's anchor floor is the newest anchor the account's records hold: its bundles' floors and its `team-state` (D-50, D-51). Until step 2, the member keeps reading with the old keys.
+1. The member's vault generates new member keys for the team and publishes them, signed by the recovery key if the user enters the phrase. The new bundle's anchor floor is the newest version of the chain verified from the current floor (D-52). Until step 2, the member keeps reading with the old keys.
 2. An owner approves the new keys by rotating the team key: the new version is sealed to them, and the old keys receive nothing. The approval names the keys the owner reviewed (SP-12).
    - Proven by the recovery key, for a member who isn't an owner: owners' `reconcile` approves it (SP-23).
    - Otherwise: an owner checks the request is genuine first (AS-06). The old keys can't vouch for the new ones, since the attacker may hold them (D-38).

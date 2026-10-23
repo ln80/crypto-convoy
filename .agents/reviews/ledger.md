@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 005 (`change`), with a medium finding. Open findings medium or above: none. No `adversarial` review with a fresh-context reviewer yet.
+**Now:** 0 of 2. Last review: 007 (`design`, D-52), after 006 (`adversarial`, fresh-context reviewer, high findings). Open findings medium or above: 006-A, 006-B, 006-C, 006-E, 007-A, 007-B, 007-C.
 
 ## Findings
 
@@ -36,9 +36,20 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 004-D | Overclaim | Low | Fixed | Guides (edit, plan 010) |
 | 004-E | Spec → code | Low | Fixed | D-50 (plan 010) |
 | 004-F | Spec → code | Low | Fixed | D-50 (plan 010) |
-| 005-A | Forgeable input, combined attack | Medium | Fixed | D-51 (plan 011) |
+| 005-A | Forgeable input, combined attack | Medium | Fixed | D-51 (plan 011); incomplete, see 006-B, 006-C |
 | 005-B | Stale text | Low | Fixed | Guides, §3.8 (edit, plan 011) |
 | 005-C | Stale text | Low | Fixed | Course (maintain-course) |
+| 006-A | Combined attack | Medium | Open | — |
+| 006-B | Forgeable input, combined attack | High | Open | — |
+| 006-C | Forgeable input, wrong claim | High | Open | — |
+| 006-D | Overclaim | Low | Open | — |
+| 006-E | Missing threat | Medium | Open | — |
+| 007-A | Spec cost | High (cost) | Open | — |
+| 007-B | Forgeable input | Medium | Open | — |
+| 007-C | Missing threat | Medium | Open | — |
+| 007-D | Spec gap | Low | Open | — |
+| 007-E | Stale text | Low | Open | — |
+| 007-F | Residual | Low | Open | — |
 
 ## Residuals
 

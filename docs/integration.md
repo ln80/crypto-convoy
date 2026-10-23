@@ -78,7 +78,7 @@ What the expensive writes cost, to set product limits against (teams per account
 | Account key rotation (one atomic batch, §5.7) | one `member-keys-wrap` per team the account is in, plus 2–3 wraps and the version switch. The vault keeps one bundle per team once re-keys are approved (§6.8 step 4) |
 | `secureAccount` (§5.11) | that rotation, then one 2-record write per team |
 | Team key version record (§4.5) | about 360 bytes per roster entry: 36 KB for 100 members, 384 KiB at most. One per join, re-key and removal (D-37) |
-| Opening a team | the version records since its anchor, and every published `member-keys` record of the team |
+| Opening a team | the version records since the lowest of its floor and its local anchor, and every published `member-keys` record of the team; in the vault, a `replace` of one member keys wrap when the chain moved past the floor (D-52) |
 | Joining a team (§6.4) | the version records from the invite anchor, or from version 1 without one, and every published `member-keys` record of the team (D-50) |
 
 For DynamoDB, a rotation must fit `TransactWriteItems` (100 items): cap the teams per account well below that.
@@ -116,7 +116,7 @@ The library produces content and takes it back; the integration stores and serve
 
 ## Key custody across contexts
 
-If the vault and team sessions run in different contexts (D-29), carry the transfer request and the transfer over your own channel, one your server can't write (`postMessage` with origin checks, a `MessageChannel`; never relayed through the server: a receiver doesn't know who sealed a transfer, TH-49), and decide which context may receive which team, for example from the requesting page's origin and the signed-in session. The library seals and opens; it never chooses who may ask (§3.8). The invite link's anchor goes to `vault.joinTeam(teamId, { anchor })` once; the transfer carries the floor set there to every context (§6.4, D-50).
+If the vault and team sessions run in different contexts (D-29), carry the transfer request and the transfer over your own channel, one your server can't write (`postMessage` with origin checks, a `MessageChannel`; never relayed through the server: a receiver doesn't know who sealed a transfer, TH-49), and decide which context may receive which team, for example from the requesting page's origin and the signed-in session. The library seals and opens; it never chooses who may ask (§3.8). The invite link's anchor goes to `vault.joinTeam(teamId, { anchor })` once; the transfer carries the floor, set there and moved forward by the vault, to every context (§6.4, D-52).
 
 ## OprfService
 

@@ -62,7 +62,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-02 | Server swaps a member key or adds a fake member | A2 | Mitigated: SP-04 |
 | TH-03 | Server forges the owner list | A2 | Mitigated: SP-05 |
 | TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); limited to the join by the anchor floor in the member keys: SP-07 (D-48, D-50) |
-| TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07 (anchors, anchor floor in the member keys, D-48, D-50); residual accepted |
+| TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07 (anchors, anchor floor in the member keys, D-48, D-52); residual accepted |
 | TH-06 | Server modifies or moves encrypted items | A2 | Mitigated: SP-03 |
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |
 | TH-08 | Online PIN guessing with a stolen session | A11, A9 | Mitigated: SP-08 (server rate limit) |
@@ -170,7 +170,7 @@ Attack: serves an older part of the chain (one where a removed owner was still a
 
 Impact: a removed owner or member regains influence or access.
 
-Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact, and a `team-state` older than the floor isn't followed (D-48, D-50); the floor moves forward only from the account's own records, never from a device's local anchor (D-51). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
+Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact, and every anchor must link to the floor, so no `team-state` or local anchor can choose the chain (D-48, D-52). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
 
 ### TH-06: Server modifies or moves encrypted items
 
@@ -408,7 +408,7 @@ Attack: reads the account key, or captures the PIN or phrase as it is typed.
 
 Impact: every team of the user.
 
-Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them.
+Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them. It could also plant an anchor floor; `secureAccount`, from a device that has opened the team, verifies each new floor from that device's anchor (D-52).
 
 ### TH-39: A team's keys reach the wrong context
 
@@ -466,11 +466,11 @@ Disposition: partly mitigated: only a re-key signed by the member's recovery key
 
 ### TH-46: Session thief corrupts private team records
 
-Actor: session thief (A11).
+Actor: session thief (A11); for a readable `team-state`, a holder of a `teamStateKey` (A9 in a context that holds the team, A7).
 
-Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records.
+Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records; with a `teamStateKey`, writes a readable `team-state` whose anchor isn't on the team's chain.
 
-Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48, D-50).
+Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`; `state_conflict` or `rollback` for a readable one, D-52) for that team, or loses its keys for it. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48, D-50).
 
 Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
 
@@ -590,7 +590,7 @@ Attack: opens the link.
 
 Impact: the shared item.
 
-Disposition: accepted (D-22): the link is the capability, and expiry or one-time viewing are the integration's server-side controls. The library keeps the key out of what the server sees when the link carries it in the URL fragment under the share-link checklist ([scope.md](scope.md#what-the-integration-does)). The key does reach a server when the integration's own server sends the link (as in TH-21), or when an email security service rewrites links, fragment included.
+Disposition: accepted (D-22): the link is the capability, for reading and, with whoever serves the record, for what other recipients of the link see: members refuse such a record (§7.3), and expiry or one-time viewing are the integration's server-side controls. The library keeps the key out of what the server sees when the link carries it in the URL fragment under the share-link checklist ([scope.md](scope.md#what-the-integration-does)). The key does reach a server when the integration's own server sends the link (as in TH-21), or when an email security service rewrites links, fragment included.
 
 ### TH-31: Anyone with an inbox link submits fake content
 
