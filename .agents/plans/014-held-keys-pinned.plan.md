@@ -22,3 +22,8 @@ Review 009 (`.agents/reviews/009-adversarial.md`):
 3. **Notes:** execution notes, review 009 and the ledger.
 
 ## Execution notes
+
+- **A, as built:** the check sits in `TeamOwner.#snapshot`, before the pure `membership.ts` functions run, so `reconcile`, its dry run and `overview` all refuse a mismatching held record and mark the session `unverified`. Tests: the review's reproduction now ends in `key_mismatch` with no rotation written, and `overview` refuses too. Guard: without the check, both tests fail.
+- **D, as built:** `#upgradeFailure` on the vault (memory only, like the pending phrase); set by any `ConvoyError` from the upgrade; `warnings()` reports it; no further upgrade attempt by that vault. Tests: the warning with `changePin` for a refused key, with `report` for a forged proof, and one evaluation per later unlock. Guards: retrying at each unlock, and not recording the failure, each fail a test.
+- **Checks:** `typecheck`, `npm test` (726 tests), `check:spec`, `build`, `test:package` pass.
+- **API:** `VaultWarning` gains the code `pin-upgrade-failed` and the action `report` (additive).

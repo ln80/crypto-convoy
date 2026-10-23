@@ -74,3 +74,9 @@ Mode: `adversarial`, with a fresh-context reviewer. Scope: `docs/`, `src/` and `
 ## Forgeability table
 
 Updated: `member-keys` (the held version's record, as served to `reconcile` and `overview`: A), the anchor floor (a vault without `anchors`: B), the current account key version (C).
+
+## Decided
+
+- **A, D, E: done (plan 014).** The held keys are pinned by the roster's keys hash in the owner's snapshot (`key_mismatch` otherwise); a failed PIN upgrade is reported (`pin-upgrade-failed`) and not retried by the vault; TH-50 covers inboxes, and inbox links are built only at creation.
+- **B:** the vault keeps its own anchor in every layout (user). **C:** `secureAccount` always replaces the phrase (user). Both in plan 015, after a design review.
+- **F:** accepted under TH-46.
