@@ -1,6 +1,6 @@
 // The team session (§6, §9): one team's keys, never the account key (D-03, SP-02). Owner
 // operations live on `TeamOwner` (§6.5–§6.9), reached through `owner()`.
-import { encodeAnchor, type Anchor } from "../encoding/link.js";
+import { encodeAnchor } from "../encoding/link.js";
 import { ConvoyError, isConvoyError } from "../errors.js";
 import { callPort } from "../ports.js";
 import { openPreviousKey, type TeamKeyVersion } from "../records/team-key-version.js";
@@ -62,7 +62,6 @@ export class TeamSession {
   readonly accountId: string;
   readonly #ports: TeamPorts;
   readonly #bundles: readonly MemberBundle[];
-  readonly #invite: Anchor | undefined;
   #state: AccessState = "not-joined";
   #failure: ConvoyError | undefined;
   #chain: VerifiedChain | undefined;
@@ -71,12 +70,11 @@ export class TeamSession {
   #ownerChanges: OwnerChange[] = [];
   #memberChanges: MemberChange[] = [];
 
-  private constructor(ports: TeamPorts, accountId: string, teamId: string, bundles: readonly MemberBundle[], invite?: Anchor) {
+  private constructor(ports: TeamPorts, accountId: string, teamId: string, bundles: readonly MemberBundle[]) {
     this.#ports = ports;
     this.accountId = accountId;
     this.teamId = teamId;
     this.#bundles = bundles;
-    this.#invite = invite;
     INTERNALS.set(this, {
       ports,
       teamId,
@@ -96,8 +94,8 @@ export class TeamSession {
   }
 
   /** @internal Built by the vault, which hands over only this team's keys (§5.8). */
-  static async open(ports: TeamPorts, accountId: string, teamId: string, bundles: readonly MemberBundle[], invite?: Anchor) {
-    const session = new TeamSession(ports, accountId, teamId, bundles, invite);
+  static async open(ports: TeamPorts, accountId: string, teamId: string, bundles: readonly MemberBundle[]) {
+    const session = new TeamSession(ports, accountId, teamId, bundles);
     await session.#load();
     return session;
   }
@@ -299,7 +297,7 @@ export class TeamSession {
   }
 
   async #verify(): Promise<void> {
-    const { chain, server } = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles, this.#invite);
+    const { chain, server } = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles);
     const own = await openOwnAccess(this.#ports, this.accountId, chain, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
 
     this.#chain = own?.chain ?? chain;
@@ -309,7 +307,7 @@ export class TeamSession {
     this.#own = own ?? undefined;
     if (own) this.#keys.set(own.teamKeyVersion, own.teamKey);
     this.#state = own && own.teamKeyVersion === this.currentVersion ? "ready" : "pending";
-    await advanceAnchor(this.#ports, this.accountId, this.teamId, chain, this.#bundles[0]!, server);
+    await advanceAnchor(this.#ports, this.accountId, this.teamId, chain, this.#bundles, server);
   }
 
   #markUnverified(error: ConvoyError): ConvoyError {

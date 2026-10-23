@@ -1,5 +1,6 @@
 import { ConvoyError, StoreConflictError } from "../errors.js";
 import { callPort, type AnchorStore, type Clock, type RecordStore, type ResolvedSettings, type WriteOp } from "../ports.js";
+import type { Anchor } from "../encoding/link.js";
 import type { MemberKeys } from "../records/member-keys.js";
 import type { MemberKeyPairs } from "../records/member-keys-wrap.js";
 import type { Suite } from "../suites/suite.js";
@@ -18,6 +19,8 @@ export interface MemberBundle {
   readonly memberKeysVersion: number;
   readonly published: MemberKeys;
   readonly pairs: MemberKeyPairs;
+  /** The anchor floor the bundle carries: used when a device has no other anchor (§6.1 step 1, D-48). */
+  readonly floor?: Anchor;
 }
 
 /** Commits; a refused write is `STALE_VERSION` (§6.6 step 5, §12). */

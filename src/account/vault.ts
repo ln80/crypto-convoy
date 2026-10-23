@@ -32,6 +32,7 @@ import {
   type RekeyReport,
 } from "./recovery.js";
 import { rotateAccount } from "./rotation.js";
+import { verifiedChain } from "../team/load.js";
 import { currentOwners, exportBundles, newMemberKeys, newTeamOps, nextMemberKeysVersion, openBundles, openSession } from "./member-custody.js";
 import {
   acceptVersion,
@@ -394,24 +395,26 @@ export class Vault {
 
   /**
    * Creates this account's member keys for a team, if it has none; it stays `pending` until an
-   * owner approves them (§6.4). Open the team then, here or in another context. Throws `RECOVERY_NOT_SET_UP`.
+   * owner approves them (§6.4). Pass the invite link's `anchor`: the served chain must contain it,
+   * checked before anything is written, and the keys carry it as their floor, so every device and
+   * context starts from it (D-48). Open the team then, here or in another context. Throws
+   * `RECOVERY_NOT_SET_UP`, `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `TRUST_FAILURE`.
    */
-  async joinTeam(teamId: string): Promise<void> {
+  async joinTeam(teamId: string, options: { anchor?: string } = {}): Promise<void> {
     const account = this.#requireAccount();
-    if ((await openBundles(this.#ports, account, teamId)).length === 0) {
-      const keys = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account) };
-      await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, await nextMemberKeysVersion(this.#ports, account, teamId), keys).ops);
-    }
+    const floor = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
+    if ((await openBundles(this.#ports, account, teamId)).length > 0) return;
+    if (floor) await verifiedChain(this.#ports, teamId, [floor]);
+    const keys = { recoveryPublicKey: await recoveryPublicKey(this.#ports, account), ...(floor ? { floor } : {}) };
+    await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, await nextMemberKeysVersion(this.#ports, account, teamId), keys).ops);
   }
 
   /**
    * Opens a team in the vault's own context: hands the session only this team's member keys
-   * (§5.8, SP-02). Needs `anchors`. On a first open, pass the invite link's `anchor`: the chain
-   * must contain it (§6.4).
+   * (§5.8, SP-02). Needs `anchors`. A device with no anchor starts from the keys' floor (D-48).
    */
-  async openTeam(teamId: string, options: { anchor?: string } = {}): Promise<TeamSession> {
-    const anchor = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
-    return openSession(this.#ports, this.#requireAccount(), teamId, anchor);
+  async openTeam(teamId: string): Promise<TeamSession> {
+    return openSession(this.#ports, this.#requireAccount(), teamId);
   }
 
   /**
@@ -423,15 +426,17 @@ export class Vault {
   }
 
   /**
-   * New member keys for a team (§6.8 step 1). With the recovery `phrase` they are proven:
-   * owners' `reconcile` then approves them (SP-23); otherwise an owner approves by hand. They
-   * receive nothing until an owner approves them by rotating. Throws `NOT_GRANTED`,
-   * `RECOVERY_NOT_SET_UP`, `WRONG_CREDENTIAL` (not the current phrase).
+   * New member keys for a team (§6.8 step 1). With a recovery `phrase` they are proven: the
+   * current one, or, after a replacement, the old one the team's keys still carry (D-49). Owners'
+   * `reconcile` then approves them (SP-23); otherwise an owner approves by hand. They receive
+   * nothing until an owner approves them by rotating. Throws `NOT_GRANTED`, `RECOVERY_NOT_SET_UP`,
+   * `WRONG_CREDENTIAL` (a phrase neither current nor carried by the team's keys).
    */
   async rekey(teamId: string, options: { phrase?: string } = {}): Promise<void> {
     const account = this.#requireAccount();
     const recovery = await recoveryPublicKey(this.#ports, account);
-    const signer = options.phrase !== undefined ? recoverySigner(this.#ports, this.accountId, options.phrase, recovery) : undefined;
+    const carried = (await openBundles(this.#ports, account, teamId)).map((b) => b.published.recoveryPublicKey);
+    const signer = options.phrase !== undefined ? recoverySigner(this.#ports, this.accountId, options.phrase, [recovery, ...carried]) : undefined;
     try {
       await rekeyTeam(this.#ports, account, teamId, recovery, signer);
     } finally {

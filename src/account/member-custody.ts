@@ -12,8 +12,9 @@ import {
   memberKeysWrapToJson,
   openMemberKeysWrap,
   parseMemberKeysWrap,
+  type MemberKeyBundle,
 } from "../records/member-keys-wrap.js";
-import { createTeamKeyVersion, teamKeyVersionToJson } from "../records/team-key-version.js";
+import { createTeamKeyVersion, recordHash, teamKeyVersionToJson } from "../records/team-key-version.js";
 import { createTeamState, teamStateToJson } from "../records/team-state.js";
 import type { MemberBundle, TeamPorts } from "../team/context.js";
 import { TeamSession } from "../team/session.js";
@@ -32,7 +33,7 @@ export async function openBundles(ports: AccountPorts, account: OpenAccount, tea
     const json = await callPort(() => store.get({ type: "member-keys", teamId, accountId, memberKeysVersion: wrap.memberKeysVersion }));
     const published = parseMemberKeys(json, { teamId, accountId, memberKeysVersion: wrap.memberKeysVersion });
     const bundle = openMemberKeysWrap(wrap, account.key, published);
-    bundles.push({ memberKeysVersion: wrap.memberKeysVersion, published, pairs: bundleKeyPairs(suite, bundle) });
+    bundles.push({ memberKeysVersion: wrap.memberKeysVersion, published, pairs: bundleKeyPairs(suite, bundle), ...(bundle.floor ? { floor: bundle.floor } : {}) });
   }
   return bundles;
 }
@@ -42,6 +43,8 @@ export interface NewMemberKeysOptions {
   readonly recoveryPublicKey: Uint8Array;
   /** On a re-key with the phrase: the recovery signing key proves the new keys (D-33). */
   readonly recoverySigningSecretKey?: MemberKeysProofs["recoverySigningSecretKey"];
+  /** The anchor floor the bundle carries (§4.3, D-48). */
+  readonly floor?: Anchor;
 }
 
 /**
@@ -58,7 +61,7 @@ export async function nextMemberKeysVersion(ports: AccountPorts, account: OpenAc
   return Math.max(0, ...(versions as number[]), ...held) + 1;
 }
 
-/** New member keys: the published record, with its proof, and its wrap (§5.9). */
+/** New member keys: the published record, with its proof, and its wrap with its anchor floor (§5.9). */
 export function newMemberKeys(
   ports: AccountPorts,
   account: OpenAccount,
@@ -66,6 +69,22 @@ export function newMemberKeys(
   memberKeysVersion: number,
   options: NewMemberKeysOptions,
 ): { ops: WriteOp[]; bundle: MemberBundle } {
+  const keys = generateMemberKeys(ports, account, teamId, memberKeysVersion, options);
+  return { ops: memberKeysOps(ports, account, keys, options.floor), bundle: { ...keys.bundle, ...(options.floor ? { floor: options.floor } : {}) } };
+}
+
+interface GeneratedKeys {
+  readonly raw: MemberKeyBundle;
+  readonly bundle: MemberBundle;
+}
+
+function generateMemberKeys(
+  ports: AccountPorts,
+  account: OpenAccount,
+  teamId: string,
+  memberKeysVersion: number,
+  options: NewMemberKeysOptions,
+): GeneratedKeys {
   const { suite, clock } = ports;
   const { accountId } = account;
   const raw = generateBundle(suite);
@@ -84,18 +103,23 @@ export function newMemberKeys(
     pairs.signing.secretKey,
     options.recoverySigningSecretKey ? { recoverySigningSecretKey: options.recoverySigningSecretKey } : {},
   );
-  const context = { accountId, teamId, memberKeysVersion, accountKeyVersion: account.version };
-  const wrap = createMemberKeysWrap(suite, context, account.key, raw);
-  return {
-    ops: [
-      { op: "create", key: { type: "member-keys", teamId, accountId, memberKeysVersion }, record: memberKeysToJson(published) },
-      { op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(wrap) },
-    ],
-    bundle: { memberKeysVersion, published, pairs },
-  };
+  return { raw, bundle: { memberKeysVersion, published, pairs } };
 }
 
-/** Team creation (§6.3): member keys and version 1, owned by and rostered to the creator, in one batch. */
+/** The published record and the wrap, with the floor inside the wrapped bundle (§4.3). */
+function memberKeysOps(ports: AccountPorts, account: OpenAccount, keys: GeneratedKeys, floor: Anchor | undefined): WriteOp[] {
+  const { published } = keys.bundle;
+  const { accountId } = account;
+  const { teamId, memberKeysVersion } = published;
+  const context = { accountId, teamId, memberKeysVersion, accountKeyVersion: account.version };
+  const wrap = createMemberKeysWrap(ports.suite, context, account.key, { ...keys.raw, ...(floor ? { floor } : {}) });
+  return [
+    { op: "create", key: { type: "member-keys", teamId, accountId, memberKeysVersion }, record: memberKeysToJson(published) },
+    { op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(wrap) },
+  ];
+}
+
+/** Team creation (§6.3): member keys and version 1, owned by and rostered to the creator, in one batch; the bundle's floor is version 1 (D-48). */
 export function newTeamOps(
   ports: AccountPorts,
   account: OpenAccount,
@@ -104,7 +128,8 @@ export function newTeamOps(
   memberKeysVersion: number,
 ): WriteOp[] {
   const { suite, clock } = ports;
-  const { ops, bundle } = newMemberKeys(ports, account, teamId, memberKeysVersion, { recoveryPublicKey });
+  const keys = generateMemberKeys(ports, account, teamId, memberKeysVersion, { recoveryPublicKey });
+  const { bundle } = keys;
   const teamKey = suite.randomBytes(suite.sizes.key);
   const signer = { accountId: account.accountId, signingPublicKey: bundle.pairs.signing.publicKey };
   const version = createTeamKeyVersion(suite, {
@@ -126,14 +151,15 @@ export function newTeamOps(
     teamKey,
   });
   suite.wipe(teamKey);
-  return [...ops, { op: "create", key: { type: "team-key-version", teamId, version: 1 }, record: teamKeyVersionToJson(version) }];
+  const floor = { version: 1, hash: recordHash(version) };
+  return [...memberKeysOps(ports, account, keys, floor), { op: "create", key: { type: "team-key-version", teamId, version: 1 }, record: teamKeyVersionToJson(version) }];
 }
 
 /**
  * Opens a session in the vault's own context (§5.8). Any trust failure, in this account's own
  * keys or in the team's records, gives an `unverified` session (§6.1).
  */
-export async function openSession(ports: AccountPorts, account: OpenAccount, teamId: string, invite?: Anchor): Promise<TeamSession> {
+export async function openSession(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<TeamSession> {
   if (!ports.anchors) throw new Error("crypto-convoy: give the vault `anchors` to open teams in its context, or use exportTeamKeys");
   let bundles: MemberBundle[];
   try {
@@ -142,7 +168,7 @@ export async function openSession(ports: AccountPorts, account: OpenAccount, tea
     if (isConvoyError(error, "TRUST_FAILURE")) return TeamSession.failed(teamPorts(ports), account.accountId, teamId, error);
     throw error;
   }
-  return TeamSession.open(teamPorts(ports), account.accountId, teamId, bundles, invite);
+  return TeamSession.open(teamPorts(ports), account.accountId, teamId, bundles);
 }
 
 /** Only what team work needs: no OPRF, no account key (D-03). */
@@ -166,6 +192,7 @@ export async function exportBundles(ports: AccountPorts, account: OpenAccount, t
       signingSeed: b.pairs.signing.secretKey.subarray(0, 32),
       encryptionSecretKey: b.pairs.encryption.secretKey,
       teamStateKey: b.pairs.teamStateKey,
+      ...(b.floor ? { floor: b.floor } : {}),
     })),
   );
 }

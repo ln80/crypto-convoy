@@ -50,15 +50,6 @@ describe("SP-02: a team's keys reach only the receiver that asked, for that team
     await expect(receiver.openTeam(page, transfer)).rejects.toEqual(failed);
   });
 
-  it("a malformed anchor is refused before the transfer is used (§3.8 step 4)", async () => {
-    const { alice, page } = await setup();
-    const receiver = await createTeamKeyReceiver("alice", "team-1");
-    const transfer = await alice.vault.exportTeamKeys("team-1", receiver.request);
-    await expect(receiver.openTeam(page, transfer, { anchor: "1not-an-anchor" })).rejects.toMatchObject({ code: "MALFORMED_RECORD" });
-    await expect(receiver.openTeam(page, transfer, { anchor: "9AAAA" })).rejects.toMatchObject({ code: "UNSUPPORTED_VERSION" });
-    expect((await receiver.openTeam(page, transfer)).state).toBe("ready"); // still unused
-  });
-
   it("a transfer of another team, or for another account, is refused", async () => {
     const { alice, page } = await setup();
     const wantsTeam1 = await createTeamKeyReceiver("alice", "team-1");

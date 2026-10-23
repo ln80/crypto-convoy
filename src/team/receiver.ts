@@ -1,5 +1,4 @@
 // The receiving side of a team key transfer (§3.8, D-29): one receiver, one transfer.
-import { decodeAnchor } from "../encoding/link.js";
 import { decryptionFailed, isConvoyError, trustFailure } from "../errors.js";
 import { callPort, resolveSettings, systemClock, type AnchorStore, type Clock, type RecordStore, type Settings } from "../ports.js";
 import { parseMemberKeys } from "../records/member-keys.js";
@@ -21,13 +20,12 @@ export interface TeamKeyReceiver {
   /** Send this to the vault (`exportTeamKeys`) over the integration's channel. */
   readonly request: string;
   /**
-   * Opens the vault's transfer and the team (§3.8 steps 3–4). Works once. On a first open, pass
-   * the invite link's `anchor`: the chain must contain it (§6.4), as with `vault.openTeam`. Throws
+   * Opens the vault's transfer and the team (§3.8 steps 3–4). Works once. With no anchor in this
+   * context, the session starts from the bundles' anchor floor, as in the vault's (D-48). Throws
    * `UNSUPPORTED_VERSION`, `DECRYPTION_FAILED` (another receiver, account or team, or a second use),
-   * `MALFORMED_RECORD` (a malformed anchor leaves the receiver unused); a bundle not matching its
-   * published keys, or a chain without the anchor, gives an `unverified` session.
+   * `MALFORMED_RECORD`; a bundle not matching its published keys gives an `unverified` session.
    */
-  openTeam(ports: ReceiverPorts, transfer: string, options?: { anchor?: string }): Promise<TeamSession>;
+  openTeam(ports: ReceiverPorts, transfer: string): Promise<TeamSession>;
 }
 
 /** A receiver for one team's keys, in the context that will do that team's work. Loads libsodium. */
@@ -38,9 +36,7 @@ export async function createTeamKeyReceiver(accountId: string, teamId: string): 
   let used = false;
   return {
     request: encodeRequest(pair.publicKey),
-    async openTeam(ports, transfer, options = {}) {
-      // Validate before crypto (§8): a malformed anchor doesn't use up the receiver.
-      const anchor = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
+    async openTeam(ports, transfer) {
       if (used) throw decryptionFailed();
       used = true;
       let opened;
@@ -68,13 +64,13 @@ export async function createTeamKeyReceiver(accountId: string, teamId: string): 
             suite.equal(pairs.signing.publicKey, published.signingPublicKey) &&
             suite.equal(pairs.encryption.publicKey, published.encryptionPublicKey);
           if (!matches) throw trustFailure("key_mismatch");
-          bundles.push({ memberKeysVersion: bundle.memberKeysVersion, published, pairs });
+          bundles.push({ memberKeysVersion: bundle.memberKeysVersion, published, pairs, ...(bundle.floor ? { floor: bundle.floor } : {}) });
         }
       } catch (error) {
         if (isConvoyError(error, "TRUST_FAILURE")) return TeamSession.failed(teamPorts, accountId, teamId, error);
         throw error;
       }
-      return TeamSession.open(teamPorts, accountId, teamId, bundles, anchor);
+      return TeamSession.open(teamPorts, accountId, teamId, bundles);
     },
   };
 }

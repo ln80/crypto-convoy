@@ -80,6 +80,31 @@ export async function forgeVersion(
 }
 
 /**
+ * A whole forged team, as a malicious server shows it to a device with no anchor (TH-04): a
+ * version 1 signed by `owner` and rostering `roster`, with a team key the server holds.
+ */
+export function forgeFirstVersion(input: { teamId?: string; owner: Named; roster: Named[] }) {
+  const teamId = input.teamId ?? "team-1";
+  const record = createTeamKeyVersion(cc1, {
+    teamId,
+    version: 1,
+    prevHash: new Uint8Array(32),
+    owners: [{ accountId: input.owner.accountId, signingPublicKey: input.owner.keys.signing.publicKey }],
+    roster: input.roster.map((who) => ({
+      accountId: who.accountId,
+      memberKeysVersion: who.published?.memberKeysVersion ?? who.memberKeysVersion ?? 1,
+      keysHash: hashOf(teamId, who),
+      encryptionPublicKey: who.keys.encryption.publicKey,
+    })),
+    createdAt: 1,
+    signer: { accountId: input.owner.accountId, signingPublicKey: input.owner.keys.signing.publicKey },
+    signerSecretKey: input.owner.keys.signing.secretKey,
+    teamKey: cc1.randomBytes(32),
+  });
+  return teamKeyVersionToJson(record);
+}
+
+/**
  * A member keys record claiming `accountId`, self-signed by keys the attacker made. `recovery`
  * sets the recovery key and, with `recoverySigner`, a recovery signature.
  */

@@ -1,5 +1,8 @@
 // The recovery phrase as the account's root: setting it up, proving re-keys, securing the account (§5.6, §5.10, §5.11).
-import { ConvoyError } from "../errors.js";
+import type { Anchor } from "../encoding/link.js";
+import { ConvoyError, isConvoyError } from "../errors.js";
+import { readServerState } from "../team/anchors.js";
+import type { MemberBundle } from "../team/context.js";
 import { callPort } from "../ports.js";
 import { openRecoveryPublicKey } from "../records/account-key-wrap.js";
 import { parseMemberKeysWrap } from "../records/member-keys-wrap.js";
@@ -28,13 +31,15 @@ export async function currentRecoveryKey(ports: AccountPorts, account: OpenAccou
 }
 
 /**
- * The recovery signing key of `phrase`, checked against `expected`: a phrase that isn't the
- * account's current one is `WRONG_CREDENTIAL`. The caller wipes the secret key.
+ * The recovery signing key of `phrase`, checked against `expected` (one key, or any of several:
+ * the current one and those a team's keys carry, D-49): another phrase is `WRONG_CREDENTIAL`.
+ * The caller wipes the secret key.
  */
-export function recoverySigner(ports: AccountPorts, accountId: string, phrase: string, expected: Uint8Array): KeyPair {
+export function recoverySigner(ports: AccountPorts, accountId: string, phrase: string, expected: Uint8Array | readonly Uint8Array[]): KeyPair {
   const { recoveryKey, signing } = deriveRecoveryKeys(ports.suite, accountId, phrase);
   ports.suite.wipe(recoveryKey);
-  if (!ports.suite.equal(signing.publicKey, expected)) {
+  const keys = expected instanceof Uint8Array ? [expected] : expected;
+  if (!keys.some((key) => ports.suite.equal(signing.publicKey, key))) {
     ports.suite.wipe(signing.secretKey);
     throw new ConvoyError("WRONG_CREDENTIAL");
   }
@@ -49,8 +54,8 @@ export async function accountTeams(ports: AccountPorts, account: OpenAccount): P
 }
 
 /**
- * New member keys in one team (§6.8), with a recovery signature when `signer` is given. Throws
- * `NOT_GRANTED` without keys for the team.
+ * New member keys in one team (§6.8), with a recovery signature when `signer` is given, keeping
+ * the anchor floor (D-48). Throws `NOT_GRANTED` without keys for the team.
  */
 export async function rekeyTeam(
   ports: AccountPorts,
@@ -59,10 +64,27 @@ export async function rekeyTeam(
   recoveryPublicKey: Uint8Array,
   signer?: KeyPair,
 ): Promise<void> {
-  const [newest] = await openBundles(ports, account, teamId);
+  const bundles = await openBundles(ports, account, teamId);
+  const [newest] = bundles;
   if (!newest) throw new ConvoyError("NOT_GRANTED");
-  const options = { recoveryPublicKey, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}) };
+  const floor = newest.floor ?? (await trustedAnchor(ports, account, teamId, bundles));
+  const options = { recoveryPublicKey, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}), ...(floor ? { floor } : {}) };
   await commit(ports, newMemberKeys(ports, account, teamId, await nextMemberKeysVersion(ports, account, teamId), options).ops);
+}
+
+/**
+ * A floor for keys that have none: an anchor this account already trusts, its local one, else its
+ * `team-state` (§5.9, D-48). None if neither reads: a garbage `team-state` never blocks a re-key (TH-46).
+ */
+async function trustedAnchor(ports: AccountPorts, account: OpenAccount, teamId: string, bundles: readonly MemberBundle[]): Promise<Anchor | undefined> {
+  const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(account.accountId, teamId)) : null;
+  if (local) return local;
+  try {
+    return (await readServerState(ports, account.accountId, teamId, bundles))?.anchor;
+  } catch (error) {
+    if (isConvoyError(error, "TRUST_FAILURE")) return undefined;
+    throw error;
+  }
 }
 
 /** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11). */

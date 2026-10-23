@@ -82,4 +82,15 @@ describe("SP-23: recovery-proven re-keys", () => {
     await replacePhrase(members.bob!.vault, { currentPhrase: members.bob!.recoveryPhrase });
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"], needsHuman: [] });
   });
+
+  it("D-49: a team re-keyed without proof is retried proven with the old phrase; an unrelated phrase is refused", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await replacePhrase(bob.vault, { currentPin: bob.pin });
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven" }] });
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+    const other = (await team("x")).members.x!.recoveryPhrase;
+    await expect(bob.vault.rekey("team-1", { phrase: other })).rejects.toMatchObject({ code: "WRONG_CREDENTIAL" });
+  });
 });

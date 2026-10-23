@@ -69,8 +69,8 @@ describe("scenario", () => {
     await bob.setup("5678");
     await bob.confirmRecoveryPhrase(bob.beginRecoverySetup().recoveryPhrase);
     expect((await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!.status).toBe("no-keys");
-    await bob.joinTeam("team-1");
-    expect((await bob.openTeam("team-1", { anchor })).state).toBe("pending");
+    await bob.joinTeam("team-1", { anchor });
+    expect((await bob.openTeam("team-1")).state).toBe("pending");
     const bobView = (await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!;
     expect(bobView).toMatchObject({ status: "awaiting-approval", proof: "none" });
     // A first join is never automatic: a human approves.

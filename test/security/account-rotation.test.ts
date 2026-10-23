@@ -1,7 +1,8 @@
 /**
  * SP-11: The account key can be rotated.
  * SP-25: An open vault alone can't change the account's credentials (rotation needs the phrase).
- * Threats: TH-10, TH-12, TH-20, TH-45.
+ * SP-07: the member keys' anchor floor survives rotations and re-keys (D-48).
+ * Threats: TH-04, TH-10, TH-12, TH-20, TH-45.
  */
 import { describe, expect, it } from "vitest";
 import { openAccountKeyWrap, parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
@@ -87,5 +88,26 @@ describe("SP-11: teams survive an account key rotation", () => {
     await bob.vault.rotate({ phrase: bob.recoveryPhrase, newPin: bob.pin });
     await aliceTeam.owner().rotate({ keep: ["bob"] });
     expect((await accessOf(bob.store, "bob", 2))!.open(copied.pairs.encryption)).toHaveLength(32);
+  });
+
+  it("SP-07: the keys' anchor floor survives a rotation and a re-key (D-48)", async () => {
+    const { members } = await team("bob");
+    const alice = members.alice!;
+    const floor = (await bundleOf(alice.vault)).floor!;
+    expect(floor.version).toBe(1);
+    await alice.vault.rotate({ phrase: alice.recoveryPhrase });
+    expect((await bundleOf(alice.vault)).floor).toEqual(floor);
+    await alice.vault.rekey("team-1", { phrase: alice.recoveryPhrase });
+    expect((await bundleOf(alice.vault)).floor).toEqual(floor);
+  });
+
+  it("SP-07: a member who joined without an invite anchor gets a floor at its first re-key (D-48)", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    expect((await bundleOf(bob.vault)).floor).toBeUndefined();
+    await bob.vault.rekey("team-1");
+    // Bob's first open anchored him at version 1; his local anchor is the floor.
+    expect((await bundleOf(bob.vault)).floor?.version).toBe(1);
+    expect(aliceTeam.currentVersion).toBe(2);
   });
 });

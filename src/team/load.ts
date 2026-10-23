@@ -20,19 +20,25 @@ export async function loadChain(
   accountId: string,
   teamId: string,
   bundles: readonly MemberBundle[],
-  invite?: Anchor,
 ): Promise<{ chain: VerifiedChain; server: ServerState | null }> {
-  const { store } = ports;
   const server = await readServerState(ports, accountId, teamId, bundles);
   const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(accountId, teamId)) : null;
-  const anchors = [local, server?.anchor, invite].filter((a): a is Anchor => a !== null && a !== undefined);
+  const anchors = [local, server?.anchor].filter((a): a is Anchor => a !== null && a !== undefined);
+  // With no other anchor, the newest bundle's floor: never first contact for keys that carry one (D-48).
+  const floor = bundles.find((b) => b.floor)?.floor;
+  if (anchors.length === 0 && floor) anchors.push(floor);
+  return { chain: await verifiedChain(ports, teamId, anchors), server };
+}
+
+/** The chain from the lowest of `anchors` (version 1 with none), verified to contain them all (§6.1 step 2). Throws `TRUST_FAILURE`. */
+export async function verifiedChain(ports: ChainPorts, teamId: string, anchors: readonly Anchor[]): Promise<VerifiedChain> {
   // From the lowest anchor: what lies below it is pinned by hash and fetched only when needed (§6.1 step 2).
   const fromVersion = anchors.length > 0 ? Math.min(...anchors.map((a) => a.version)) : 1;
   const records = await fetchVersions(ports, teamId, fromVersion);
-  const memberKeys = (await callPort(() => store.list({ type: "member-keys", teamId }))).map((json) =>
+  const memberKeys = (await callPort(() => ports.store.list({ type: "member-keys", teamId }))).map((json) =>
     parseMemberKeys(json, { teamId, accountId: (json as { accountId: string }).accountId }),
   );
-  return { chain: verifyChain({ records, anchors, memberKeys }), server };
+  return verifyChain({ records, anchors, memberKeys });
 }
 
 async function fetchVersions(ports: ChainPorts, teamId: string, fromVersion: number) {

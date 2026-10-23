@@ -33,15 +33,16 @@ export async function readServerState(
   throw trustFailure("state_unreadable");
 }
 
-/** Advances the anchor to the newest verified version, locally and on the server (§6.1 step 7). */
+/** Advances the anchor to the newest verified version, locally and on the server (§6.1 step 7), written under the newest bundle's key. */
 export async function advanceAnchor(
   ports: TeamPorts,
   accountId: string,
   teamId: string,
   chain: VerifiedChain,
-  bundle: MemberBundle,
+  bundles: readonly MemberBundle[],
   server: ServerState | null,
 ): Promise<void> {
+  const bundle = bundles[0]!;
   const newest = chain.records[chain.records.length - 1]!;
   const anchor = { version: newest.version, hash: chain.hashes.get(newest.version)! };
   const local = await callPort(() => ports.anchors.getAnchor(accountId, teamId));
@@ -60,8 +61,8 @@ export async function advanceAnchor(
       return;
     } catch (error) {
       if (!(error instanceof StoreConflictError)) throw error;
-      // Another device of this account wrote first: its anchor must be in our chain too.
-      server = await readServerState(ports, accountId, teamId, [bundle]);
+      // Another device of this account wrote first, under any of its bundles: its anchor must be in our chain too.
+      server = await readServerState(ports, accountId, teamId, bundles);
       if (server && server.anchor.version <= anchor.version) {
         const hash = chain.hashes.get(server.anchor.version);
         if (!hash || !ports.suite.equal(hash, server.anchor.hash)) throw trustFailure("chain_conflict");
