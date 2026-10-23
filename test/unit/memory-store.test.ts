@@ -169,17 +169,19 @@ describe("fake OPRF server (§5.1)", () => {
     await oprf.evaluate({ accountId: "b", blindedElement: blinded, oprfKeyId: 1, purpose: "unlock" });
   });
 
-  it("uses a different key per account and keeps a rotated key working", async () => {
+  it("evaluates per account (info from the account charged), proves it, and keeps a rotated key working (D-53)", async () => {
     const oprf = new FakeOprfServer();
-    const { oprf: client } = (await import("@noble/curves/ed25519.js")).ristretto255_oprf;
-    const { blinded } = client.blind(new Uint8Array(32));
+    const { blinded } = (await import("@noble/curves/ed25519.js")).ristretto255_oprf.oprf.blind(new Uint8Array(32));
     const forA = await oprf.evaluate({ accountId: "a", blindedElement: blinded, oprfKeyId: 1, purpose: "unlock" });
     const forB = await oprf.evaluate({ accountId: "b", blindedElement: blinded, oprfKeyId: 1, purpose: "unlock" });
-    expect(Buffer.from(forA).equals(Buffer.from(forB))).toBe(false);
+    expect(Buffer.from(forA.evaluatedElement).equals(Buffer.from(forB.evaluatedElement))).toBe(false);
+    expect(forA.proof).toHaveLength(64);
     expect(oprf.rotateKey()).toBe(2);
-    expect(await oprf.currentKeyId()).toBe(2);
+    const settings = await oprf.clientSettings();
+    expect(settings.writeKeyId).toBe(2);
+    expect(Object.keys(settings.keys)).toEqual(["1", "2"]);
     const again = await oprf.evaluate({ accountId: "a", blindedElement: blinded, oprfKeyId: 1, purpose: "unlock" });
-    expect(Buffer.from(again).equals(Buffer.from(forA))).toBe(true);
+    expect(Buffer.from(again.evaluatedElement).equals(Buffer.from(forA.evaluatedElement))).toBe(true);
   });
 });
 

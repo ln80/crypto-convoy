@@ -6,8 +6,9 @@ import { takeLinkKey } from "crypto-convoy/browser";
 
 const server = new MemoryRecordStore();
 const keys = new MemoryLocalKeyStore();
-const settings = { argon2: { write: { opslimit: 2, memlimit: 64 * 1024 * 1024 } } };
-const vault = await createVault({ store: server.as("a"), oprf: new FakeOprfServer(), deviceKeys: keys, anchors: keys, settings }, "a");
+const oprf = new FakeOprfServer();
+const settings = { argon2: { write: { opslimit: 2, memlimit: 64 * 1024 * 1024 } }, oprf: await oprf.clientSettings() };
+const vault = await createVault({ store: server.as("a"), oprf, deviceKeys: keys, anchors: keys, settings }, "a");
 await vault.setup("1234");
 await vault.confirmRecoveryPhrase(vault.beginRecoverySetup().recoveryPhrase);
 await vault.createTeam("t");

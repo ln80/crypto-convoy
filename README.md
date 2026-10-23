@@ -42,8 +42,11 @@ import { FakeOprfServer, MemoryLocalKeyStore, MemoryRecordStore } from "crypto-c
 
 const keyStore = new MemoryRecordStore();
 const local = new MemoryLocalKeyStore();
+const oprf = new FakeOprfServer();
+// In production, the OPRF public keys ship in your client code, never from your server (D-53).
+const settings = { oprf: await oprf.clientSettings() };
 const vault = await createVault(
-  { store: keyStore.as("alice"), oprf: new FakeOprfServer(), deviceKeys: local, anchors: local },
+  { store: keyStore.as("alice"), oprf, deviceKeys: local, anchors: local, settings },
   "alice",
 );
 

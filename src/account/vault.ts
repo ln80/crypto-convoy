@@ -1,6 +1,6 @@
 // The account vault (§5, D-03): the only holder of the account key.
 import { decodeAnchor } from "../encoding/link.js";
-import { ConvoyError, trustFailure } from "../errors.js";
+import { ConvoyError, isConvoyError, malformed, trustFailure } from "../errors.js";
 import {
   callPort,
   resolveSettings,
@@ -103,6 +103,7 @@ export async function createVault(options: VaultOptions, accountId: string): Pro
     clock: options.clock ?? systemClock,
     settings: resolveSettings(options.settings),
   };
+  for (const key of ports.settings.oprf.keys.values()) if (!ports.suite.oprfPublicKeyValid(key)) throw malformed();
   return new Vault(ports, accountId);
 }
 
@@ -234,11 +235,16 @@ export class Vault {
     const account = { accountId: this.accountId, version, key: await openWithPin(this.#ports, wrap, pin, "unlock") };
 
     const { ops, device } = await this.#registration(account);
-    const { write } = this.#ports.settings.argon2;
-    const currentKeyId = await callPort(() => this.#ports.oprf.currentKeyId(this.accountId));
+    const { argon2, oprf } = this.#ports.settings;
     const kdf = wrap.kdf!;
-    if (kdf.opslimit < write.opslimit || kdf.memlimit < write.memlimit || kdf.oprfKeyId !== currentKeyId) {
-      ops.push(...replaceWrap(await pinWrap(this.#ports, account, pin)));
+    // The key id is the settings', never the server's (D-53).
+    if (kdf.opslimit < argon2.write.opslimit || kdf.memlimit < argon2.write.memlimit || (oprf.writeKeyId !== null && kdf.oprfKeyId !== oprf.writeKeyId)) {
+      try {
+        ops.push(...replaceWrap(await pinWrap(this.#ports, account, pin)));
+      } catch (error) {
+        // The PIN was verified: only the upgrade failed, so the unlock stands with the old wrap (§5.4).
+        if (!isConvoyError(error)) throw error;
+      }
     }
     if (ops.length > 0) await commit(this.#ports, ops);
     await this.#keepDevice(device);

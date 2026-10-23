@@ -51,9 +51,15 @@ export interface Suite {
 
   /** Argon2id within the library's hard bounds (§2). Throws `MALFORMED_RECORD` outside them. */
   passwordHash(password: Uint8Array, salt: Uint8Array, opslimit: number, memlimit: number): Uint8Array;
-  oprfBlind(input: Uint8Array): { blind: Uint8Array; blindedElement: Uint8Array };
-  /** Throws `MALFORMED_RECORD` for an invalid evaluated element. */
-  oprfFinalize(input: Uint8Array, blind: Uint8Array, evaluatedElement: Uint8Array): Uint8Array;
+  /** Whether `publicKey` is a valid, non-identity POPRF server key (D-53). */
+  oprfPublicKeyValid(publicKey: Uint8Array): boolean;
+  /** POPRF `Blind` for public `info` against `publicKey`; `tweakedKey` is what the proof is checked against (§5.1). */
+  oprfBlind(input: Uint8Array, info: Uint8Array, publicKey: Uint8Array): { blind: Uint8Array; blindedElement: Uint8Array; tweakedKey: Uint8Array };
+  /**
+   * POPRF `Finalize`, after checking the proof. Throws `MALFORMED_RECORD` for an element or proof of
+   * the wrong size, `TRUST_FAILURE` (`bad_signature`) when the proof doesn't verify.
+   */
+  oprfFinalize(input: Uint8Array, info: Uint8Array, blind: Uint8Array, blindedElement: Uint8Array, evaluated: { evaluatedElement: Uint8Array; proof: Uint8Array }, tweakedKey: Uint8Array): Uint8Array;
 
   generateRecoveryPhrase(): string;
   /** Throws `WRONG_CREDENTIAL` for a phrase that isn't valid BIP-39. */

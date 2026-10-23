@@ -1,8 +1,8 @@
 // Suite cc1 (§2). The only place, with ./sodium.ts, that touches libsodium.
-import { ristretto255_oprf } from "@noble/curves/ed25519.js";
+import { ristretto255, ristretto255_oprf } from "@noble/curves/ed25519.js";
 import { entropyToMnemonic, mnemonicToSeedSync, validateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
-import { ConvoyError, decryptionFailed, malformed } from "../../errors.js";
+import { ConvoyError, decryptionFailed, malformed, trustFailure } from "../../errors.js";
 import type { Hasher, KeyPair, StreamPull, StreamPush, Suite } from "../suite.js";
 import { ED25519_SMALL_ORDER, X25519_LOW_ORDER, inList, isCanonicalScalar } from "./small-order.js";
 import { lib } from "./sodium.js";
@@ -33,6 +33,7 @@ const SIZES = {
 
 const OPRF_ELEMENT = 32;
 const OPRF_OUTPUT = 64;
+const OPRF_PROOF = 64;
 const RECOVERY_ENTROPY = 16;
 
 // libsodium sizes never vary for these fields: a wrong size is a caller bug or hostile input.
@@ -217,21 +218,37 @@ export const cc1: Suite = {
     return sodium.crypto_pwhash(SIZES.key, password, salt, opslimit, memlimit, sodium.crypto_pwhash_ALG_ARGON2ID13);
   },
 
-  // RFC 9497 base mode; the blinding scalar's randomness comes from libsodium (§3.6).
-  oprfBlind(input) {
-    const rng = (length?: number) => randomBytes(length ?? 32) as Uint8Array<ArrayBuffer>;
-    const { blind, blinded } = ristretto255_oprf.oprf.blind(input, rng);
-    return { blind, blindedElement: blinded };
+  oprfPublicKeyValid(publicKey) {
+    if (publicKey.length !== OPRF_ELEMENT) return false;
+    try {
+      return !ristretto255.Point.fromBytes(publicKey).equals(ristretto255.Point.ZERO);
+    } catch {
+      return false;
+    }
   },
 
-  oprfFinalize(input, blind, evaluatedElement) {
-    expectSize(evaluatedElement, OPRF_ELEMENT);
-    if (evaluatedElement.every((byte) => byte === 0)) throw malformed();
-    let output: Uint8Array;
+  // RFC 9497 POPRF (D-53); the blinding scalar's randomness comes from libsodium (§3.6).
+  oprfBlind(input, info, publicKey) {
+    const rng = (length?: number) => randomBytes(length ?? 32) as Uint8Array<ArrayBuffer>;
+    let blinded;
     try {
-      output = ristretto255_oprf.oprf.finalize(input, blind, evaluatedElement);
+      blinded = ristretto255_oprf.poprf(info).blind(input, publicKey, rng);
     } catch {
       throw malformed();
+    }
+    return { blind: blinded.blind, blindedElement: blinded.blinded, tweakedKey: blinded.tweakedKey };
+  },
+
+  oprfFinalize(input, info, blind, blindedElement, evaluated, tweakedKey) {
+    const { evaluatedElement, proof } = evaluated;
+    expectSize(evaluatedElement, OPRF_ELEMENT);
+    expectSize(proof, OPRF_PROOF);
+    let output: Uint8Array;
+    try {
+      // `finalize` verifies the proof first: a server without the key can't answer (SP-08).
+      output = ristretto255_oprf.poprf(info).finalize(input, blind, evaluatedElement, blindedElement, proof, tweakedKey);
+    } catch {
+      throw trustFailure("bad_signature");
     }
     expectSize(output, OPRF_OUTPUT);
     return output;

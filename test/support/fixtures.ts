@@ -26,10 +26,10 @@ export function world(options: { budget?: number } = {}) {
   ): Promise<Device> {
     const store = new TamperingStore(server.as(accountId));
     const localKeys = extra.localKeys ?? new MemoryLocalKeyStore();
-    const vault = await createVault(
-      { store, oprf: extra.oprf ?? oprf, deviceKeys: localKeys, anchors: localKeys, clock, settings: extra.settings ?? FAST },
-      accountId,
-    );
+    // The public keys the integration ships in its client code (D-53), from this world's OPRF server.
+    const base = extra.settings ?? FAST;
+    const settings = base.oprf ? base : { ...base, oprf: await oprf.clientSettings() };
+    const vault = await createVault({ store, oprf: extra.oprf ?? oprf, deviceKeys: localKeys, anchors: localKeys, clock, settings }, accountId);
     return { vault, store, localKeys };
   }
 

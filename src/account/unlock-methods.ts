@@ -46,9 +46,10 @@ export async function fetchWrap(
 
 export async function pinWrap(ports: AccountPorts, account: OpenAccount, pin: string): Promise<AccountKeyWrap> {
   const { suite, oprf, settings } = ports;
-  const oprfKeyId = await callPort(() => oprf.currentKeyId(account.accountId));
-  const kdf = newKdf(suite, settings.argon2.write, oprfKeyId);
-  const pinKey = await derivePinKey(suite, oprf, { accountId: account.accountId, pin, kdf, purpose: "enroll", min: settings.argon2.min });
+  // The key id new wraps use is a setting, never a server answer (D-53).
+  if (settings.oprf.writeKeyId === null) throw new ConvoyError("UNSUPPORTED_VERSION");
+  const kdf = newKdf(suite, settings.argon2.write, settings.oprf.writeKeyId);
+  const pinKey = await derivePinKey(suite, oprf, { accountId: account.accountId, pin, kdf, purpose: "enroll", min: settings.argon2.min, oprfKeys: settings.oprf.keys });
   try {
     return createAccountKeyWrap(suite, { accountId: account.accountId, accountKeyVersion: account.version, method: "pin", kdf }, pinKey, account.key);
   } finally {
@@ -100,6 +101,7 @@ export async function openWithPin(ports: AccountPorts, wrap: AccountKeyWrap, pin
     kdf: wrap.kdf!,
     purpose,
     min: ports.settings.argon2.min,
+    oprfKeys: ports.settings.oprf.keys,
   });
   try {
     return openAccountKeyWrap(wrap, pinKey);

@@ -1,24 +1,32 @@
 {
   "file": "pin-key.v1",
-  "covers": "Protocol §5.1 PIN key: Argon2id, RFC 9497 OPRF (ristretto255-SHA512), keyed BLAKE2b",
+  "covers": "Protocol §5.1 PIN key: Argon2id, RFC 9497 POPRF (ristretto255-SHA512, D-53), keyed BLAKE2b",
   "rfc9497": {
+    "mode": "POPRF",
     "seed": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
     "keyInfo": "74657374206b6579",
-    "skSm": "5ebcea5ee37023ccb9fc2d2019f9d7737be85591ae8652ffa9ef0f4d37063b0e",
+    "skSm": "145c79c108538421ac164ecbe131942136d5570b16d8bf41a24d4337da981e07",
+    "pkSm": "c647bef38497bc6ec077c22af65b696efa43bff3b4a1975a3e8e0a1c5a79d631",
     "vectors": [
       {
         "input": "00",
+        "info": "7465737420696e666f",
         "blind": "64d37aed22a27f5191de1c1d69fadb899d8862b58eb4220029e036ec4c1f6706",
-        "blindedElement": "609a0ae68c15a3cf6903766461307e5c8bb2f95e7e6550e1ffa2dc99e412803c",
-        "evaluationElement": "7ec6578ae5120958eb2db1745758ff379e77cb64fe77b0b2d8cc917ea0869c7e",
-        "output": "527759c3d9366f277d8c6020418d96bb393ba2afb20ff90df23fb7708264e2f3ab9135e3bd69955851de4b1f9fe8a0973396719b7912ba9ee8aa7d0b5e24bcf6"
+        "blindedElement": "c8713aa89241d6989ac142f22dba30596db635c772cbf25021fdd8f3d461f715",
+        "evaluationElement": "1a4b860d808ff19624731e67b5eff20ceb2df3c3c03b906f5693e2078450d874",
+        "proof": "41ad1a291aa02c80b0915fbfbb0c0afa15a57e2970067a602ddb9e8fd6b7100de32e1ecff943a36f0b10e3dae6bd266cdeb8adf825d86ef27dbc6c0e30c52206",
+        "proofRandomScalar": "222a5e897cf59db8145db8d16e597e8facb80ae7d4e26d9881aa6f61d645fc0e",
+        "output": "ca688351e88afb1d841fde4401c79efebb2eb75e7998fa9737bd5a82a152406d38bd29f680504e54fd4587eddcf2f37a2617ac2fbd2993f7bdf45442ace7d221"
       },
       {
         "input": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "info": "7465737420696e666f",
         "blind": "64d37aed22a27f5191de1c1d69fadb899d8862b58eb4220029e036ec4c1f6706",
-        "blindedElement": "da27ef466870f5f15296299850aa088629945a17d1f5b7f5ff043f76b3c06418",
-        "evaluationElement": "b4cbf5a4f1eeda5a63ce7b77c7d23f461db3fcab0dd28e4e17cecb5c90d02c25",
-        "output": "f4a74c9c592497375e796aa837e907b1a045d34306a749db9f34221f7e750cb4f2a6413a6bf6fa5e19ba6348eb673934a722a7ede2e7621306d18951e7cf2c73"
+        "blindedElement": "f0f0b209dd4d5f1844dac679acc7761b91a2e704879656cb7c201e82a99ab07d",
+        "evaluationElement": "8c3c9d064c334c6991e99f286ea2301d1bde170b54003fb9c44c6d7bd6fc1540",
+        "proof": "4c39992d55ffba38232cdac88fe583af8a85441fefd7d1d4a8d0394cd1de77018bf135c174f20281b3341ab1f453fe72b0293a7398703384bed822bfdeec8908",
+        "proofRandomScalar": "222a5e897cf59db8145db8d16e597e8facb80ae7d4e26d9881aa6f61d645fc0e",
+        "output": "7c6557b276a137922a0bcfc2aa2b35dd78322bd500235eb6d6b6f91bc5b56a52de2d65612d503236b321f5d0bebcbc52b64b92e426f29c9b8b69f52de98ae507"
       }
     ]
   },
@@ -30,19 +38,23 @@
       "opslimit": 2,
       "memlimit": 67108864,
       "oprfKeyId": 1,
-      "serverSeed": "027615bd407e9559b0ec77df2a35a33e7b669020315f89d09e6703f16fcee821"
+      "serverSeed": "027615bd407e9559b0ec77df2a35a33e7b669020315f89d09e6703f16fcee821",
+      "keyInfo": "0000001963727970746f2d636f6e766f792f76312f70696e2d6f707266"
     },
     "intermediate": {
       "argon2id": "610571bceaa409513ef2f2bfffba6934626d6d5f7f316eb991028d2cabed8cb1",
-      "oprfInfo": "0000001963727970746f2d636f6e766f792f76312f70696e2d6f7072660000000100000005616c696365",
-      "serverSecretKey": "d2cbdd7b8637e2cf7c44e88778242dc8ca1997879eaeb00c1e106cd0d777d804",
-      "blind": "10c4623075f4d1bf82b5ac04336929b063d2c2cee5298a5e27e87730db164a09",
-      "blindedElement": "144528c302b68f9a1c441c76e222f434d2485e65045a08623b7e6777b2b6080e",
-      "evaluatedElement": "3ad8d29cce01612a03156ba061015ea7be62ff4659b52106745ad76d068e066c",
-      "oprfOutput": "bdb17b59713201b99e1a964027d8766768b95e4e49a94ad0f96190727044ccb83fda531d8a5caacd61dd1c2be42b7299e599b626482ce176520959f5804225fb"
+      "oprfInfo": "0000001963727970746f2d636f6e766f792f76312f70696e2d6f70726600000005616c696365",
+      "serverSecretKey": "b638638db10041e8baad1cfce71c256cdefc73b3c1713883761ea4f90f5cd502",
+      "serverPublicKey": "92dd2e56724b432f782ddc764249b1a97dc9e3da8b84f457aba9038bd5e69a09",
+      "blind": "8f343a7d69fd72328bffc274b18b80ec0fd493da4d71aa24d5aec89627d0120c",
+      "blindedElement": "6e3f250d87478510119105b8ef66d02e8e870842af4f57436316634265938747",
+      "tweakedKey": "3a27c6cf0ed27888f6a305e99717b958c9b7bad8ebfef762c78c6ac10def5738",
+      "evaluatedElement": "b83f12133f60d724fabdb34323eae8df2e338999100de45b057309127decb06a",
+      "proof": "2cfa05b5f73b7a469e035aa0343b8add8eb490d6b74669b40320538c8558200ce201b1555e1d1a124fe7d8b2c6a234e2416e75ecb6319e759453ce7c0591d608",
+      "oprfOutput": "ad7a35733ae953350d8ed4ece8f6b62f3775d7fa8956a05390e05282a16ba1421fa71a02729346edae0179b98bf8328bc550bad23116ed3aa427fd8ab57febf4"
     },
     "outputs": {
-      "pinKey": "88cd9a6482bf84e826c7f128072226c5665e28990475787de94767719809434b"
+      "pinKey": "6117f0ac284fa383ef0b9888fae6fb623127ad8abeee390bb8c4c5b2039c9fbb"
     }
   },
   "normalization": {

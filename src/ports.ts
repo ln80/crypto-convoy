@@ -68,8 +68,22 @@ export interface OprfService {
     blindedElement: Uint8Array;
     oprfKeyId: number;
     purpose: OprfPurpose;
-  }): Promise<Uint8Array>;
-  currentKeyId(accountId: string): Promise<number>;
+  }): Promise<OprfEvaluation>;
+}
+
+/** An evaluated element and its DLEQ proof (RFC 9497 POPRF, §5.1). */
+export interface OprfEvaluation {
+  readonly evaluatedElement: Uint8Array;
+  readonly proof: Uint8Array;
+}
+
+/**
+ * The OPRF public key of each key id the client accepts, and the key id new PIN wraps use, from the
+ * integration's client code, never from the server (D-53).
+ */
+export interface OprfSettings {
+  readonly keys: Readonly<Record<number, Uint8Array>>;
+  readonly writeKeyId: number;
 }
 
 export interface LocalDevice {
@@ -119,11 +133,14 @@ export interface Settings {
   readonly argon2?: { readonly write?: Argon2Cost; readonly min?: Argon2Cost };
   /** Largest part ciphertext the buffered API accepts, in bytes (default 64 MiB). */
   readonly maxBufferedSize?: number;
+  /** The pinned OPRF public keys; without them, every PIN operation is `UNSUPPORTED_VERSION` (D-53). */
+  readonly oprf?: OprfSettings;
 }
 
 export interface ResolvedSettings {
   readonly argon2: { readonly write: Argon2Cost; readonly min: Argon2Cost };
   readonly maxBufferedSize: number;
+  readonly oprf: { readonly keys: ReadonlyMap<number, Uint8Array>; readonly writeKeyId: number | null };
 }
 
 const MiB = 1024 * 1024;
@@ -147,7 +164,20 @@ export function resolveSettings(settings: Settings = {}): ResolvedSettings {
   const maxBufferedSize = settings.maxBufferedSize ?? 64 * MiB;
   if (!within(min, FLOOR) || !within(write, min)) throw malformed();
   if (!Number.isSafeInteger(maxBufferedSize) || maxBufferedSize < 1) throw malformed();
-  return { argon2: { write, min }, maxBufferedSize };
+  return { argon2: { write, min }, maxBufferedSize, oprf: resolveOprf(settings.oprf) };
+}
+
+/** Key ids are u32; each key is 32 bytes (checked as a point by the suite); `writeKeyId` must have one. */
+function resolveOprf(oprf: OprfSettings | undefined): ResolvedSettings["oprf"] {
+  if (oprf === undefined) return { keys: new Map(), writeKeyId: null };
+  const keys = new Map<number, Uint8Array>();
+  for (const [id, key] of Object.entries(oprf.keys ?? {})) {
+    const keyId = Number(id);
+    if (!Number.isInteger(keyId) || keyId < 0 || keyId > 0xffffffff || !(key instanceof Uint8Array) || key.length !== 32) throw malformed();
+    keys.set(keyId, key.slice());
+  }
+  if (!keys.has(oprf.writeKeyId)) throw malformed();
+  return { keys, writeKeyId: oprf.writeKeyId };
 }
 
 /**

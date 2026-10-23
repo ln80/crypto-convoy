@@ -122,7 +122,7 @@ describe("SP-18: the buffered API refuses oversized parts before downloading", (
     await draft.seal("big");
 
     const small = await createVault(
-      { store: w.server.as("bob"), oprf: w.oprf, deviceKeys: members.bob!.localKeys, anchors: members.bob!.localKeys, clock: w.clock, settings: { ...FAST, maxBufferedSize: 1000 } },
+      { store: w.server.as("bob"), oprf: w.oprf, deviceKeys: members.bob!.localKeys, anchors: members.bob!.localKeys, clock: w.clock, settings: { ...FAST, maxBufferedSize: 1000, oprf: await w.oprf.clientSettings() } },
       "bob",
     );
     await small.unlock();

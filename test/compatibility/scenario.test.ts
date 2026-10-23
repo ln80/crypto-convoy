@@ -46,8 +46,10 @@ describe("scenario", () => {
     const oprf = new FakeOprfServer();
     const clock = fixedClock();
     const local = () => new MemoryLocalKeyStore();
+    // The OPRF public keys ship in the product's client code (D-53).
+    const clientSettings: Settings = { ...settings, oprf: await oprf.clientSettings() };
     const vault = (accountId: string, keys = local()) =>
-      createVault({ store: keyStore.as(accountId), oprf, deviceKeys: keys, anchors: keys, clock, settings }, accountId);
+      createVault({ store: keyStore.as(accountId), oprf, deviceKeys: keys, anchors: keys, clock, settings: clientSettings }, accountId);
 
     // 1. Encryption setup: recovery first; the owner creates the team and invites a member with
     //    the team's anchor; the member joins, and the owner approves after checking the request.

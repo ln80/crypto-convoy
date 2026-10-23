@@ -31,6 +31,8 @@ export default defineConfig({
         test: {
           name: "compatibility",
           include: ["test/compatibility/**/*.test.ts"],
+          // The scenario runs a product's whole life, with an Argon2id and a proved OPRF per PIN step.
+          testTimeout: 30_000,
           ...node,
         },
       },

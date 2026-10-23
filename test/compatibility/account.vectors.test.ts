@@ -1,6 +1,6 @@
 /**
  * Replay of pin-key.v1.json and recovery-key.v1.json (§5.1, §5.2).
- * SP-08: the PIN key needs the server's per-account evaluation.
+ * SP-08: the PIN key needs the server's evaluation, proven for the account (D-53).
  */
 import { ristretto255_oprf } from "@noble/curves/ed25519.js";
 import { describe, expect, it } from "vitest";
@@ -11,10 +11,27 @@ import { cc1 } from "../../src/suites/cc1/index.js";
 import { loadVectors, tohex, unhex } from "../support/vectors.js";
 
 interface PinKey {
-  rfc9497: { seed: string; keyInfo: string; skSm: string; vectors: { input: string; blind: string; blindedElement: string; evaluationElement: string; output: string }[] };
+  rfc9497: {
+    seed: string;
+    keyInfo: string;
+    skSm: string;
+    pkSm: string;
+    vectors: { input: string; info: string; blind: string; blindedElement: string; evaluationElement: string; proof: string; output: string }[];
+  };
   composition: {
-    inputs: { accountId: string; pin: string; salt: string; opslimit: number; memlimit: number; oprfKeyId: number; serverSeed: string };
-    intermediate: { argon2id: string; oprfInfo: string; serverSecretKey: string; blind: string; blindedElement: string; evaluatedElement: string; oprfOutput: string };
+    inputs: { accountId: string; pin: string; salt: string; opslimit: number; memlimit: number; oprfKeyId: number; serverSeed: string; keyInfo: string };
+    intermediate: {
+      argon2id: string;
+      oprfInfo: string;
+      serverSecretKey: string;
+      serverPublicKey: string;
+      blind: string;
+      blindedElement: string;
+      tweakedKey: string;
+      evaluatedElement: string;
+      proof: string;
+      oprfOutput: string;
+    };
     outputs: { pinKey: string };
   };
 }
@@ -28,23 +45,35 @@ const pin = loadVectors<PinKey>("pin-key.v1.json");
 const recovery = loadVectors<Recovery>("recovery-key.v1.json");
 
 describe("pin-key.v1", () => {
-  it.each(pin.rfc9497.vectors)("RFC 9497 finalize for input $input", (v) => {
-    expect(tohex(cc1.oprfFinalize(unhex(v.input), unhex(v.blind), unhex(v.evaluationElement)))).toBe(v.output);
+  it.each(pin.rfc9497.vectors)("RFC 9497 POPRF finalize, proof checked, for input $input", (v) => {
+    const { tweakedKey } = cc1.oprfBlind(unhex(v.input), unhex(v.info), unhex(pin.rfc9497.pkSm));
+    const evaluated = { evaluatedElement: unhex(v.evaluationElement), proof: unhex(v.proof) };
+    expect(tohex(cc1.oprfFinalize(unhex(v.input), unhex(v.info), unhex(v.blind), unhex(v.blindedElement), evaluated, tweakedKey))).toBe(v.output);
+    const forged = { ...evaluated, proof: unhex(v.proof).map((b, i) => (i === 0 ? b ^ 1 : b)) };
+    expect(() => cc1.oprfFinalize(unhex(v.input), unhex(v.info), unhex(v.blind), unhex(v.blindedElement), forged, tweakedKey)).toThrow(
+      expect.objectContaining({ code: "TRUST_FAILURE", reason: "bad_signature" }),
+    );
   });
 
-  it("composes Argon2id, the OPRF and keyed BLAKE2b into the PIN key", async () => {
+  it("composes Argon2id, the POPRF and keyed BLAKE2b into the PIN key", async () => {
     const { inputs, intermediate, outputs } = pin.composition;
     const kdf = { salt: unhex(inputs.salt), opslimit: inputs.opslimit, memlimit: inputs.memlimit, oprfKeyId: inputs.oprfKeyId };
     expect(tohex(cc1.passwordHash(new TextEncoder().encode(inputs.pin), kdf.salt, kdf.opslimit, kdf.memlimit))).toBe(intermediate.argon2id);
-    // A server holding the vector's per-account key; the client's random blind cancels out.
+    // A server holding the vector's key; the client's random blind cancels out, and the proof is checked.
+    const info = unhex(intermediate.oprfInfo);
     const oprf = {
-      currentKeyId: async () => 1,
-      evaluate: async ({ blindedElement }: { blindedElement: Uint8Array }) =>
-        ristretto255_oprf.oprf.blindEvaluate(unhex(intermediate.serverSecretKey), blindedElement),
+      evaluate: async ({ blindedElement }: { blindedElement: Uint8Array }) => {
+        const { evaluated, proof } = ristretto255_oprf.poprf(info).blindEvaluate(unhex(intermediate.serverSecretKey), blindedElement);
+        return { evaluatedElement: evaluated, proof };
+      },
     };
-    const pinKey = await derivePinKey(cc1, oprf, { accountId: inputs.accountId, pin: inputs.pin, kdf, purpose: "unlock", min: kdf });
+    const oprfKeys = new Map([[inputs.oprfKeyId, unhex(intermediate.serverPublicKey)]]);
+    const pinKey = await derivePinKey(cc1, oprf, { accountId: inputs.accountId, pin: inputs.pin, kdf, purpose: "unlock", min: kdf, oprfKeys });
     expect(tohex(pinKey)).toBe(outputs.pinKey);
-    expect(tohex(cc1.oprfFinalize(unhex(intermediate.argon2id), unhex(intermediate.blind), unhex(intermediate.evaluatedElement)))).toBe(intermediate.oprfOutput);
+    const recorded = { evaluatedElement: unhex(intermediate.evaluatedElement), proof: unhex(intermediate.proof) };
+    expect(
+      tohex(cc1.oprfFinalize(unhex(intermediate.argon2id), info, unhex(intermediate.blind), unhex(intermediate.blindedElement), recorded, unhex(intermediate.tweakedKey))),
+    ).toBe(intermediate.oprfOutput);
   });
 });
 
