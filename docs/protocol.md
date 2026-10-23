@@ -559,7 +559,7 @@ Each team is re-keyed in its own write. The operation reports the teams re-keyed
 1. Open the current `accountKey` (version a).
 2. The user enters the current recovery phrase (D-41): derive the `recoveryKey` and check that it opens the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`; with no recovery wrap, `RECOVERY_NOT_SET_UP`. If the user also enters a new PIN, derive its `pinKey` (purpose `enroll`); without one, the new version has no PIN (D-40).
 3. Generate `accountKey` version a+1.
-4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1.
+4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1. A bundle without an anchor floor gets one as at a re-key (§5.9, D-48).
 5. Create the current-device wrap and the recovery wrap for version a+1 (for the new phrase when §5.11 replaces it, else the current one), and the PIN wrap if a new PIN was entered. Without one, version a+1 has no PIN wrap until `changePin` sets one (D-40).
 6. Store everything and switch the current version to a+1, in one atomic batch.
 7. The server stops serving every record of version a and archives it (rule 7, D-42). Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.

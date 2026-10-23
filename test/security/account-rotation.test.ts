@@ -110,4 +110,12 @@ describe("SP-11: teams survive an account key rotation", () => {
     expect((await bundleOf(bob.vault)).floor?.version).toBe(1);
     expect(aliceTeam.currentVersion).toBe(2);
   });
+
+  it("SP-07: a member who joined without an invite anchor gets a floor at an account rotation (D-48)", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    expect((await bundleOf(bob.vault)).floor).toBeUndefined();
+    await bob.vault.rotate({ phrase: bob.recoveryPhrase });
+    expect((await bundleOf(bob.vault)).floor?.version).toBe(1);
+  });
 });

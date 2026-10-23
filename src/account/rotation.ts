@@ -3,11 +3,13 @@ import { ConvoyError } from "../errors.js";
 import { callPort, type WriteOp } from "../ports.js";
 import { parseMemberKeys } from "../records/member-keys.js";
 import {
+  bundleKeyPairs,
   createMemberKeysWrap,
   memberKeysWrapToJson,
   openMemberKeysWrap,
   parseMemberKeysWrap,
 } from "../records/member-keys-wrap.js";
+import { trustedAnchor } from "./recovery.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { createWrap } from "./context.js";
 import { commit, deviceWrap, pinWrap, recoveryWrap, verifyPhrase } from "./unlock-methods.js";
@@ -16,7 +18,8 @@ import { commit, deviceWrap, pinWrap, recoveryWrap, verifyPhrase } from "./unloc
  * Re-wraps every member keys bundle under a new account key version, with the current-device
  * wrap, the recovery wrap (the current phrase is required, and kept unless `newPhrase` replaces
  * it, D-41, D-45), and the PIN wrap if a new PIN is given (else no PIN until one is set, D-40),
- * switched in one atomic batch. Member keys don't change.
+ * switched in one atomic batch. Member keys don't change; a bundle without an anchor floor gets
+ * one from an anchor the account already trusts, as at a re-key (D-48).
  */
 export async function rotateAccount(
   ports: AccountPorts,
@@ -39,7 +42,10 @@ export async function rotateAccount(
       store.get({ type: "member-keys", teamId: wrap.teamId, accountId, memberKeysVersion: wrap.memberKeysVersion }),
     );
     const published = parseMemberKeys(publishedJson, { teamId: wrap.teamId, accountId, memberKeysVersion: wrap.memberKeysVersion });
-    const bundle = openMemberKeysWrap(wrap, current.key, published);
+    const opened = openMemberKeysWrap(wrap, current.key, published);
+    const held = { memberKeysVersion: wrap.memberKeysVersion, published, pairs: bundleKeyPairs(suite, opened) };
+    const floor = opened.floor ?? (await trustedAnchor(ports, current, wrap.teamId, [held]));
+    const bundle = floor ? { ...opened, floor } : opened;
     const context = { accountId, teamId: wrap.teamId, memberKeysVersion: wrap.memberKeysVersion, accountKeyVersion: next.version };
     const rewrapped = createMemberKeysWrap(suite, context, next.key, bundle);
     suite.wipe(bundle.signingSeed, bundle.encryptionSecretKey, bundle.teamStateKey);

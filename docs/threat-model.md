@@ -159,7 +159,7 @@ Attack: the first time a client meets something, it has nothing earlier to compa
 
 Impact: the user trusts fake owners and their fake members, or the owner seals the team key to the server.
 
-Disposition: accepted in v1, by choice: out-of-band fingerprints are deferred (D-11, SP-20). The exposure is limited to first contact: every later change is checked against what the client accepted (SP-05, SP-07), and every device of a member whose keys carry an anchor floor starts from it, in either context (D-48): the team's creator, a joiner whose invite anchor travelled outside the server, and any member after its first re-key. A member who joined without an invite anchor is on first contact until then.
+Disposition: accepted in v1, by choice: out-of-band fingerprints are deferred (D-11, SP-20). The exposure is limited to first contact: every later change is checked against what the client accepted (SP-05, SP-07), and every device of a member whose keys carry an anchor floor starts from it, in either context (D-48): the team's creator, a joiner whose invite anchor travelled outside the server, and any member after its first re-key or account rotation. A member who joined without an invite anchor is on first contact until then.
 
 ### TH-05: Server rolls back or hides team state
 
@@ -333,7 +333,7 @@ Attack: publishes new member keys signed with the recovery key in every team of 
 
 Impact: the thief reads what the teams write next, and the real member is cut out until a human intervenes. The phrase also opens the account key, so the thief already read everything the account could (TH-11).
 
-Disposition: partly mitigated: owners' re-keys are approved automatically only by the owner's own `reconcile`, for keys its session holds, which a thief's published keys never are, so the owner list can't change this way (SP-23, D-47); each approved re-key is reported (SP-15), and the cut-out member sees `pending` and the `foreign-member-keys` warning (D-43). Accepted: the race itself, which ends when an owner removes the account or approves one set of keys by hand, after the user has secured the account with a new phrase (D-45).
+Disposition: partly mitigated: owners' re-keys are approved automatically only by the owner's own `reconcile`, for keys its vault holds (SP-23, D-47); a thief who places such keys with the account key the phrase opens already holds the owner key (TH-11), so the phrase gives no new way to change the owner list; each approved re-key is reported (SP-15), and the cut-out member sees `pending` and the `foreign-member-keys` warning (D-43). Accepted: the race itself, which ends when an owner removes the account or approves one set of keys by hand, after the user has secured the account with a new phrase (D-45).
 
 ### TH-44: Session thief spends the PIN budget
 

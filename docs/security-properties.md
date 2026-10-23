@@ -156,11 +156,11 @@ Property: a client keeps an anchor: the newest team key version record it verifi
 
 A `team-state` that fails to decrypt stops the client with `TRUST_FAILURE` (`state_unreadable`) instead of being ignored. A client with neither a local anchor nor a readable `team-state` starts from the anchor floor its member keys carry (D-48): version 1 for the team's creator, the invite anchor for a joiner who received one outside the server (checked at join), in the vault's context and in a receiving context alike (§3.8).
 
-Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and the encrypted server copy can't be forged by the server (§4.4 of the protocol). A client with no anchor and no floor (a member who joined without an invite anchor, before its first re-key) is on first contact (TH-04). A client that starts from its floor can't detect a rollback to a version between the floor and newer state until it sees that state (accepted in TH-05); that includes the account key version on a new device (SP-19).
+Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and the encrypted server copy can't be forged by the server (§4.4 of the protocol). A client with no anchor and no floor (a member who joined without an invite anchor, before its first re-key or account rotation) is on first contact (TH-04). A client that starts from its floor can't detect a rollback to a version between the floor and newer state until it sees that state (accepted in TH-05); that includes the account key version on a new device (SP-19).
 
 Verification:
 - `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (refused at join), a forged chain to a new device while `team-state` is withheld or deleted (refused from the floor, in the vault's context and through a receiver), and an older team key version after a newer one was seen.
-- `test/security/account-rotation.test.ts`: the floor survives an account rotation and a re-key; a member who joined without an anchor gets one at its first re-key.
+- `test/security/account-rotation.test.ts`: the floor survives an account rotation and a re-key; a member who joined without an anchor gets one at its first re-key or account rotation.
 
 Related threats: TH-04, TH-05.
 
@@ -347,7 +347,9 @@ Related threats: TH-40.
 
 Property: `reconcile` (D-31) gives a team key version only to accounts that already hold the current version with the same keys, to accounts whose re-key is proven by their recovery key (SP-23) and who aren't owners, and to the calling owner's own new keys when its session holds them (D-47). It never gives a version to a first-time joiner, to an account that held only an older version, to unproven keys, or to another owner's new keys. It never adds or removes an owner, and replaces only the caller's own owner key: an inactive owner is left to a human. Removing any other account from the active list leads to a rotation without it.
 
-Limit: the active list comes from the integration. An account the integration wrongly lists as active, and that still holds the current version, keeps it; one wrongly left out loses access until an owner approves it again.
+Limits:
+- The active list comes from the integration. An account the integration wrongly lists as active, and that still holds the current version, keeps it; one wrongly left out loses access until an owner approves it again.
+- The caller's own re-key is approved for keys its vault holds, which proves custody, not authorship: whoever holds the account key (TH-12) can wrap a bundle the vault then holds. They already hold the caller's owner key, so nothing widens beyond what they could sign (D-47).
 
 Assumptions: AS-01. An owner runs `reconcile` with the integration's active list.
 

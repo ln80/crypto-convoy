@@ -576,7 +576,7 @@ Rejected:
 - Approving owners' proven re-keys for anyone: a leaked phrase would become a silent change of the owner list (D-33).
 - Having `secureAccount` approve in each team itself: the vault would open owner sessions, which a split layout's vault can't do without the team's anchors.
 
-Consequence: the owner's next routine `reconcile`, on the device where it secured the account, closes the window, in a single-owner team too. Holding the private keys is the proof: the vault holds only bundles it made, so keys a session thief or a phrase thief publish under the account never qualify (TH-37, TH-41). A device thief who re-keys from the stolen vault gains nothing new: they could already approve with the owner key they held (TH-17). Automatic actions still never add an account or an owner.
+Consequence: the owner's next routine `reconcile`, on the device where it secured the account, closes the window, in a single-owner team too. Holding the private keys is the proof that the account's vault holds them, not that the user made them. Keys someone only publishes under the account never qualify (TH-37). A bundle the vault holds but didn't make takes the account key: a device thief re-keying from the stolen vault, or someone who copied the account key or knows the phrase and writes a wrapped bundle with a session (TH-11, TH-12, TH-41). Each of them already holds the owner key, so they gain nothing they couldn't sign directly (TH-17), and `secureAccount` cuts them out; what they lose the owner is the `owner-rekey` item that used to show a re-key nobody asked for. Automatic actions still never add an account or an owner.
 
 ## D-48: Member keys carry an anchor floor
 
@@ -588,7 +588,7 @@ Decision: each member keys bundle carries an optional **anchor floor**, a (versi
 - at team creation, version 1 of the new chain;
 - at join, the invite link's anchor, now given to `joinTeam(teamId, { anchor })`, which checks that the served chain contains it before writing anything;
 - at a re-key, the newest bundle's floor, or, if it has none, an anchor the vault already trusts (its local anchor, else the account's `team-state`);
-- at an account rotation, the same floor, re-wrapped.
+- at an account rotation, the same floor, re-wrapped, or, if it has none, filled as at a re-key.
 
 A transfer carries each bundle's floor (§3.8). A device uses the floor only when it has no local anchor and no readable `team-state` (§6.1 step 1): any real `team-state` anchor is at or above it in the same chain.
 
@@ -598,7 +598,7 @@ Rejected:
 - Using the floor on every open: the client would download the chain from its join version each time (D-34).
 - Keeping the invite anchor on `openTeam`: it protects one open in one context, and a wrong link can be retried without it.
 
-Consequence: withholding or deleting `team-state` no longer puts an existing member's device on first contact; it starts from the floor, so a forged team is refused. A member who joined without an invite anchor stays on first contact until its first re-key gives it a floor. The invite anchor is checked once, at join, and a wrong one is refused before the member's keys exist. `openTeam` and the receiver lose their `anchor` option.
+Consequence: withholding or deleting `team-state` no longer puts an existing member's device on first contact; it starts from the floor, so a forged team is refused. A member who joined without an invite anchor stays on first contact until its first re-key or account rotation gives it a floor. The invite anchor is checked once, at join, and a wrong one is refused before the member's keys exist. `openTeam` and the receiver lose their `anchor` option.
 
 ## D-49: A re-key can be proven by the phrase the team's keys carry
 

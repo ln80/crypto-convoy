@@ -76,7 +76,7 @@ export async function rekeyTeam(
  * A floor for keys that have none: an anchor this account already trusts, its local one, else its
  * `team-state` (§5.9, D-48). None if neither reads: a garbage `team-state` never blocks a re-key (TH-46).
  */
-async function trustedAnchor(ports: AccountPorts, account: OpenAccount, teamId: string, bundles: readonly MemberBundle[]): Promise<Anchor | undefined> {
+export async function trustedAnchor(ports: AccountPorts, account: OpenAccount, teamId: string, bundles: readonly MemberBundle[]): Promise<Anchor | undefined> {
   const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(account.accountId, teamId)) : null;
   if (local) return local;
   try {
