@@ -25,3 +25,13 @@ Review 004 (`.agents/reviews/004-anchor-floor.md`):
 1. **Spec:** D-50; D-48 Status and D-29 Consequence point to it; §3.8 step 4, §4.3, §4.4, §5.7 step 4, §5.9, §6.1 step 1, §6.4, §6.8 step 1; SP-07 text, Assumptions, Verification; TH-04, TH-05 and the index; key hierarchy `:153`, `:367`, `:405`. C: TH-49 (accepted, integration duty), index, TH-39, SP-02 Limit and Related threats, integration guide `:118`. D: integration guide `:103`, key hierarchy `:367`, using guide `:116`. Retired wording for the old rules.
 2. **Code and tests:** `src/team/load.ts` (read rule), `src/account/recovery.ts` (`newestTrustedAnchor` replaces `trustedAnchor`), `src/account/rotation.ts` (per team, all bundles), `src/account/vault.ts` (`joinTeam`). Tests in `rollback.test.ts` (A, B1 join floor, Limit at join, E) and `account-rotation.test.ts` (floor advances at rotation and re-key; F). Prove each guard by weakening the rule.
 3. **Notes:** gates, execution notes, review 004 marked done.
+
+## Execution notes
+
+- **Commits:** review 004, this plan and the spec (`4a9ab71`); code and tests (`23b2ae1`); these notes.
+- **Read rule, as built:** the floor counts unless it is below **every** other anchor, so it also counts when it equals or lies between them, not only when it is above all of them. Same download (the fetch starts from the lowest anchor), one more hash checked.
+- **Floor source at read:** the newest bundle's floor (`bundles[0]`). Since D-50 every written bundle has one (the newest trusted anchor includes older bundles' floors), so "the newest bundle that has one" is no longer needed.
+- **Join order:** `joinTeam` reads the recovery key before downloading the chain, so `RECOVERY_NOT_SET_UP` comes before any fetch.
+- **Guards:** weakening each rule fails a test: the read rule (floor only without other anchors), a join without anchor writing no floor, an existing member's anchor not checked, the first instead of the highest trusted anchor, and a rotation floor from one bundle only (F).
+- **No layout or vector change.** API unchanged; `joinTeam` without an anchor now fetches the chain (integration guide cost table).
+- **Integration (doconvoy e2eev2):** nothing to change in calls; carry the transfer request and transfer on a channel the server can't write (TH-49). The local course in `learning/` isn't updated.

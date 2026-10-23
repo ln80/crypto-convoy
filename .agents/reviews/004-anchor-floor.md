@@ -78,3 +78,9 @@ Scope: `docs/` and the matching `src/` at `dbe7394` (after plan 009), reviewed w
 ## Not found
 
 No divergence in D-49's phrase rule (`vault.rekey` accepts the current phrase or one a held bundle carries; proof verified against the held keys, §4.2), in the transfer layout and checks (§3.8 step 3 matches `openTransfer` and the receiver), in the clean-up's `team-state` rewrite (§6.8 step 4), or in review 003 I's fix (`advanceAnchor` rereads with every bundle).
+
+## Decided
+
+- **A, B, E, F: done (plan 010, D-50).** The floor is the newest trusted anchor when a bundle is written (creation, the chain verified at join, re-key and rotation, every bundle of the team at a rotation), and counts unless below every other anchor. `joinTeam` always verifies, and with keys already only checks the anchor. Tests in `rollback.test.ts` and `account-rotation.test.ts`; each rule's guard proven.
+- **C: done.** TH-49 (accepted, integration duty), TH-39, SP-02 Limit and Related threats, D-29 Consequence, §3.8, integration guide.
+- **D: done.** Integration guide, key hierarchy, using guide.
