@@ -614,7 +614,7 @@ Consequence: a failed team is retried with the old phrase and stays proven. The 
 
 ## D-50: The anchor floor is the newest anchor the vault trusts
 
-Status: Accepted; the sources of the floor at a re-key or a rotation amended by D-51; the read rule, the re-key and the rotation superseded by D-52.
+Status: Accepted; the sources of the floor at a re-key or a rotation amended by D-51; the read rule, the re-key and the rotation superseded by D-52, then D-54.
 
 Problem: D-48's floor was set once (version 1, or the invite anchor) and then only carried, or filled from another anchor when missing. It counted only when a device had no other anchor, so an archived `team-state` below it won (TH-05). A member who joined without an invite anchor had no floor until a re-key or rotation: while the server withheld `team-state`, each new device was a new first contact (TH-04). The "carry, else fill" rule had two branches, written in five places.
 
@@ -645,7 +645,7 @@ Consequence: what reaches the floor was written by the vault (a floor) or by `ad
 
 ## D-52: The anchor floor is the root of trust
 
-Status: Accepted.
+Status: Accepted; the re-key's floor and its fallback amended by D-54.
 
 Problem: every anchor was a root of trust of its own. A record at an anchor's version was accepted by its hash alone, and the floor, the one anchor the vault builds from a chain it verified, was dropped as soon as a higher anchor existed (D-50). A local anchor, which a script in the origin or someone with the device can write, or a `team-state`, which any holder of a `teamStateKey` can write, therefore chose the chain once it was above the floor. With the server, a forged team opened `ready`; its anchor spread through `team-state` to new devices, and the re-key in `secureAccount` made it the floor (review 006 B and C). D-51 had removed only the local anchor from the floor's sources.
 
@@ -683,3 +683,23 @@ Rejected:
 - A mode field and a new wrap version: a fallback to delete later, for wraps no release ever wrote.
 
 Consequence: whatever answers PIN evaluations without the key can only refuse them. One key now serves every account of a key id, so a repeated proof nonce, or one account's tweaked key, reveals it for all: the integration draws nonces from a CSPRNG, exports no tweaked key, and rotates key ids or caps evaluations per key id (scope rule 2). POPRF rests on a stronger assumption than base mode (RFC 9497, security considerations). The integration ships each public key in its client code before using it. The server can still make guesses within each account's budget (TH-08), and a key holder is as strong as before (TH-09).
+
+## D-54: Floors are written only where every root agrees; the vault keeps its own anchor
+
+Status: Accepted.
+
+Problem: D-52 wrote a re-key's floor from a chain verified from the local anchor or the floor, and kept the current floor when that failed. Someone who held the account key could plant a floor in a wrap: a vault with no anchor of its own (a split layout, a new device) verified from it; a server that made the verification fail had it kept; a retry and an export fell back to it; a forged local anchor could stand in for it (reviews 009 B, 010). And `secureAccount` was trusted to end the old account key's reach, while a retired version comes back on a stateless or stale device, or through a support restore (review 009 C).
+
+Decision:
+- The vault keeps its own anchor per team, in its half of local storage (`local-vault-anchor`, §3.7), apart from the sessions' anchors. It records the tip of every chain it verifies (creation, join, open in its context, export) and never moves down.
+- A re-key writes a floor only from a chain that contains every root the vault holds for the team: the newest bundle's floor and its own anchor. If they conflict or the chain doesn't verify, the re-key fails and writes nothing. An export refuses on the same failure. D-52's "else the current floor" goes.
+- An anchor an owner gives out of band (`team.inviteAnchor()`), passed to `rekey` or `secureAccount`, is then the only root: the repair for a planted floor or a device with no anchor.
+- A rotation keeps each bundle's floor; `secureAccount`'s re-keys then write checked floors.
+- Retired versions: no client rule stops a server that serves one to a device with no newer state, or a support restore. The limits say so (SP-11, SP-19, TH-05, TH-12); a new phrase is the recommended default; a new PIN that opens the current PIN wrap is refused; the integration resets the account's other devices after `secureAccount`; `foreign-member-keys` advises `secureAccount`, not `rekey`.
+
+Rejected:
+- Trusting the vault's anchor alone (the first proposal, review 010 D): a forged anchor, written by any script in the origin, would become the floor.
+- Requiring a new phrase, or a new PIN, in `secureAccount` (review 010 C): each closes one path of several, and a required PIN blocks `secureAccount` when the budget is spent (D-40, TH-44).
+- Keeping a re-key going on a failed check: whoever makes the check fail chooses the floor.
+
+Consequence: a planted floor, a forged local anchor or a failed chain becomes a team reported failed, not a floor carried; the owner's anchor repairs it. A vault that never verified the team on this device still trusts the floor it holds until an owner's anchor is given (TH-20). The vault's anchor is one more local value, writable by any script in its origin, but a forged one only fails re-keys and exports on that device. Split layouts give the vault its `DeviceKeyStore` half, as before; same-origin layouts keep one store with two labels.

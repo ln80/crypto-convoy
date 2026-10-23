@@ -29,6 +29,7 @@ export const LABELS = [
   "local-device-key",
   "local-account-version",
   "local-anchor",
+  "local-vault-anchor",
 ] as const;
 
 export type Label = (typeof LABELS)[number];

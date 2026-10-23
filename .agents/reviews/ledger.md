@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 009 (`adversarial`, fresh-context reviewer), with high findings. Open findings medium or above: 009-B, 009-C (plan 015).
+**Now:** 0 of 2. Last review: 010 (`design`, plan 015), after 009 (`adversarial`, high findings). Open findings medium or above: 009-B, 009-C, 010-A to 010-G.
 
 ## Findings
 
@@ -62,6 +62,14 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 009-D | Hardening | Low | Fixed | `pin-upgrade-failed` (plan 014) |
 | 009-E | Missing threat | Low | Fixed | TH-50, integration guide (plan 014) |
 | 009-F | Hardening | Low | Accepted | TH-46 |
+| 010-A | Forgeable input | High | Open | — |
+| 010-B | Forgeable input | High | Open | — |
+| 010-C | Wrong claim, combined attack | Medium | Open | — |
+| 010-D | Forgeable input | Medium | Open | — |
+| 010-E | Forgeable input | Medium | Open | — |
+| 010-F | Forgeable input | Medium | Open | — |
+| 010-G | Residual | Medium | Open | — |
+| 010-H | Hardening | Low | Open | — |
 
 ## Residuals
 

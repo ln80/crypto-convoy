@@ -172,7 +172,7 @@ Attack: serves an older part of the chain (one where a removed owner was still a
 
 Impact: a removed owner or member regains influence or access.
 
-Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact, and every anchor must link to the floor, so no `team-state` or local anchor can choose the chain (D-48, D-52). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
+Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact, and every anchor must link to the floor, so no `team-state` or local anchor can choose the chain (D-48, D-52). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, or one that last saw it, which matters when someone holds that old key: after `secureAccount`, the attacker (SP-19, TH-12).
 
 ### TH-06: Server modifies or moves encrypted items
 
@@ -390,7 +390,7 @@ Attack: extracts the account key from memory or storage.
 
 Impact: every team key and item the account can reach.
 
-Disposition: mitigated by SP-11 and SP-12 together, in one operation (`secureAccount`, D-36): rotation alone leaves the member keys the attacker could open, so access ends only when each team approves a re-key (TH-13), which the recovery phrase still proves (SP-23). What the attacker opened before is accepted as lost.
+Disposition: mitigated by SP-11 and SP-12 together, in one operation (`secureAccount`, D-36): rotation alone leaves the member keys the attacker could open, so access ends only when each team approves a re-key (TH-13), which the recovery phrase still proves (SP-23). What the attacker opened before is accepted as lost. Accepted too: the retired version comes back on a device a server serves it to, or after a support restore, and opens with an unchanged PIN or phrase (SP-19): `secureAccount` with a new phrase and a different PIN, and the account's other devices reset, keep it to that.
 
 ### TH-13: Member keys of one team leaked
 
@@ -420,7 +420,7 @@ Attack: reads the account key, or captures the PIN or phrase as it is typed.
 
 Impact: every team of the user.
 
-Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them. It could also plant an anchor floor; `secureAccount`, from a device that has opened the team, verifies each new floor from that device's anchor (D-52).
+Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them. It could also plant an anchor floor; `secureAccount` writes floors only where the floor and the vault's own anchor agree, so a vault that has opened or exported the team refuses it, and an anchor from an owner repairs it (D-54).
 
 ### TH-39: A team's keys reach the wrong context
 

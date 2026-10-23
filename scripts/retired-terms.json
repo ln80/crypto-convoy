@@ -144,6 +144,17 @@
           "D-53"
         ]
       }
+    },
+    {
+      "pattern": "floor stays the current one|else the current floor|from this device's local anchor when it has one|matters only if someone also holds that old",
+      "decision": "D-54",
+      "use": "a floor is written only from a chain containing every root (the floor and the vault's own anchor), or from an owner's anchor; a conflict fails the re-key; the retired-version limit holds whenever someone has the old key",
+      "allow": {
+        "decisions.md": [
+          "D-52",
+          "D-54"
+        ]
+      }
     }
   ]
 }

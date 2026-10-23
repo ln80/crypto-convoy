@@ -96,6 +96,7 @@ Every `wrap`, `seal`, `sign`, `stream` and key derivation below encodes `string 
 | `local-device-key` | Browser adapter: associated data of a stored device key (§3.7) |
 | `local-account-version` | Browser adapter: associated data of the stored account key version (§3.7) |
 | `local-anchor` | Browser adapter: associated data of a stored team anchor (§3.7) |
+| `local-vault-anchor` | Browser adapter: associated data of the vault's own anchor for a team (§3.7, D-54) |
 
 ### Records on the wire
 
@@ -254,6 +255,7 @@ Each value is stored as `iv (12 random bytes) ‖ AES-GCM(value, ad)`:
 | Device key | `enc(string label("local-device-key"), accountId)` | `enc(string deviceId, bytes deviceKey)` |
 | Highest account key version seen | `enc(string label("local-account-version"), accountId)` | `enc(u32 accountKeyVersion)` |
 | Team anchor | `enc(string label("local-anchor"), accountId, teamId)` | `enc(u32 version, bytes recordHash)` |
+| The vault's anchor for a team | `enc(string label("local-vault-anchor"), accountId, teamId)` | `enc(u32 version, bytes recordHash)` |
 
 A value that fails to decrypt is an error, never silently discarded: discarding an anchor would send the device back to first-contact trust (SP-07).
 
@@ -262,7 +264,7 @@ A value that fails to decrypt is an error, never silently discarded: discarding 
 When the account vault and a team session run in separate contexts (D-29), one team's member keys move from the first to the second sealed to a receiver. A transfer is never stored.
 
 1. **Receiver.** The receiving context creates a receiver for an expected `accountId` and `teamId`: an X25519 key pair from `randombytes_buf`, kept in memory. The **transfer request** is `"1"` followed by its public key in base64url without padding, as a link value (§3.5).
-2. **Export.** The vault opens the account's member keys bundles for the team (§5.8) and returns the **transfer**: `"1"` followed by `seal(receiverPublicKey, "team-keys-transfer", accountId, teamId, body)` in base64url without padding, where `body` = `enc(list<u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, bytes teamStateKey, optional<u32 version, bytes recordHash> floor>)`, newest `memberKeysVersion` first, 1–64 entries; `floor` is the bundle's anchor floor (§4.3). The vault refuses a request that isn't a valid link value or carries a low-order key (§2), with `MALFORMED_RECORD`.
+2. **Export.** The vault opens the account's member keys bundles for the team and verifies the chain from its roots (§5.8; `TRUST_FAILURE` otherwise, D-54) and returns the **transfer**: `"1"` followed by `seal(receiverPublicKey, "team-keys-transfer", accountId, teamId, body)` in base64url without padding, where `body` = `enc(list<u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, bytes teamStateKey, optional<u32 version, bytes recordHash> floor>)`, newest `memberKeysVersion` first, 1–64 entries; `floor` is the bundle's anchor floor (§4.3). The vault refuses a request that isn't a valid link value or carries a low-order key (§2), with `MALFORMED_RECORD`.
 3. **Open.** The receiver checks the prefix (else `UNSUPPORTED_VERSION`), opens the box with the expected `accountId` and `teamId` (§3.2; any failure, including a second use, is `DECRYPTION_FAILED`), then wipes its secret key: a receiver opens one transfer. It refuses a list out of order, with a key of the wrong size or a floor hash that isn't 32 bytes (`MALFORMED_RECORD`), and checks each bundle against the published `member-keys` record of its version (§4.3), else `TRUST_FAILURE` (`key_mismatch`).
 4. **Anchor.** The session starts from the receiving context's own anchors, with the newest bundle's floor, as in the vault's context (§6.1 step 1, D-50).
 
@@ -537,7 +539,7 @@ The account key opens only through one of these three paths (SP-19).
 - **Inactivity.** The server may stop serving a device wrap unused for a period set by the integration ([server contract](scope.md#server-contract), rule 7). The device then gets `DEVICE_NOT_REGISTERED` and registers again with the PIN or the recovery phrase, which limits how long a forgotten device stays able to unlock.
 - **Revoke.** Ask the server to remove the device's wrap, which it stops serving and archives (rule 7, D-39). From then on, the device can't unlock the account again (SP-10). That's the whole guarantee of revocation (D-21). The integration also ends that device's sign-in sessions, so it can't fetch other private records.
 
-If the device may have been used by an attacker while unlocked, revocation isn't enough: they may have copied the account key and the member keys of every team the device opened. The remedy is the account key rotation (§5.7, SP-11) followed by a re-key in each affected team (§6.8, SP-12). The library offers both operations; the integration decides whether to guide users through them (TH-10).
+If the device may have been used by an attacker while unlocked, revocation isn't enough: they may have copied the account key and the member keys of every team the device opened. The remedy is `secureAccount` (§5.11): the account key rotation (§5.7, SP-11) and a re-key in each team (§6.8, SP-12), with floors checked against the vault's own anchor (D-54). The library offers it; the integration decides whether to guide users through them (TH-10).
 
 ### 5.6 Changing the PIN, replacing the recovery phrase
 
@@ -571,14 +573,14 @@ Rotation retires the account key only. Member keys are unchanged, so anyone who 
 
 1. The vault fetches the `member-keys-wrap` for `teamId` at the current account key version and unwraps it.
 2. It checks the bundle against the `member-keys` record (§4.3).
-3. It verifies the chain (§6.1 steps 1–2). If its newest version is above the newest bundle's anchor floor, it replaces that bundle's `member-keys-wrap` with the same keys and that version as floor (`replace`, D-52); if it holds more than one bundle, it runs the clean-up of §6.8 step 4 in the same batch. On any failure it writes nothing.
+3. It verifies the chain (§6.1 steps 1–2), with the vault's own anchor as a root too, and records the newest version as the vault's anchor, never moving it down (D-54); an export refuses with `TRUST_FAILURE` if the chain doesn't verify (§3.8). If its newest version is above the newest bundle's anchor floor, it replaces that bundle's `member-keys-wrap` with the same keys and that version as floor (`replace`, D-52); if it holds more than one bundle, it runs the clean-up of §6.8 step 4 in the same batch. On any failure it writes nothing.
 4. It hands the bundles to the team session, directly in the same context, or as a sealed transfer to a receiver in another context (§3.8). The `accountKey` never leaves the vault (SP-02).
 
 ### 5.9 Creating member keys, leaving a team, deleting an account
 
 Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so it runs in the vault:
 
-- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team and the bundles the vault holds, or 1 for none (D-43): keys someone else published under the account never block it. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap` with its anchor floor (§4.3, D-50): version 1 for a new team (§6.3), the verified chain's tip on a join (§6.4), and on a re-key the newest version of the chain verified (§6.1 step 2) from the newest bundle's floor alone, or, in `secureAccount`, from this device's local anchor when it has one (§5.11); if that verification fails, the newest bundle's floor (D-52). Then open the team (§5.8).
+- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team and the bundles the vault holds, or 1 for none (D-43): keys someone else published under the account never block it. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap` with its anchor floor (§4.3, D-50): version 1 for a new team (§6.3), the verified chain's tip on a join (§6.4), and on a re-key the newest version of a chain that contains every root the vault holds for the team: the newest bundle's floor and the vault's own anchor (§5.8), or, when the caller gives an anchor from an owner, that anchor alone (§6.8). If the roots conflict or the chain doesn't verify, the re-key fails with `TRUST_FAILURE` and writes nothing (D-54). Then open the team (§5.8).
 - **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is the only owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): another owner must be added first (§6.7). The member's keys stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
 - **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is the only owner of a team, for the same reason as above (TH-18).
 
@@ -591,11 +593,13 @@ Recovery is set up when a recovery wrap exists at the current account key versio
 
 ### 5.11 Securing an account (D-36)
 
-For a device that may have been used while unlocked, a leaked PIN or a leaked phrase, or after a support restore (TH-48), run from a device the attacker didn't control, after the integration has ended the account's other sign-in sessions, so nobody publishes keys over its re-keys (D-43). Input: the recovery phrase; optionally a new phrase (D-45), the one `beginRecoverySetup()` showed (§5.10 step 1), typed back; and optionally a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one, or a new phrase that isn't the one held (compared as in §5.10 step 2): `WRONG_CREDENTIAL`, before anything is written.
+For a device that may have been used while unlocked, a leaked PIN or a leaked phrase, or after a support restore (TH-48), run from a device the attacker didn't control, after the integration has ended the account's other sign-in sessions, so nobody publishes keys over its re-keys (D-43). Input: the recovery phrase; optionally, and recommended, a new phrase (D-45), the one `beginRecoverySetup()` showed (§5.10 step 1), typed back; and optionally a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one, or a new phrase that isn't the one held (compared as in §5.10 step 2): `WRONG_CREDENTIAL`, before anything is written.
 
 1. Rotate the account key (§5.7) with the phrase, the new phrase if given, and the new PIN if given. This cuts every other device: their wraps belong to the retired version (D-10). With a new phrase, the recovery wrap of the new version is for it, so the replaced phrase opens nothing of that version (SP-11).
-2. For every team the account has member keys for, in its own write: create new member keys (§5.9) with the `recoveryPublicKey` of the new version (the new phrase's, if given), whose record carries a `recoverySignature` by the **current** phrase's recovery signing key (§4.2): proven against the keys each team holds (SP-23). Each new floor is verified from this device's local anchor when it has one, so a floor planted with the stolen account key isn't carried (§5.9, D-52).
-3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase given as `phrase`, which the team's held keys still carry (D-49).
+2. For every team the account has member keys for, in its own write: create new member keys (§5.9) with the `recoveryPublicKey` of the new version (the new phrase's, if given), whose record carries a `recoverySignature` by the **current** phrase's recovery signing key (§4.2): proven against the keys each team holds (SP-23). Each new floor comes from a chain containing every root the vault holds, so a floor planted with the stolen account key fails the team instead of being carried; an anchor an owner gave for the team (`anchors`) replaces the roots (§5.9, D-54).
+3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase given as `phrase`, which the team's held keys still carry (D-49); one that failed on its roots is retried with an anchor from an owner.
+
+A new PIN that opens the current PIN wrap is refused with `MALFORMED_RECORD` before anything is written (one evaluation): a retired version stays served to a stateless device, and the old PIN would open it (SP-19).
 4. Wipe the phrases and the keys derived from them; the vault forgets the new phrase it held.
 
 Each team's owners approve the new keys at their next `reconcile` (§6.9, SP-23). Where the account is an owner, its own next `reconcile`, from this device, approves them (D-47), in a single-owner team too. Until a team approves them, keys copied by the attacker still open what that team writes.
@@ -610,7 +614,7 @@ What a team session does.
 
 Run when a team session starts, before any other team operation.
 
-1. **Collect anchors.** An anchor is a (version, record hash) pair this account already verified. The **roots** are the newest bundle's anchor floor (§4.3), which only the vault writes, from a chain it verified, and the local anchor (`LocalKeyStore`); for keys with no floor, the server's `team-state` anchor (§4.4) too (D-52). A `team-state` that fails to decrypt stops here with `TRUST_FAILURE` (`state_unreadable`). With no root at all, this is a first contact: the chain is accepted as the server presents it (TH-04).
+1. **Collect anchors.** An anchor is a (version, record hash) pair this account already verified. The **roots** are the newest bundle's anchor floor (§4.3), which only the vault writes, from a chain it verified, and the local anchor (`LocalKeyStore`); in the vault's context, the vault's own anchor too (D-54); for keys with no floor, the server's `team-state` anchor (§4.4) too (D-52). A `team-state` that fails to decrypt stops here with `TRUST_FAILURE` (`state_unreadable`). With no root at all, this is a first contact: the chain is accepted as the server presents it (TH-04).
 2. **Verify the chain.** Fetch the team key version records from the lowest root (or from version 1 at first contact) to the newest, and check them (§4.5). The chain must contain **every** root, so each is linked to the floor. Then check the `team-state` anchor against it: below its first record, it isn't followed; at a version the chain holds with another hash, `TRUST_FAILURE` (`state_conflict`); above its newest record, `rollback`; otherwise it counts as an anchor. A local anchor and a `team-state` can be written outside the vault (a script or someone with the device, a holder of a `teamStateKey`): linked to the floor, they can't choose the chain. The client adopts nothing newer than its anchors before this check passes. This order matters: the anchor comes from what the client verified, never from the record it's about to check.
 3. **Report changes.** For every record newer than the highest anchor, compared with the previous version: if its owner list differs, report to the integration the signer and the owners added, removed or re-keyed; if its roster differs, the signer and the accounts added, removed or re-keyed (a different `keysHash`) (SP-15, D-44).
 4. The current version n is the newest record of the verified chain.
@@ -637,7 +641,7 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 ### 6.4 Inviting and joining a team
 
 1. **Invite (owner).** Put the team's anchor (`team.inviteAnchor()`, §3.5) in the invite link, for the integration to deliver.
-2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5), fetches the chain from the anchor's version and verifies it with that anchor (§4.5, §6.1 step 2), else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. Without an anchor, it verifies the chain from version 1: the join is this member's first contact (TH-04). It then creates the member's keys for the team (§5.9) with the verified chain's tip as their floor (D-48, D-50), so every device of the member, in any context, starts from it. When the link reached the joiner outside the server, a server can't present a forged team. If the account already has keys for the team, the vault only checks the anchor, if given, writes nothing, and leaves the floor as it is.
+2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5), fetches the chain from the anchor's version and verifies it with that anchor (§4.5, §6.1 step 2), else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. Without an anchor, it verifies the chain from version 1: the join is this member's first contact (TH-04). It then creates the member's keys for the team (§5.9) with the verified chain's tip as their floor and as the vault's own anchor (D-48, D-50, D-54), so every device of the member, in any context, starts from it. When the link reached the joiner outside the server, a server can't present a forged team. If the account already has keys for the team, the vault only checks the anchor, if given, writes nothing, and leaves the floor as it is.
 3. The member is `pending` until an owner approves their keys (§6.5).
 
 ### 6.5 Approving members (owner)
@@ -676,7 +680,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 ### 6.8 Re-keying a member
 
-1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain verified as in §5.9 (D-52), and a `recoverySignature` if the user entered a recovery phrase: the current one, or one whose recovery key a bundle the vault holds for the team carries (D-49), which signs. The member stays able to read with the old keys until the rotation.
+1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain containing every root, or from an anchor an owner gave (`rekey(teamId, { anchor })`, the repair for a device with no anchor or a planted floor) (§5.9, D-54), and a `recoverySignature` if the user entered a recovery phrase: the current one, or one whose recovery key a bundle the vault holds for the team carries (D-49), which signs. The member stays able to read with the old keys until the rotation.
 2. An owner approves the new keys by rotating the team key (§6.6), naming the `memberKeysVersion` reviewed. The library classifies the request:
    - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23): then only its own `reconcile` does, holding the keys (D-47);
    - **unproven**: anything else. The owner verifies out of band (AS-06, TH-37). The old keys can't vouch for the new ones, since an attacker may hold them (D-38).
@@ -871,7 +875,7 @@ Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyErr
 vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered, deviceId,
                                           //   recovery: "not-set-up" | "set-up", pin: "not-set-up" | "set-up" }
 vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying;
-                                          //   teams with keys this vault didn't make (`foreign-member-keys`, D-43);
+                                          //   teams with keys this vault didn't make (`foreign-member-keys`, D-43; answer: secureAccount, D-54);
                                           //   a PIN upgrade that failed (`pin-upgrade-failed`; a failed proof: report it, TH-51)
 vault.setup(pin)                          // then set up recovery before any team work
 vault.beginRecoverySetup()                → { recoveryPhrase }   // held in memory until confirmed (§5.10)
@@ -884,11 +888,12 @@ vault.changePin(newPin, { currentPin } | { phrase })   // D-41; creates the PIN 
 vault.listDevices()                       → { deviceId, current }[]   // current: this device (§5.5)
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
 vault.rotate({ phrase, newPin? })         // keeps the phrase; without newPin, no PIN until changePin (D-40, D-41)
-vault.secureAccount({ phrase, newPhrase?, newPin? }) → { rekeyed: teamId[], failed: teamId[] }
+vault.secureAccount({ phrase, newPhrase?, newPin?, anchors? }) → { rekeyed: teamId[], failed: teamId[] }
                                           // §5.11, D-40; newPhrase: from beginRecoverySetup, typed back (D-45)
 vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
 vault.joinTeam(teamId, { anchor? })       // the invite link's anchor, checked first (§6.4, D-48); "pending" until approved
-vault.rekey(teamId, { phrase? })          // new member keys; with the phrase, proven (§6.8): the current one or the old one (D-49)
+vault.rekey(teamId, { phrase?, anchor? }) // new member keys; with the phrase, proven (§6.8): the current one or the old one (D-49);
+                                          //   `anchor`: from an owner, the root for the new floor (D-54)
 vault.leaveTeam(teamId)                   // throws LAST_OWNER for the only owner
 vault.openTeam(teamId)                    → TeamSession   // same context
 vault.exportTeamKeys(teamId, request)     → transfer      // another context (§3.8)
@@ -958,7 +963,7 @@ A write that a server rule refuses (write-once, current version, compare-and-set
 
 **`OprfService`.** `evaluate(accountId, blindedElement, oprfKeyId, purpose)` returns the evaluated element and its proof (§5.1); a refusal by the rate limit is reported by throwing `RateLimitedError`, which the library turns into `PIN_RATE_LIMITED`. There is no key id query: the key id new wraps use is a setting (D-53).4).
 
-**`LocalKeyStore`.** Keeps, on this device: per account, the device key and `deviceId`, and the highest account key version accepted (SP-07), used by the vault; per account and team, the anchor (version, record hash), used by team sessions. In a split layout, each context implements the half it uses. Values that can't be read back are errors, never an empty result (§3.7).
+**`LocalKeyStore`.** Keeps, on this device: per account, the device key and `deviceId`, the highest account key version accepted (SP-07), and per team the vault's own anchor (D-54), used by the vault; per account and team, the anchor (version, record hash), used by team sessions. In a split layout, each context implements the half it uses. Values that can't be read back are errors, never an empty result (§3.7).
 
 **`Clock`.** `now()` returns Unix seconds (§1).
 
