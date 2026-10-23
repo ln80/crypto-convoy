@@ -2,10 +2,13 @@
  * SP-10, SP-11, SP-23: securing an account after a misused device (D-36), also with the
  * PIN budget spent (D-40).
  * SP-12: keys a session thief published don't block its re-keys (D-43).
- * Threats: TH-10, TH-12, TH-44, TH-47.
+ * SP-11: securing with a new phrase retires the leaked one (D-45).
+ * Threats: TH-10, TH-11, TH-12, TH-44, TH-47.
  */
 import { describe, expect, it } from "vitest";
+import { deriveRecoveryKeys } from "../../src/account/recovery-key.js";
 import { vaultInternals } from "../../src/account/vault.js";
+import { cc1 } from "../../src/suites/cc1/index.js";
 import { world } from "../support/fixtures.js";
 import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
@@ -109,5 +112,36 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
     expect(await clean.vault.secureAccount({ phrase: bob.recoveryPhrase })).toEqual({ rekeyed: ["team-1"], failed: [] });
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
     expect((await clean.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("TH-11: with a new phrase, the leaked one opens nothing, and every re-key is proven and approved (D-45)", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const bob = members.bob!;
+    const { recoveryPhrase: newPhrase } = bob.vault.beginRecoverySetup();
+    expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPhrase, newPin: "2222" })).toEqual({ rekeyed: ["team-1"], failed: [] });
+
+    // The new keys carry the new phrase's recovery key, proven by the old one.
+    const rekeyed = await bundleOf(bob.vault);
+    expect(Buffer.from(rekeyed.published.recoveryPublicKey).equals(Buffer.from(deriveRecoveryKeys(cc1, "bob", newPhrase).signing.publicKey))).toBe(true);
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    expect(await bob.vault.warnings()).toEqual([]);
+
+    // Whoever knows the old phrase opens nothing; the new one recovers.
+    await expect((await w.device("bob")).vault.recover(bob.recoveryPhrase, "3333")).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    await (await w.device("bob")).vault.recover(newPhrase, "3333");
+  });
+
+  it("refuses a new phrase that isn't the one shown, or without one shown, before writing anything (D-45)", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    const shown = bob.vault.beginRecoverySetup().recoveryPhrase;
+    const other = (await team("x")).members.x!.recoveryPhrase;
+    await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPhrase: other })).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    await expect(bob.vault.secureAccount({ phrase: other, newPhrase: shown })).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    bob.vault.lock();
+    await bob.vault.unlock();
+    await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPhrase: shown })).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    expect(await bob.store.getAccountKeyVersion("bob")).toBe(1);
   });
 });

@@ -326,23 +326,30 @@ export class Vault {
   }
 
   /**
-   * After a device that may have been misused, or a leaked PIN (§5.11, D-36): rotates the account
-   * key with a new PIN, or none when the PIN budget is spent (D-40, TH-44), which cuts every other device, then re-keys every team with a recovery
-   * proof that owners' `reconcile` approves. Run it on a device the attacker didn't control.
-   * Retry a failed team with `rekey(teamId, { phrase })`. Throws `WRONG_CREDENTIAL`,
-   * `RECOVERY_NOT_SET_UP`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   * After a device that may have been misused, a leaked PIN or phrase, or a support restore
+   * (§5.11, D-36): rotates the account key with a new PIN, or none when the PIN budget is spent
+   * (D-40, TH-44), which cuts every other device, then re-keys every team with a recovery proof
+   * that owners' `reconcile` approves. With `newPhrase`, the phrase `beginRecoverySetup` showed,
+   * typed back, it also replaces the phrase; the proofs are still made with `phrase` (D-45). Run
+   * it on a device the attacker didn't control. Retry a failed team with `rekey(teamId, { phrase })`.
+   * Throws `WRONG_CREDENTIAL`, `RECOVERY_NOT_SET_UP`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
    */
-  async secureAccount(input: { phrase: string; newPin?: string }): Promise<RekeyReport> {
+  async secureAccount(input: { phrase: string; newPhrase?: string; newPin?: string }): Promise<RekeyReport> {
     const current = this.#requireAccount();
     const recoveryPublicKey = await currentRecoveryKey(this.#ports, current);
     if (!recoveryPublicKey) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+    const pending = this.#pendingPhrase;
+    if (input.newPhrase !== undefined && (pending === null || !samePhrase(input.newPhrase, pending))) throw new ConvoyError("WRONG_CREDENTIAL");
     const signer = recoverySigner(this.#ports, this.accountId, input.phrase, recoveryPublicKey);
     try {
       const pin = input.newPin !== undefined ? { newPin: input.newPin } : {};
-      const { account } = await rotateAccount(this.#ports, current, { ...pin, phrase: input.phrase });
+      const phrases = input.newPhrase !== undefined ? { phrase: input.phrase, newPhrase: pending! } : { phrase: input.phrase };
+      const { account } = await rotateAccount(this.#ports, current, { ...pin, ...phrases });
       this.lock();
       this.#account = account;
-      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), recoveryPublicKey, signer);
+      // The new keys carry the new version's recovery key; the proof is by the current one (D-45).
+      const next = input.newPhrase !== undefined ? await currentRecoveryKey(this.#ports, account) : recoveryPublicKey;
+      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), next!, signer);
     } finally {
       this.#ports.suite.wipe(signer.secretKey);
     }

@@ -14,14 +14,14 @@ import { commit, deviceWrap, pinWrap, recoveryWrap, verifyPhrase } from "./unloc
 
 /**
  * Re-wraps every member keys bundle under a new account key version, with the current-device
- * wrap, the recovery wrap (the current phrase is required and kept, D-41), and the PIN wrap if a
- * new PIN is given (else no PIN until one is set, D-40), switched in one atomic batch. Member
- * keys don't change.
+ * wrap, the recovery wrap (the current phrase is required, and kept unless `newPhrase` replaces
+ * it, D-41, D-45), and the PIN wrap if a new PIN is given (else no PIN until one is set, D-40),
+ * switched in one atomic batch. Member keys don't change.
  */
 export async function rotateAccount(
   ports: AccountPorts,
   current: OpenAccount,
-  input: { phrase: string; newPin?: string },
+  input: { phrase: string; newPhrase?: string; newPin?: string },
 ): Promise<{ account: OpenAccount }> {
   const { suite, store, deviceKeys } = ports;
   const { accountId } = current;
@@ -47,7 +47,7 @@ export async function rotateAccount(
   }
 
   if (input.newPin !== undefined) ops.push(createWrap(await pinWrap(ports, next, input.newPin)));
-  ops.push(createWrap(recoveryWrap(ports, next, input.phrase)));
+  ops.push(createWrap(recoveryWrap(ports, next, input.newPhrase ?? input.phrase)));
   const device = await callPort(() => deviceKeys.getDevice(accountId));
   if (device) ops.push(createWrap(deviceWrap(ports, next, device)));
   ops.push({ op: "set-account-key-version", accountId, expected: current.version, accountKeyVersion: next.version });

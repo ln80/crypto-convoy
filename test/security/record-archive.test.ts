@@ -1,6 +1,6 @@
 /**
  * SP-26: A session can't destroy an account's private records.
- * Threats: TH-11, TH-36, TH-46.
+ * Threats: TH-11, TH-36, TH-46, TH-48.
  */
 import { describe, expect, it } from "vitest";
 import { replacePhrase } from "../support/fixtures.js";
@@ -68,5 +68,52 @@ describe("SP-26: a session can't destroy an account's private records", () => {
     expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "2222" })).toEqual({ rekeyed: ["team-1"], failed: [] });
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("TH-11: a phrase thief's takeover is restored; securing with a new phrase leaves the leaked one opening nothing (D-45)", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const bob = members.bob!;
+    const thief = await w.device("bob");
+    await thief.vault.recover(bob.recoveryPhrase, "6666");
+    const { recoveryPhrase: thiefPhrase } = await replacePhrase(thief.vault, { currentPhrase: bob.recoveryPhrase });
+    await thief.vault.rotate({ phrase: thiefPhrase, newPin: "6666" });
+    // The thief's re-keys were proven by bob's phrase: the owner's routine reconcile approves them.
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+
+    w.server.restoreVersion("bob", 1);
+    w.server.restore({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" }, 0);
+    await bob.vault.unlock();
+    const { recoveryPhrase: newPhrase } = bob.vault.beginRecoverySetup();
+    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPhrase, newPin: "2222" });
+
+    // The restored phrase was the thief's way in: it no longer opens the account.
+    await expect((await w.device("bob")).vault.recover(bob.recoveryPhrase, "7777")).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    // The thief's keys were approved first in the team: the user's re-key needs a human (D-42).
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven" }] });
+  });
+
+  it("TH-36: a session switches the account to a version with no real wraps; the version restore undoes it", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    await bob.store.commit([{ op: "set-account-key-version", accountId: "bob", expected: 1, accountKeyVersion: 2 }]);
+    bob.vault.lock();
+    await expect(bob.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
+    w.server.restoreVersion("bob", 1);
+    await bob.vault.unlock();
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("Limit (TH-48): restoring a revoked device's wrap lets that device unlock again", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    const other = await w.device("bob");
+    await other.vault.unlockWithPin(bob.pin);
+    const { deviceId } = await other.vault.status();
+    other.vault.lock();
+    await bob.vault.revokeDevice(deviceId!);
+    await expect(other.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
+    w.server.restore({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "device", deviceId: deviceId! });
+    await other.vault.unlock();
+    expect(other.vault.isUnlocked).toBe(true);
   });
 });

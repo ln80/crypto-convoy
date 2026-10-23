@@ -156,4 +156,18 @@ describe("SP-12: keys published under the account by someone else never block th
     await aliceTeam.owner().approve([{ accountId: "carol", memberKeysVersion: 2 }]);
     expect((await carol.vault.openTeam("team-1")).state).toBe("ready");
   });
+
+  it("Limit (TH-47): bait published after each proven re-key keeps it from being approved while the thief keeps the session", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    for (const [real, bait] of [[2, 3], [4, 5]] as const) {
+      await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+      await bob.store.commit([
+        { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: bait }, record: forgeMemberKeys("bob", bait, strangerKeys()) },
+      ]);
+      expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven" }] });
+      await expect(aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: real }])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    }
+    expect(await bob.vault.warnings()).toContainEqual({ code: "foreign-member-keys", teamIds: ["team-1"], action: "rekey" });
+  });
 });

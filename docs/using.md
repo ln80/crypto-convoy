@@ -120,6 +120,7 @@ It rotates out holders no longer active (never owners), and approves re-keys pro
 | **Someone leaves** | Drop them from `activeIds`; the next `reconcile` rotates. Or `owner.remove([accountId])` now |
 | **Device lost, never used by anyone** | `vault.revokeDevice(deviceId)` from another device |
 | **Device possibly misused, or PIN leaked** | End the account's other sign-in sessions, then `vault.secureAccount({ phrase, newPin? })` from a clean device: new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Retry any `failed` team with `vault.rekey(teamId, { phrase })` |
+| **Recovery phrase leaked, or after a support restore** | End the account's other sign-in sessions, `beginRecoverySetup()`, then `vault.secureAccount({ phrase, newPhrase: typedBack, newPin? })`: new account key and phrase, other devices cut, every team re-keyed with a proof by the old phrase (D-45). A `failed` team retried with the new phrase needs an owner's approval |
 | **Replace the recovery phrase** | `beginRecoverySetup()`, then `confirmRecoveryPhrase(typedBack, { currentPhrase })`: teams re-key with proof. With `{ currentPin }` instead (phrase lost), each team needs an owner's approval (D-41) |
 | **Change the PIN** | `vault.changePin(newPin, { currentPin })`, or `{ phrase }` when the PIN is forgotten or not set |
 | **Hand over or add an owner** | `owner.setOwners([...])`: a rotation with the new owner list; keeps every holder |

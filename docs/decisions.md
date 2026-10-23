@@ -364,7 +364,7 @@ Everything else (first joins, members who held only an older version, unproven r
 
 Rejected: giving the version again to accounts whose keys an owner approved in the past (`outdated`). The active list comes from the integration's server; a server listing a removed member as active would undo the removal.
 
-Consequence: one call keeps a team in order. A server that lies about the active list can only cut access (denial of service), never add a reader. Removed members stop receiving new versions at the next owner session, not at an integration's discretion.
+Consequence: one call keeps a team in order. A server that lies about the active list can cut access (denial of service) and never add a reader, but it can keep one: a removed member it still lists as active keeps receiving new versions (SP-22 Limit, TH-14). Otherwise, removed members stop receiving new versions at the next owner session, not at an integration's discretion.
 
 ## D-32: Invite links carry a join proof
 
@@ -427,7 +427,7 @@ Status: Accepted.
 
 Problem: the remedy after a misused device or a leaked credential was a procedure of four steps across the vault and every team (D-21). Integrations would stop at revocation.
 
-Decision: `vault.secureAccount({ phrase, newPin? })` rotates the account key, with a new PIN or none when the PIN budget is spent (D-40), which cuts every other device (D-10), then re-keys every team with a recovery signature (D-33), one team per write. It reports the teams re-keyed and those that failed, which the integration retries with `rekey(teamId, { phrase })`. Each team's owners approve the new keys at their next `reconcile` (D-31).
+Decision: `vault.secureAccount({ phrase, newPin? })` rotates the account key, with a new PIN or none when the PIN budget is spent (D-40), which cuts every other device (D-10), then re-keys every team with a recovery signature (D-33), one team per write. It reports the teams re-keyed and those that failed, which the integration retries with `rekey(teamId, { phrase })`. Each team's owners approve the new keys at their next `reconcile` (D-31). When the phrase itself may be known to someone else, it also replaces the phrase in the same pass (D-45).
 
 Rejected: one atomic batch for everything: it doesn't fit common database transaction limits. A stored resume marker: a retry per failed team is enough.
 
@@ -525,7 +525,7 @@ Decision: new member keys take the account's newest published version for the te
 
 Rejected: refusing gaps in member keys versions. Approvals and rosters pin exact keys by version and hash, so a gap means nothing, and refusing one would hand the blocking back to the thief.
 
-Consequence: a session thief can publish bait keys but can't block a member. The member sees the warning; owners see the bait as unproven keys, which only a human approves (TH-37).
+Consequence: a session thief can publish bait keys but can't block a member's writes. The member sees the warning; owners see the bait as unproven keys, which only a human approves (TH-37). Approvals are another matter: only the newest published keys can be approved, so while the thief keeps the session, bait published after each of the member's keys leaves the member's keys unapprovable. Ending the account's other sessions, which `secureAccount` already requires, ends it (TH-47).
 
 ## D-44: Membership changes are reported like owner changes
 
@@ -536,3 +536,17 @@ Problem: SP-15 promised that every newly approved member key is reported on ever
 Decision: chain verification reports, for every record newer than the client's highest anchor, the accounts added to, removed from or re-keyed in the roster, with the signer (`team.memberChanges`), as it reports owner changes.
 
 Consequence: detection covers every access change since the client last verified the team, from the verified chain only. A first contact reports the whole history, as owner changes do.
+
+## D-45: Securing an account can replace the recovery phrase
+
+Status: Accepted.
+
+Problem: `secureAccount` and `rotate` keep the phrase (D-41). When the phrase itself leaked (TH-11, TH-41), or after a support restore brought back the version whose phrase a thief used (D-42, TH-48), securing the account left that phrase working: the thief could take the account over again. The remedy was two operations, replacing the phrase then securing with the new one, which re-keyed every team twice, the first time with proofs the thief could also make.
+
+Decision: `secureAccount({ phrase, newPhrase?, newPin? })` takes an optional new phrase, the one `beginRecoverySetup()` showed, typed back (D-35). It is checked, with the current phrase, before anything is written (`WRONG_CREDENTIAL`). The rotation stores the new version's recovery wrap for the new phrase instead of the current one, and the team re-keys carry the new recovery public key, each signed by the current phrase's recovery key: proven against the keys each team holds (SP-23). `rotate` keeps the phrase.
+
+Rejected:
+- Keeping two operations: users and integrations stop after the first, and the teams are re-keyed twice.
+- A new phrase on `rotate` as well: securing is the operation for a compromise; a rotation alone leaves member keys the thief may hold (SP-11).
+
+Consequence: one call ends a phrase leak: new account key, new phrase, other devices cut, every team re-keyed with a proof. The proof is still made with the leaked phrase, so a thief who publishes proven keys first races the user as in TH-41; ending the account's other sessions first removes the way to publish. A team that failed to re-key is retried with `rekey(teamId, { phrase })` and the new phrase, whose proof doesn't match the keys the team holds: an owner approves it by hand.

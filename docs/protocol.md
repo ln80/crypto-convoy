@@ -558,7 +558,7 @@ Each team is re-keyed in its own write. The operation reports the teams re-keyed
 2. The user enters the current recovery phrase (D-41): derive the `recoveryKey` and check that it opens the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`; with no recovery wrap, `RECOVERY_NOT_SET_UP`. If the user also enters a new PIN, derive its `pinKey` (purpose `enroll`); without one, the new version has no PIN (D-40).
 3. Generate `accountKey` version a+1.
 4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1.
-5. Create the current-device wrap and the recovery wrap for version a+1, and the PIN wrap if a new PIN was entered. Without one, version a+1 has no PIN wrap until `changePin` sets one (D-40).
+5. Create the current-device wrap and the recovery wrap for version a+1 (for the new phrase when §5.11 replaces it, else the current one), and the PIN wrap if a new PIN was entered. Without one, version a+1 has no PIN wrap until `changePin` sets one (D-40).
 6. Store everything and switch the current version to a+1, in one atomic batch.
 7. The server stops serving every record of version a and archives it (rule 7, D-42). Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
 
@@ -588,12 +588,12 @@ Recovery is set up when a recovery wrap exists at the current account key versio
 
 ### 5.11 Securing an account (D-36)
 
-For a device that may have been used while unlocked, or a leaked PIN, run from a device the attacker didn't control, after the integration has ended the account's other sign-in sessions, so nobody publishes keys over its re-keys (D-43). Input: the recovery phrase and, optionally, a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one: `WRONG_CREDENTIAL`, before anything is written.
+For a device that may have been used while unlocked, a leaked PIN or a leaked phrase, or after a support restore (TH-48), run from a device the attacker didn't control, after the integration has ended the account's other sign-in sessions, so nobody publishes keys over its re-keys (D-43). Input: the recovery phrase; optionally a new phrase (D-45), the one `beginRecoverySetup()` showed (§5.10 step 1), typed back; and optionally a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one, or a new phrase that isn't the one held (compared as in §5.10 step 2): `WRONG_CREDENTIAL`, before anything is written.
 
-1. Rotate the account key (§5.7) with the phrase and the new PIN, if given. This cuts every other device: their wraps belong to the retired version (D-10).
-2. For every team the account has member keys for, in its own write: create new member keys (§5.9) whose record carries a `recoverySignature` by the recovery signing key (§4.2).
-3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase.
-4. Wipe the phrase and the keys derived from it.
+1. Rotate the account key (§5.7) with the phrase, the new phrase if given, and the new PIN if given. This cuts every other device: their wraps belong to the retired version (D-10). With a new phrase, the recovery wrap of the new version is for it, so the replaced phrase opens nothing of that version (SP-11).
+2. For every team the account has member keys for, in its own write: create new member keys (§5.9) with the `recoveryPublicKey` of the new version (the new phrase's, if given), whose record carries a `recoverySignature` by the **current** phrase's recovery signing key (§4.2): proven against the keys each team holds (SP-23).
+3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase now current; after a new phrase, that proof doesn't match the keys the team holds, so an owner approves it by hand (D-45).
+4. Wipe the phrases and the keys derived from them; the vault forgets the new phrase it held.
 
 Each team's owners approve the new keys at their next `reconcile` (§6.9, SP-23), except where the account is an owner: another owner approves by hand. Until a team approves them, keys copied by the attacker still open what that team writes.
 
@@ -879,7 +879,8 @@ vault.changePin(newPin, { currentPin } | { phrase })   // D-41; creates the PIN 
 vault.listDevices()                       → { deviceId, current }[]   // current: this device (§5.5)
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
 vault.rotate({ phrase, newPin? })         // keeps the phrase; without newPin, no PIN until changePin (D-40, D-41)
-vault.secureAccount({ phrase, newPin? })  → { rekeyed: teamId[], failed: teamId[] }   // §5.11, D-40
+vault.secureAccount({ phrase, newPhrase?, newPin? }) → { rekeyed: teamId[], failed: teamId[] }
+                                          // §5.11, D-40; newPhrase: from beginRecoverySetup, typed back (D-45)
 vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
 vault.joinTeam(teamId)                    // "pending" until an owner approves the keys
 vault.rekey(teamId, { phrase? })          // new member keys; with the phrase, proven (§6.8)

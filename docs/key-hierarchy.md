@@ -272,12 +272,12 @@ The blast radius of each leak, and its remedy:
 
 | If this leaks… | …the attacker can open | Remedy |
 | --- | --- | --- |
-| A PIN (with the user's session) | The `accountKey`, and everything under it | Change the PIN; rotate the account key if it may have been used (SP-09, SP-11) |
-| A recovery phrase | Same as a PIN, without needing the server | Replace the phrase; rotate the account key (SP-09, SP-11) |
+| A PIN (with the user's session) | The `accountKey`, and everything under it | `secureAccount` with a new PIN (SP-11, SP-23; D-36), or just change the PIN if it wasn't used (SP-09) |
+| A recovery phrase | Same as a PIN, without needing the server | End the other sessions, then `secureAccount` with a new phrase (SP-11, SP-23; D-45) |
 | A device, not used by the attacker | Nothing yet | Revoke the device (SP-10) |
 | A device, used by the attacker while unlocked | The `accountKey` and the member keys of every team the device opened | `secureAccount` from another device: rotates the account key and re-keys every team with a recovery proof (SP-11, SP-23; D-36) |
 | The `accountKey` | Every member keys bundle of the account, so every team key the account can reach | `secureAccount`: rotation alone doesn't change member keys (SP-11, SP-12, SP-23) |
-| A recovery phrase, with the attacker using it | The `accountKey`, and proven re-keys in every team (TH-41) | Replace the phrase, then have an owner approve one set of keys by hand in each team |
+| A recovery phrase, with the attacker using it | The `accountKey`, and proven re-keys in every team (TH-41) | `secureAccount` with a new phrase; where the thief's keys were approved first, an owner approves the user's keys by hand. After a takeover, a support restore first (TH-48) |
 | One team's member keys | Every version of that team's key given to the member, and every earlier version | Re-key in that team, approved by an owner, then rotate the team key (SP-12) |
 | One `teamKey` version | That version, every earlier one, their items and inboxes | Rotate the team key; replace inboxes (SP-06, TH-30) |
 | One `itemKey` | That item only | Delete the item if appropriate |
@@ -323,6 +323,8 @@ A copy of the old wrap taken before the replacement, or restored from the archiv
    - The user still has the old phrase: the re-keys are signed by the old recovery key, and owners' `reconcile` approves them (SP-23), except in teams where the account is an owner.
    - The old phrase is lost, and the user entered the PIN: the re-keys carry no proof, and an owner approves each by hand. If the old phrase may have leaked, secure the account with the new one next.
 
+If the phrase may have leaked and the user still has it, `secureAccount` with a new phrase does the replacement, the rotation and proven re-keys in one pass (D-45).
+
 ### Losing a device (D-21, D-36)
 
 Two cases:
@@ -348,7 +350,7 @@ Two cases:
 When someone took over the account with a credential (they replaced the phrase or the PIN, perhaps rotated), the integration's support process restores it:
 
 1. Support restores the account key version from before the takeover: it becomes current again, the thief's later versions are archived, and the user's wraps and member keys wraps of that version are served again. Within one version, support restores the single records the thief replaced.
-2. The user unlocks with their own PIN or phrase, and secures the account (§5.11).
+2. Support ends the account's sign-in sessions; the user unlocks with their own PIN or phrase and secures the account (§5.11): with a new PIN, and a new phrase if the thief knew the restored one (D-45). Securing alone keeps the restored phrase, which the thief could use again.
 3. Devices that accepted the thief's version refuse the older one (`rollback`): they are reset and register again. In teams where an owner approved the thief's keys, the user's re-key needs an owner's approval.
 
 Member keys don't change, so teams see nothing. The old `accountKey` only opens records that the server no longer serves (SP-11). For the same reason, rotation alone doesn't end team access for someone who already copied a member keys bundle; that takes a re-key in each team (`secureAccount` does both).
