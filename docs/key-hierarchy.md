@@ -150,7 +150,7 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 
 | Attribute | Value |
 | --- | --- |
-| Purpose | Encrypts this member's copy of the team state on the server: its anchor, the newest team key version record it verified (SP-07). A new device starts from that anchor instead of trusting the server on first use. |
+| Purpose | Encrypts this member's copy of the team state on the server: its anchor, the newest team key version record it verified (SP-07). A new device starts from that anchor; if the server doesn't serve it, from the anchor floor the member keys bundle carries (D-48). |
 | Algorithm | 256-bit symmetric key, used with XChaCha20-Poly1305. |
 | Generation | Random, in the member keys bundle. |
 | Storage | In the member keys bundle. |
@@ -359,12 +359,12 @@ Member keys don't change, so teams see nothing. The old `accountKey` only opens 
 
 1. The creator's vault generates their member keys for the team (recovery must be set up).
 2. They generate `teamKey` version 1 and its record: owners and roster are the creator.
-3. The record and the member keys are stored in one atomic batch, so a team never exists half set up.
+3. The record and the member keys are stored in one atomic batch, so a team never exists half set up. The bundle's anchor floor is version 1 (D-48).
 
 ### Inviting and joining a team
 
 1. An owner puts the team's anchor (`team.inviteAnchor()`) in the invite link, which the integration delivers.
-2. The joining account's vault generates member keys for the team, stores the bundle wrapped by its `accountKey`, and publishes its member keys record. (Anything that wraps member keys runs in the vault.) On its first open, in the vault's context or a receiving one (§3.8), it starts from the anchor in the link, so a forged team is refused.
+2. The joining account's vault checks that the chain the server serves contains the anchor from the link, then generates member keys for the team, stores the bundle wrapped by its `accountKey` with that anchor as its floor (D-48), and publishes its member keys record. (Anything that wraps member keys runs in the vault.) Every device, in the vault's context or a receiving one (§3.8), starts from that floor when it has no other anchor, so a forged team is refused.
 3. An owner checks the request is genuine (AS-06) and approves those keys: a rotation whose roster adds the member (D-37). Several approvals can share one rotation.
 4. The new member opens the current version from its roster entry, and every earlier version by walking the chain (D-07).
 
@@ -402,7 +402,7 @@ A team with a single owner can't do this. Nobody can manage the team any more (T
 
 ### Re-keying after a suspected leak of member keys
 
-1. The member's vault generates new member keys for the team and publishes them, signed by the recovery key if the user enters the phrase. Until step 2, the member keeps reading with the old keys.
+1. The member's vault generates new member keys for the team and publishes them, signed by the recovery key if the user enters the phrase. The new bundle keeps the anchor floor (D-48). Until step 2, the member keeps reading with the old keys.
 2. An owner approves the new keys by rotating the team key: the new version is sealed to them, and the old keys receive nothing. The approval names the keys the owner reviewed (SP-12).
    - Proven by the recovery key, for a member who isn't an owner: owners' `reconcile` approves it (SP-23).
    - Otherwise: an owner checks the request is genuine first (AS-06). The old keys can't vouch for the new ones, since the attacker may hold them (D-38).

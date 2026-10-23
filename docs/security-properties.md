@@ -154,12 +154,13 @@ Related threats: TH-03, TH-17.
 
 Property: a client keeps an anchor: the newest team key version record it verified (version and record hash), and the newest account key version it accepted. It refuses a chain that doesn't contain its anchor (shorter, or diverging) and an older account key version, and never encrypts with a team key version older than its anchor. It adopts a newer tip only after checking the chain from its anchor.
 
-A `team-state` that fails to decrypt stops the client with `TRUST_FAILURE` (`state_unreadable`) instead of being ignored. An invite anchor received outside the server counts as an anchor for a new member, in the vault's context and in a receiving context alike (§3.8).
+A `team-state` that fails to decrypt stops the client with `TRUST_FAILURE` (`state_unreadable`) instead of being ignored. A client with neither a local anchor nor a readable `team-state` starts from the anchor floor its member keys carry (D-48): version 1 for the team's creator, the invite anchor for a joiner who received one outside the server (checked at join), in the vault's context and in a receiving context alike (§3.8).
 
-Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and the encrypted server copy can't be forged by the server (§4.4 of the protocol). A client with no anchor can't detect a rollback until it sees newer state (accepted in TH-05); that includes the account key version on a new device (SP-19).
+Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and the encrypted server copy can't be forged by the server (§4.4 of the protocol). A client with no anchor and no floor (a member who joined without an invite anchor, before its first re-key) is on first contact (TH-04). A client that starts from its floor can't detect a rollback to a version between the floor and newer state until it sees that state (accepted in TH-05); that includes the account key version on a new device (SP-19).
 
 Verification:
-- `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (opened in the vault's context and through a receiver), and an older team key version after a newer one was seen.
+- `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (refused at join), a forged chain to a new device while `team-state` is withheld or deleted (refused from the floor, in the vault's context and through a receiver), and an older team key version after a newer one was seen.
+- `test/security/account-rotation.test.ts`: the floor survives an account rotation and a re-key; a member who joined without an anchor gets one at its first re-key.
 
 Related threats: TH-04, TH-05.
 
@@ -368,7 +369,7 @@ Limits:
 Assumptions: AS-01, AS-03 for the device where the phrase is typed.
 
 Verification:
-- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one.
+- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the old phrase is proven, and a phrase no bundle carries is refused (D-49).
 - `test/vectors/recovery-key.v1.json`.
 
 Related threats: TH-10, TH-12, TH-13, TH-37, TH-41.

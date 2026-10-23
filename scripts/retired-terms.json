@@ -90,6 +90,16 @@
       "decision": "D-43",
       "use": "new keys take the newest published version plus one; foreign keys are reported (`foreign-member-keys`)",
       "allow": {}
+    },
+    {
+      "pattern": "openTeam\\([^)]*\\{ anchor",
+      "decision": "D-48",
+      "use": "the invite anchor goes to `joinTeam(teamId, { anchor })`; the bundle's floor carries it",
+      "allow": {
+        "decisions.md": [
+          "D-48"
+        ]
+      }
     }
   ]
 }

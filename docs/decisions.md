@@ -338,7 +338,7 @@ Decision: the library offers a sealed transfer (protocol §3.8). The receiving c
 
 Rejected: shipping a bridge (D-02). Sending the account key or a root that derives every team's keys: a compromise of one page would reach every team.
 
-Consequence: the account key never leaves the vault; one team's keys reach only a context the integration authorized (SP-02). The receiving context takes the invite link's anchor on a first open, as the vault's context does (§3.8, §6.4), so splitting contexts keeps the first-contact protection of an invite (TH-04, SP-07).
+Consequence: the account key never leaves the vault; one team's keys reach only a context the integration authorized (SP-02). The transfer carries each bundle's anchor floor (D-48), so splitting contexts keeps the first-contact protection of an invite (TH-04, SP-07).
 
 ## D-30: Owners are a cryptographic role, separate from product roles
 
@@ -550,7 +550,7 @@ Rejected:
 - Keeping two operations: users and integrations stop after the first, and the teams are re-keyed twice.
 - A new phrase on `rotate` as well: securing is the operation for a compromise; a rotation alone leaves member keys the thief may hold (SP-11).
 
-Consequence: one call ends a phrase leak: new account key, new phrase, other devices cut, every team re-keyed with a proof. The proof is still made with the leaked phrase, so a thief who publishes proven keys first races the user as in TH-41; ending the account's other sessions first removes the way to publish. A team that failed to re-key is retried with `rekey(teamId, { phrase })` and the new phrase, whose proof doesn't match the keys the team holds: an owner approves it by hand.
+Consequence: one call ends a phrase leak: new account key, new phrase, other devices cut, every team re-keyed with a proof. The proof is still made with the leaked phrase, so a thief who publishes proven keys first races the user as in TH-41; ending the account's other sessions first removes the way to publish. A team that failed to re-key is retried with `rekey(teamId, { phrase })` and the **old** phrase, which still proves it (D-49).
 
 ## D-46: Every roster entry names published member keys
 
@@ -577,3 +577,37 @@ Rejected:
 - Having `secureAccount` approve in each team itself: the vault would open owner sessions, which a split layout's vault can't do without the team's anchors.
 
 Consequence: the owner's next routine `reconcile`, on the device where it secured the account, closes the window, in a single-owner team too. Holding the private keys is the proof: the vault holds only bundles it made, so keys a session thief or a phrase thief publish under the account never qualify (TH-37, TH-41). A device thief who re-keys from the stolen vault gains nothing new: they could already approve with the owner key they held (TH-17). Automatic actions still never add an account or an owner.
+
+## D-48: Member keys carry an anchor floor
+
+Status: Accepted.
+
+Problem: a device with no local anchor took its anchor from the account's `team-state` (§4.4). If the server didn't serve it, or a session thief deleted it, the device was on first contact, trusting whatever chain the server presented (TH-04): a malicious server could show an existing member's new device a forged team whose key it held. Nothing told "joined, never opened" apart from "the record was withheld". An invite anchor protected only the joiner's first open, and had to be passed again in each context.
+
+Decision: each member keys bundle carries an optional **anchor floor**, a (version, record hash) the vault built or verified, inside the `member-keys-wrap` (§4.3), the one private record the vault can't open the team without, and that the server can't forge or alter:
+- at team creation, version 1 of the new chain;
+- at join, the invite link's anchor, now given to `joinTeam(teamId, { anchor })`, which checks that the served chain contains it before writing anything;
+- at a re-key, the newest bundle's floor, or, if it has none, an anchor the vault already trusts (its local anchor, else the account's `team-state`);
+- at an account rotation, the same floor, re-wrapped.
+
+A transfer carries each bundle's floor (§3.8). A device uses the floor only when it has no local anchor and no readable `team-state` (§6.1 step 1): any real `team-state` anchor is at or above it in the same chain.
+
+Rejected:
+- The floor in the public `member-keys` record: a change to a signed public format, and it shows every member's join point.
+- Requiring a `team-state` to exist: the server can serve an older revision, and the first revision is written only at the first open.
+- Using the floor on every open: the client would download the chain from its join version each time (D-34).
+- Keeping the invite anchor on `openTeam`: it protects one open in one context, and a wrong link can be retried without it.
+
+Consequence: withholding or deleting `team-state` no longer puts an existing member's device on first contact; it starts from the floor, so a forged team is refused. A member who joined without an invite anchor stays on first contact until its first re-key gives it a floor. The invite anchor is checked once, at join, and a wrong one is refused before the member's keys exist. `openTeam` and the receiver lose their `anchor` option.
+
+## D-49: A re-key can be proven by the phrase the team's keys carry
+
+Status: Accepted.
+
+Problem: a proof verifies against the recovery key of the keys a team holds (§4.2). After a phrase replacement, those keys carry the old recovery key until the team approves the re-key; but `rekey(teamId, { phrase })` accepted only the current phrase. A team that failed to re-key during `confirmRecoveryPhrase` or `secureAccount` with a new phrase could only be retried unproven, so an owner approved it by hand.
+
+Decision: `rekey(teamId, { phrase })` accepts the current phrase, or a phrase whose recovery key one of the vault's bundles for that team carries. The proof is signed with that phrase's key; the new keys carry the account's current recovery key.
+
+Rejected: keeping the old recovery signing key for retries: it would be stored, and a stored recovery key is what D-33 forbids.
+
+Consequence: a failed team is retried with the old phrase and stays proven. The proof means what it meant: whoever holds the old phrase can prove a re-key in teams that still hold keys carrying it (TH-41), which replacing the phrase never prevented before the team approves.

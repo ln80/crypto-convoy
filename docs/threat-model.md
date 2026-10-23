@@ -61,8 +61,8 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-01 | Server reads stored items or keys | A1, A2 | Mitigated: SP-01 |
 | TH-02 | Server swaps a member key or adds a fake member | A2 | Mitigated: SP-04 |
 | TH-03 | Server forges the owner list | A2 | Mitigated: SP-05 |
-| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); an invite anchor protects the joiner: SP-07 |
-| TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07; residual accepted |
+| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); an anchor floor in the member keys protects creators, invited joiners and re-keyed members: SP-07 (D-48) |
+| TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07 (anchors, anchor floor in the member keys, D-48); residual accepted |
 | TH-06 | Server modifies or moves encrypted items | A2 | Mitigated: SP-03 |
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |
 | TH-08 | Online PIN guessing with a stolen session | A11, A9 | Mitigated: SP-08 (server rate limit) |
@@ -159,7 +159,7 @@ Attack: the first time a client meets something, it has nothing earlier to compa
 
 Impact: the user trusts fake owners and their fake members, or the owner seals the team key to the server.
 
-Disposition: accepted in v1, by choice: out-of-band fingerprints are deferred (D-11, SP-20). The exposure is limited to first contact: every later change is checked against what the client accepted (SP-05, SP-07), and a joiner whose invite anchor travelled outside the server starts from it, in either context (§6.4, §3.8).
+Disposition: accepted in v1, by choice: out-of-band fingerprints are deferred (D-11, SP-20). The exposure is limited to first contact: every later change is checked against what the client accepted (SP-05, SP-07), and every device of a member whose keys carry an anchor floor starts from it, in either context (D-48): the team's creator, a joiner whose invite anchor travelled outside the server, and any member after its first re-key. A member who joined without an invite anchor is on first contact until then.
 
 ### TH-05: Server rolls back or hides team state
 
@@ -169,7 +169,7 @@ Attack: serves an older part of the chain (one where a removed owner was still a
 
 Impact: a removed owner or member regains influence or access.
 
-Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
+Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact (D-48). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
 
 ### TH-06: Server modifies or moves encrypted items
 
@@ -459,7 +459,7 @@ Actor: session thief (A11).
 
 Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records.
 
-Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it.
+Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48).
 
 Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
 

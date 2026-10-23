@@ -81,7 +81,7 @@ If both run in one context, `vault.openTeam(teamId)`. If the vault runs elsewher
 const receiver = await createTeamKeyReceiver(accountId, teamId);
 // …send receiver.request to the vault over your channel; the vault calls exportTeamKeys(teamId, request)…
 const team = await receiver.openTeam({ store, anchors }, transfer);
-// on a joiner's first open, pass the invite link's anchor: openTeam({ store, anchors }, transfer, { anchor })
+// the invite link's anchor went to joinTeam(teamId, { anchor }): the transfer carries it (D-48)
 ```
 
 The transfer opens only for that receiver, once. Your bridge carries the two strings and decides which page may ask for which team; the library never sees your domain layout (D-29).
@@ -113,7 +113,7 @@ It rotates out holders no longer active (never owners), approves re-keys proven 
 | Situation | Calls |
 | --- | --- |
 | **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack)` |
-| **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId)`, then on the first open `vault.openTeam(teamId, { anchor })`, or in another context `receiver.openTeam(ports, transfer, { anchor })` |
+| **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId, { anchor })`, which refuses a chain without it; every later open, in any context, starts from it when the device has no other anchor (D-48) |
 | **Approve someone** | Check the request out of band, then `owner.approve([account.keys])` with the handles from `overview`: one rotation for all of them, joiners and re-keys alike. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
 | **Set up a team with many members** | Invite everyone, let them join, then approve every `awaiting-approval` account from `overview` in one `owner.approve(...)` call: one version instead of one per member (integration guide) |
 | **Name devices** | After a registration, send your server `status().deviceId` with a label; show `listDevices()` joined with those labels, `current` marking this device |
