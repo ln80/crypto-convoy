@@ -38,7 +38,7 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 004-F | Spec → code | Low | Fixed | D-50 (plan 010) |
 | 005-A | Forgeable input, combined attack | Medium | Fixed | D-51 (plan 011) |
 | 005-B | Stale text | Low | Fixed | Guides, §3.8 (edit, plan 011) |
-| 005-C | Stale text | Low | Open | — |
+| 005-C | Stale text | Low | Fixed | Course (maintain-course) |
 
 ## Residuals
 
