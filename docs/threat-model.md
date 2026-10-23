@@ -61,8 +61,8 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-01 | Server reads stored items or keys | A1, A2 | Mitigated: SP-01 |
 | TH-02 | Server swaps a member key or adds a fake member | A2 | Mitigated: SP-04 |
 | TH-03 | Server forges the owner list | A2 | Mitigated: SP-05 |
-| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); an anchor floor in the member keys protects creators, invited joiners and re-keyed members: SP-07 (D-48) |
-| TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07 (anchors, anchor floor in the member keys, D-48); residual accepted |
+| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); limited to the join by the anchor floor in the member keys: SP-07 (D-48, D-50) |
+| TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07 (anchors, anchor floor in the member keys, D-48, D-50); residual accepted |
 | TH-06 | Server modifies or moves encrypted items | A2 | Mitigated: SP-03 |
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |
 | TH-08 | Online PIN guessing with a stolen session | A11, A9 | Mitigated: SP-08 (server rate limit) |
@@ -96,6 +96,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-37 | Session thief injects member keys | A11 | Partly mitigated: SP-12 (pinned approvals), SP-22 (no automatic approval without proof), SP-23 (recovery proof); residual accepted |
 | TH-38 | Split view: two records for one version | A6 with A2 | Accepted (needs key transparency) |
 | TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
+| TH-49 | A forged transfer opens a forged team | A2, A9 | Accepted: the integration's channel between contexts (SP-02 Limit, D-29) |
 | TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
 | TH-45 | An unlocked vault replaces the account's credentials | A7, A9 | Mitigated: SP-25 (D-41) |
@@ -159,7 +160,7 @@ Attack: the first time a client meets something, it has nothing earlier to compa
 
 Impact: the user trusts fake owners and their fake members, or the owner seals the team key to the server.
 
-Disposition: accepted in v1, by choice: out-of-band fingerprints are deferred (D-11, SP-20). The exposure is limited to first contact: every later change is checked against what the client accepted (SP-05, SP-07), and every device of a member whose keys carry an anchor floor starts from it, in either context (D-48): the team's creator, a joiner whose invite anchor travelled outside the server, and any member after its first re-key or account rotation. A member who joined without an invite anchor is on first contact until then.
+Disposition: accepted in v1, by choice: out-of-band fingerprints are deferred (D-11, SP-20). The exposure is limited to the join: every later change is checked against what the client accepted (SP-05, SP-07), and the member keys carry an anchor floor from the join on, so every device of the member starts from it, in either context (D-48, D-50). A joiner whose invite anchor travelled outside the server isn't exposed at all; one without it, or whose link the server delivered, trusts the chain served at join.
 
 ### TH-05: Server rolls back or hides team state
 
@@ -169,7 +170,7 @@ Attack: serves an older part of the chain (one where a removed owner was still a
 
 Impact: a removed owner or member regains influence or access.
 
-Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact (D-48). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
+Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact, and a `team-state` older than the floor isn't followed (D-48, D-50). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
 
 ### TH-06: Server modifies or moves encrypted items
 
@@ -417,7 +418,17 @@ Attack: when the vault and team sessions run in separate contexts, the attacker 
 
 Impact: that team's keys, in a context the integration didn't intend.
 
-Disposition: mitigated by SP-02. A transfer is sealed to an ephemeral receiver created in the receiving context, names its account and team inside the box, and opens once: reading or replaying it gives nothing (§3.8). Which context may ask for which team is the integration's decision, as is the channel (D-29); a vault that exports to any requester gives away what it exports.
+Disposition: mitigated by SP-02. A transfer is sealed to an ephemeral receiver created in the receiving context, names its account and team inside the box, and opens once: reading or replaying it gives nothing (§3.8). Which context may ask for which team is the integration's decision, as is the channel (D-29); a vault that exports to any requester gives away what it exports. A transfer forged for the receiver is TH-49.
+
+### TH-49: A forged transfer opens a forged team
+
+Actor: malicious server (A2) that also carries the channel between contexts, or a script (A9) that can post on it together with a malicious server.
+
+Attack: reads the transfer request, publishes `member-keys` of its own under the member's account, serves a forged chain rostering them, withholds `team-state`, and seals those keys, with a floor pointing at its chain, to the request. `seal` doesn't authenticate its sender (§3.2).
+
+Impact: the receiving context opens the forged team `ready`, and what it writes there is readable by the attacker.
+
+Disposition: accepted, as the integration's duty (SP-02 Limit, D-29): carry the request and the transfer on a channel the server can't write, for example `postMessage` with origin checks or a `MessageChannel`, never relayed through the server. Authenticating the vault would need a secret both contexts already share, which they don't have. With an honest server, injected keys are in no roster: the session is `pending` or `unverified`, never forged.
 
 ### TH-45: An unlocked vault replaces the account's credentials
 
@@ -459,7 +470,7 @@ Actor: session thief (A11).
 
 Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records.
 
-Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48).
+Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team, or loses its keys for it. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48, D-50).
 
 Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
 

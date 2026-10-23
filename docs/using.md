@@ -113,7 +113,7 @@ It rotates out holders no longer active (never owners), approves re-keys proven 
 | Situation | Calls |
 | --- | --- |
 | **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack)` |
-| **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId, { anchor })`, which refuses a chain without it; every later open, in any context, starts from it when the device has no other anchor (D-48) |
+| **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId, { anchor })`, which refuses a chain without it; every later open, in any context, starts from the floor it sets (D-48, D-50). It protects the joiner when the link reaches them outside your server (TH-04) |
 | **Approve someone** | Check the request out of band, then `owner.approve([account.keys])` with the handles from `overview`: one rotation for all of them, joiners and re-keys alike. It refuses (`STALE_VERSION`) if newer keys appeared since the review |
 | **Set up a team with many members** | Invite everyone, let them join, then approve every `awaiting-approval` account from `overview` in one `owner.approve(...)` call: one version instead of one per member (integration guide) |
 | **Name devices** | After a registration, send your server `status().deviceId` with a label; show `listDevices()` joined with those labels, `current` marking this device |

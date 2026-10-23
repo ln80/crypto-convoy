@@ -74,7 +74,7 @@ Related threats: TH-01, TH-29.
 
 Property: the account vault gives a team session only the keys of the team it asked for. A team session never receives the account key or another team's keys, and one team's keys can't decrypt another team's records. When the two run in separate contexts, a team's keys travel only sealed to the receiver created in the receiving context, bound to the account and the team: no other receiver opens them, they open only once, and a transfer for another account or team is refused.
 
-Limit: which context may receive which team is the integration's decision (D-29). The vault exports to whoever the integration lets ask.
+Limit: which context may receive which team is the integration's decision (D-29). The vault exports to whoever the integration lets ask. A receiver doesn't know who sealed a transfer: one sealed by whoever saw the request opens too, with keys of their own (TH-49).
 
 Assumptions: AS-01. The integration isolates the vault from team sessions ([Key custody](scope.md#key-custody)).
 
@@ -83,7 +83,7 @@ Verification:
 - `test/security/key-transfer.test.ts`: open a transfer with another receiver, twice with the same receiver, for another team or account, and after tampering; check that the transfer contains no account key.
 - `test/vectors/transfer.v1.json`.
 
-Related threats: TH-19, TH-39.
+Related threats: TH-19, TH-39, TH-49.
 
 ### SP-06: A removed member can't open items encrypted after a rotation
 
@@ -154,13 +154,13 @@ Related threats: TH-03, TH-17.
 
 Property: a client keeps an anchor: the newest team key version record it verified (version and record hash), and the newest account key version it accepted. It refuses a chain that doesn't contain its anchor (shorter, or diverging) and an older account key version, and never encrypts with a team key version older than its anchor. It adopts a newer tip only after checking the chain from its anchor.
 
-A `team-state` that fails to decrypt stops the client with `TRUST_FAILURE` (`state_unreadable`) instead of being ignored. A client with neither a local anchor nor a readable `team-state` starts from the anchor floor its member keys carry (D-48): version 1 for the team's creator, the invite anchor for a joiner who received one outside the server (checked at join), in the vault's context and in a receiving context alike (§3.8).
+A `team-state` that fails to decrypt stops the client with `TRUST_FAILURE` (`state_unreadable`) instead of being ignored. Its member keys carry an anchor floor, the newest anchor the vault trusted when it wrote them (D-48, D-50): version 1 for the team's creator, the chain verified at join for a joiner, from the invite anchor if one was given, and moved forward at each re-key and account rotation. The client counts the floor as an anchor unless it is below the lowest other one: with neither a local anchor nor a readable `team-state`, it starts from the floor, and it never follows a `team-state` older than the floor; in the vault's context and in a receiving context alike (§3.8).
 
-Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and the encrypted server copy can't be forged by the server (§4.4 of the protocol). A client with no anchor and no floor (a member who joined without an invite anchor, before its first re-key or account rotation) is on first contact (TH-04). A client that starts from its floor can't detect a rollback to a version between the floor and newer state until it sees that state (accepted in TH-05); that includes the account key version on a new device (SP-19).
+Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and the encrypted server copy can't be forged by the server (§4.4 of the protocol). A member who joined without an invite anchor, or whose invite link the server delivered, trusted the chain served at join (TH-04). A client that starts from its floor can't detect a rollback to a version between the floor and newer state until it sees that state (accepted in TH-05); that includes the account key version on a new device (SP-19).
 
 Verification:
-- `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (refused at join), a forged chain to a new device while `team-state` is withheld or deleted (refused from the floor, in the vault's context and through a receiver), and an older team key version after a newer one was seen.
-- `test/security/account-rotation.test.ts`: the floor survives an account rotation and a re-key; a member who joined without an anchor gets one at its first re-key or account rotation.
+- `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (refused at join, also when the account already has keys), a forged chain to a new device while `team-state` is withheld or deleted (refused from the floor, in the vault's context and through a receiver, for a joiner without an invite anchor too), an archived `team-state` below the floor, and an older team key version after a newer one was seen; Limit: a forged chain served at a join without an invite anchor is trusted.
+- `test/security/account-rotation.test.ts`: the floor moves to the newest trusted anchor at an account rotation and a re-key, for every bundle of the team.
 
 Related threats: TH-04, TH-05.
 

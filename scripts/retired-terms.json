@@ -100,6 +100,17 @@
           "D-48"
         ]
       }
+    },
+    {
+      "pattern": "floor, or, if it has none|keeps? the anchor floor|keeping the anchor floor|floor only when it has no|(?:on|stays on) first contact until",
+      "decision": "D-50",
+      "use": "the floor is the newest trusted anchor when the bundle is written, and counts unless it is below the lowest other anchor",
+      "allow": {
+        "decisions.md": [
+          "D-48",
+          "D-50"
+        ]
+      }
     }
   ]
 }

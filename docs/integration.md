@@ -100,7 +100,7 @@ The library produces content and takes it back; the integration stores and serve
 
 ## Invites and team administration
 
-- **Invite links carry the team's anchor** (`team.inviteAnchor()`), so a joiner can't be shown a forged team (§6.4). They hold no secret: approving a joiner is an owner's decision, checked out of band (AS-06).
+- **Invite links carry the team's anchor** (`team.inviteAnchor()`), so a joiner can't be shown a forged team, when the link reaches them outside your server (§6.4, TH-04). They hold no secret: approving a joiner is an owner's decision, checked out of band (AS-06).
 - **Every access change is one version record** (D-37): accept records up to 384 KiB, and expect one per join, re-key and removal.
 - **Run `reconcile` at every owner session** with the accounts your product considers members (§6.9). It rotates out removed accounts and approves re-keys proven by the recovery phrase; it never widens access otherwise (SP-22). Show its `needsHuman` list in your admin screens, with `overview()` for the details.
 - **Lost device or leaked credential:** end the account's other sign-in sessions, then offer `secureAccount` (D-36, D-43), with a new phrase when the phrase may have leaked (D-45). Ending them first keeps a session thief from publishing keys over its re-keys, and from keeping the user's keys unapprovable (TH-47).
@@ -115,7 +115,7 @@ The library produces content and takes it back; the integration stores and serve
 
 ## Key custody across contexts
 
-If the vault and team sessions run in different contexts (D-29), carry the transfer request and the transfer over your own channel, and decide which context may receive which team, for example from the requesting page's origin and the signed-in session. The library seals and opens; it never chooses who may ask (§3.8). The invite link's anchor goes to `vault.joinTeam(teamId, { anchor })` once; the transfer carries it to every context (§6.4, D-48).
+If the vault and team sessions run in different contexts (D-29), carry the transfer request and the transfer over your own channel, one your server can't write (`postMessage` with origin checks, a `MessageChannel`; never relayed through the server: a receiver doesn't know who sealed a transfer, TH-49), and decide which context may receive which team, for example from the requesting page's origin and the signed-in session. The library seals and opens; it never chooses who may ask (§3.8). The invite link's anchor goes to `vault.joinTeam(teamId, { anchor })` once; the transfer carries it to every context (§6.4, D-48).
 
 ## OprfService
 

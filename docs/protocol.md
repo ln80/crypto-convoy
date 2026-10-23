@@ -266,7 +266,7 @@ When the account vault and a team session run in separate contexts (D-29), one t
 3. **Open.** The receiver checks the prefix (else `UNSUPPORTED_VERSION`), opens the box with the expected `accountId` and `teamId` (§3.2; any failure, including a second use, is `DECRYPTION_FAILED`), then wipes its secret key: a receiver opens one transfer. It refuses a list out of order, with a key of the wrong size or a floor hash that isn't 32 bytes (`MALFORMED_RECORD`), and checks each bundle against the published `member-keys` record of its version (§4.3), else `TRUST_FAILURE` (`key_mismatch`).
 4. **Anchor.** The session starts from the receiving context's own anchors, with the bundles' floors as in the vault's context (§6.1 step 1, D-48).
 
-Which context may ask for which team, and the channel the two values travel on, are the integration's (D-29).
+Which context may ask for which team, and the channel the two values travel on, are the integration's (D-29). `seal` doesn't authenticate its sender: whoever sees the request can seal keys of their own to it, so the channel must be one the server can't write (TH-49).
 
 ### 3.9 Part references
 
@@ -356,7 +356,7 @@ A member's private keys for one team, wrapped by their account key. Private to t
 
 Protection: `wrappedKeys = wrap(accountKey, "member-keys-wrap", accountId, teamId, u32 memberKeysVersion, u32 accountKeyVersion, bundle)`, where `bundle` = `signingSeed (32) ‖ encryptionSecretKey (32) ‖ teamStateKey (32) ‖ enc(optional<u32 version, bytes recordHash> floor)`: 97 or 137 bytes.
 
-The **anchor floor** (D-48) is a team key version record this vault built or verified: version 1 when the account created the team, the invite anchor at join (§6.4), carried by re-keys and rotations (§5.7, §5.9). A device uses it only when it has no other anchor (§6.1 step 1).
+The **anchor floor** (D-48, D-50) is the newest anchor the vault trusts when it writes the bundle: version 1 when the account creates the team (§6.3), the tip of the chain verified at join (§6.4), and at a re-key or a rotation the highest of the team's bundles' floors, the local anchor and the `team-state` anchor (§5.9). How a device uses it is in §6.1 step 1.
 
 Reader checks: the plaintext is 97 or 137 bytes, with a 32-byte `recordHash` and nothing after it, else `DECRYPTION_FAILED`; the public keys computed from the bundle equal those in the `member-keys` record with the same `memberKeysVersion`; otherwise `TRUST_FAILURE` (reason `key_mismatch`).
 
@@ -372,7 +372,7 @@ What a member last accepted about a team, so their other devices start from it. 
 
 Protection: `wrappedState = wrap(teamStateKey, "team-state", accountId, teamId, u64 revision, state)`, where `state` = `enc(u32 anchorVersion, bytes anchorHash)`: the newest team key version record this account has verified, and its record hash (§4.5).
 
-The server has no `team-state` for an account until its first write; no record means no anchor on the server, and a device with no local anchor then starts from its bundles' anchor floor (§4.3, D-48). The server can't forge a `team-state`, since it doesn't have `teamStateKey`. It can only serve an older revision. A `team-state` that fails to decrypt was corrupted or tampered with (for example by someone holding the account's session): it is a `TRUST_FAILURE` with reason `state_unreadable`, never silently ignored, since ignoring it would send the device back to first-contact trust. The server archives every previous revision, so support restores the last readable one (rule 7, D-42, TH-46). How the anchor is used is in §6.1.
+The server has no `team-state` for an account until its first write; no record means no anchor on the server, and a device with no local anchor then starts from its bundles' anchor floor (§4.3, D-48). An older revision below the floor isn't followed (§6.1 step 1, D-50). The server can't forge a `team-state`, since it doesn't have `teamStateKey`. It can only serve an older revision. A `team-state` that fails to decrypt was corrupted or tampered with (for example by someone holding the account's session): it is a `TRUST_FAILURE` with reason `state_unreadable`, never silently ignored, since ignoring it would send the device back to first-contact trust. The server archives every previous revision, so support restores the last readable one (rule 7, D-42, TH-46). How the anchor is used is in §6.1.
 
 ### 4.5 `team-key-version`
 
@@ -559,7 +559,7 @@ Each team is re-keyed in its own write. The operation reports the teams re-keyed
 1. Open the current `accountKey` (version a).
 2. The user enters the current recovery phrase (D-41): derive the `recoveryKey` and check that it opens the current recovery wrap (§4.1), else `WRONG_CREDENTIAL`; with no recovery wrap, `RECOVERY_NOT_SET_UP`. If the user also enters a new PIN, derive its `pinKey` (purpose `enroll`); without one, the new version has no PIN (D-40).
 3. Generate `accountKey` version a+1.
-4. For every team: unwrap the `member-keys-wrap` with version a, re-wrap it with version a+1. A bundle without an anchor floor gets one as at a re-key (§5.9, D-48).
+4. For every team: unwrap its `member-keys-wrap` records with version a, and re-wrap each with version a+1 and the team's floor, the newest trusted anchor as at a re-key (§5.9, D-50).
 5. Create the current-device wrap and the recovery wrap for version a+1 (for the new phrase when §5.11 replaces it, else the current one), and the PIN wrap if a new PIN was entered. Without one, version a+1 has no PIN wrap until `changePin` sets one (D-40).
 6. Store everything and switch the current version to a+1, in one atomic batch.
 7. The server stops serving every record of version a and archives it (rule 7, D-42). Other devices get `DEVICE_NOT_REGISTERED` on their next unlock.
@@ -577,7 +577,7 @@ Rotation retires the account key only. Member keys are unchanged, so anyone who 
 
 Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so it runs in the vault:
 
-- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team and the bundles the vault holds, or 1 for none (D-43): keys someone else published under the account never block it. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap` with its anchor floor (§4.3): version 1 for a new team (§6.3), the verified invite anchor or none on a join (§6.4), and on a re-key the newest bundle's floor, or, if it has none, the vault's local anchor, else the account's `team-state` anchor (§4.4). Then open the team (§5.8).
+- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team and the bundles the vault holds, or 1 for none (D-43): keys someone else published under the account never block it. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap` with its anchor floor (§4.3, D-50): version 1 for a new team (§6.3), the verified chain's tip on a join (§6.4), and on a re-key the **newest trusted anchor**, the highest (by version) of the team's bundles' floors, the vault's local anchor and the account's `team-state` anchor opened with any of the team's bundles (§4.4; one that doesn't open is skipped, TH-46). Then open the team (§5.8).
 - **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is the only owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): another owner must be added first (§6.7). The member's keys stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
 - **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is the only owner of a team, for the same reason as above (TH-18).
 
@@ -609,7 +609,7 @@ What a team session does.
 
 Run when a team session starts, before any other team operation.
 
-1. **Collect anchors.** An anchor is a (version, record hash) pair this account already verified. Read the local one (`LocalKeyStore`) and the server's `team-state` (§4.4). If neither exists, take the anchor floor of the member keys (§4.3, D-48), the newest bundle's that has one. All are authenticated or built by this account: the server can serve an older `team-state`, but can't forge one or a floor, and a `team-state` that fails to decrypt stops here with `TRUST_FAILURE` (`state_unreadable`). With no anchor at all, this is a first contact: the chain is accepted as the server presents it (TH-04).
+1. **Collect anchors.** An anchor is a (version, record hash) pair this account already verified. Read the local one (`LocalKeyStore`) and the server's `team-state` (§4.4). Add the newest bundle's anchor floor (§4.3, D-48), unless it is below the lowest of the others (D-50): the fetch starts from the lowest anchor, so the floor never adds a download, and a `team-state` older than the floor isn't followed. All are authenticated or built by this account: the server can serve an older `team-state`, but can't forge one or a floor, and a `team-state` that fails to decrypt stops here with `TRUST_FAILURE` (`state_unreadable`). With no anchor at all, this is a first contact: the chain is accepted as the server presents it (TH-04).
 2. **Verify the chain.** Fetch the team key version records from the lowest anchor (or from version 1 at first contact) to the newest, and check them (§4.5). The chain must contain **every** anchor. The client adopts nothing newer than its anchors before this check passes. This order matters: the anchor comes from what the client verified, never from the record it's about to check.
 3. **Report changes.** For every record newer than the highest anchor, compared with the previous version: if its owner list differs, report to the integration the signer and the owners added, removed or re-keyed; if its roster differs, the signer and the accounts added, removed or re-keyed (a different `keysHash`) (SP-15, D-44).
 4. The current version n is the newest record of the verified chain.
@@ -636,7 +636,7 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 ### 6.4 Inviting and joining a team
 
 1. **Invite (owner).** Put the team's anchor (`team.inviteAnchor()`, §3.5) in the invite link, for the integration to deliver.
-2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5), fetches the chain from the anchor's version and verifies it with that anchor (§4.5, §6.1 step 2), else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. It then creates the member's keys for the team (§5.9) with the anchor as their floor (D-48), so every device of the member, in any context, starts from it: a server can't present a forged team. Without an anchor, the keys have no floor, and the first open is a first contact (TH-04).
+2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5), fetches the chain from the anchor's version and verifies it with that anchor (§4.5, §6.1 step 2), else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. Without an anchor, it verifies the chain from version 1: the join is this member's first contact (TH-04). It then creates the member's keys for the team (§5.9) with the verified chain's tip as their floor (D-48, D-50), so every device of the member, in any context, starts from it. When the link reached the joiner outside the server, a server can't present a forged team. If the account already has keys for the team, the vault only checks the anchor, if given, writes nothing, and leaves the floor as it is.
 3. The member is `pending` until an owner approves their keys (§6.5).
 
 ### 6.5 Approving members (owner)
@@ -675,7 +675,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 ### 6.8 Re-keying a member
 
-1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), keeping the anchor floor, with a `recoverySignature` if the user entered a recovery phrase: the current one, or one whose recovery key a bundle the vault holds for the team carries (D-49), which signs. The member stays able to read with the old keys until the rotation.
+1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with the newest trusted anchor as floor, and a `recoverySignature` if the user entered a recovery phrase: the current one, or one whose recovery key a bundle the vault holds for the team carries (D-49), which signs. The member stays able to read with the old keys until the rotation.
 2. An owner approves the new keys by rotating the team key (§6.6), naming the `memberKeysVersion` reviewed. The library classifies the request:
    - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23): then only its own `reconcile` does, holding the keys (D-47);
    - **unproven**: anything else. The owner verifies out of band (AS-06, TH-37). The old keys can't vouch for the new ones, since an attacker may hold them (D-38).

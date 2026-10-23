@@ -338,7 +338,7 @@ Decision: the library offers a sealed transfer (protocol §3.8). The receiving c
 
 Rejected: shipping a bridge (D-02). Sending the account key or a root that derives every team's keys: a compromise of one page would reach every team.
 
-Consequence: the account key never leaves the vault; one team's keys reach only a context the integration authorized (SP-02). The transfer carries each bundle's anchor floor (D-48), so splitting contexts keeps the first-contact protection of an invite (TH-04, SP-07).
+Consequence: the account key never leaves the vault; one team's keys reach only a context the integration authorized (SP-02). The transfer carries each bundle's anchor floor (D-48, D-50), so splitting contexts keeps the first-contact protection of an invite (TH-04, SP-07). The sender of a transfer isn't authenticated: whoever sees the request can seal keys to it, so the channel must be one the server can't write (TH-49).
 
 ## D-30: Owners are a cryptographic role, separate from product roles
 
@@ -580,7 +580,7 @@ Consequence: the owner's next routine `reconcile`, on the device where it secure
 
 ## D-48: Member keys carry an anchor floor
 
-Status: Accepted.
+Status: Accepted; which anchor the floor is, and when it counts, amended by D-50.
 
 Problem: a device with no local anchor took its anchor from the account's `team-state` (§4.4). If the server didn't serve it, or a session thief deleted it, the device was on first contact, trusting whatever chain the server presented (TH-04): a malicious server could show an existing member's new device a forged team whose key it held. Nothing told "joined, never opened" apart from "the record was withheld". An invite anchor protected only the joiner's first open, and had to be passed again in each context.
 
@@ -611,3 +611,21 @@ Decision: `rekey(teamId, { phrase })` accepts the current phrase, or a phrase wh
 Rejected: keeping the old recovery signing key for retries: it would be stored, and a stored recovery key is what D-33 forbids.
 
 Consequence: a failed team is retried with the old phrase and stays proven. The proof means what it meant: whoever holds the old phrase can prove a re-key in teams that still hold keys carrying it (TH-41), which replacing the phrase never prevented before the team approves.
+
+## D-50: The anchor floor is the newest anchor the vault trusts
+
+Status: Accepted.
+
+Problem: D-48's floor was set once (version 1, or the invite anchor) and then only carried, or filled from another anchor when missing. It counted only when a device had no other anchor, so an archived `team-state` below it won (TH-05). A member who joined without an invite anchor had no floor until a re-key or rotation: while the server withheld `team-state`, each new device was a new first contact (TH-04). The "carry, else fill" rule had two branches, written in five places.
+
+Decision: one rule for writing and one for reading.
+- **Write:** a bundle's floor is the newest anchor the vault trusts when it writes the bundle. At team creation, version 1. At join, the tip of the chain the vault verifies there, from the invite anchor if given, else from version 1. At a re-key or an account rotation, the highest of the team's bundles' floors, the local anchor and the account's `team-state` anchor (one that doesn't open is skipped, TH-46); a rotation gives it to every bundle of the team.
+- **Read:** the newest bundle's floor counts as an anchor unless it is below the lowest other anchor (§6.1 step 1).
+- `joinTeam` with an anchor when the account already has keys for the team checks that the served chain contains it, writes nothing and leaves the floor as it is.
+
+Rejected:
+- Counting the floor on every open: a floor below every other anchor would make the client fetch the chain from it (D-34, D-48).
+- Advancing the floor at every open: the bundle is write-once, so it would mean a new wrap per open.
+- Keeping first contact at the first open for a joiner without an invite anchor: it repeats on each new device while `team-state` is withheld.
+
+Consequence: every member has a floor from its join on; a floor is at most one re-key or rotation old, and no `team-state` revision below it is followed. Without an invite anchor, the join is the member's one first contact (TH-04), and a join to a team with no chain fails there. The floor never adds a download: the fetch starts from the lowest anchor, as before.
