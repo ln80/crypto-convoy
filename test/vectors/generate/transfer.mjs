@@ -1,18 +1,23 @@
 // transfer.v1.json: team key transfers between contexts (§3.8).
-import { b64u, encode, fixed, hex, label, listOf, sodium, writeVectors } from "./common.mjs";
+import { b64u, encode, fixed, hex, label, listOf, optionalOf, sodium, writeVectors } from "./common.mjs";
 
 const receiverSecret = fixed("receiver secret", 32);
 const receiverPublic = sodium.crypto_scalarmult_base(receiverSecret);
 const accountId = "alice";
 const teamId = "team-1";
-const bundle = (version) => ({
+// Each entry carries its bundle's anchor floor (D-48): here the newest has one, the oldest none.
+const bundle = (version, floor) => ({
   memberKeysVersion: version,
   signingSeed: hex(fixed(`transfer signing seed ${version}`, 32)),
   encryptionSecretKey: hex(fixed(`transfer encryption secret ${version}`, 32)),
   teamStateKey: hex(fixed(`transfer team state key ${version}`, 32)),
+  ...(floor ? { floor } : {}),
 });
-const bundles = [bundle(2), bundle(1)];
-const payload = (list) => listOf(list.map((b) => [["u32", b.memberKeysVersion], ["bytes", b.signingSeed], ["bytes", b.encryptionSecretKey], ["bytes", b.teamStateKey]]));
+const floor = { version: 3, hash: hex(fixed("transfer floor hash", 32)) };
+const bundles = [bundle(2, floor), bundle(1)];
+const floorField = (f) => optionalOf(f ? [["u32", f.version], ["bytes", f.hash]] : null);
+const payload = (list) =>
+  listOf(list.map((b) => [["u32", b.memberKeysVersion], ["bytes", b.signingSeed], ["bytes", b.encryptionSecretKey], ["bytes", b.teamStateKey], floorField(b.floor)]));
 const transferOf = (list, ctx = [["string", accountId], ["string", teamId]]) =>
   "1" + b64u(sodium.crypto_box_seal(encode([label("team-keys-transfer"), ...ctx, ["bytes", hex(encode([payload(list)]))]]), receiverPublic));
 
@@ -28,6 +33,8 @@ writeVectors("transfer.v1.json", {
     { name: "sealed to another receiver", transfer: "1" + b64u(sodium.crypto_box_seal(new Uint8Array(10), sodium.crypto_scalarmult_base(fixed("other receiver", 32)))), error: "DECRYPTION_FAILED" },
     { name: "bundles oldest first", transfer: transferOf([bundle(1), bundle(2)]), error: "MALFORMED_RECORD" },
     { name: "no bundle", transfer: transferOf([]), error: "MALFORMED_RECORD" },
+    { name: "floor hash of 31 bytes", transfer: transferOf([bundle(2, { version: 3, hash: floor.hash.slice(0, 62) })]), error: "MALFORMED_RECORD" },
+    { name: "floor at version 0", transfer: transferOf([bundle(2, { version: 0, hash: floor.hash })]), error: "MALFORMED_RECORD" },
     { name: "prefix 2", transfer: "2" + transferOf(bundles).slice(1), error: "UNSUPPORTED_VERSION" },
   ],
   refusedRequests: [

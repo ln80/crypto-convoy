@@ -1,12 +1,14 @@
 /**
- * Replay of wrap.v1.json, seal.v1.json and stream.v1.json (§3.1, §3.2, §3.4).
- * SP-03: tampered or moved ciphertexts fail. SP-18: no partial data.
+ * Replay of wrap.v1.json, seal.v1.json and stream.v1.json (§3.1, §3.2, §3.4), with member keys bundles (§4.3).
+ * SP-03: tampered or moved ciphertexts fail. SP-18: no partial data. SP-07: the bundle's anchor floor (D-48).
  */
 import { describe, expect, it } from "vitest";
 import { open, seal } from "../../src/blocks/seal.js";
 import { streamDecrypt, streamDecryptChunks, streamEncrypt } from "../../src/blocks/stream.js";
 import { unwrap, wrap } from "../../src/blocks/wrap.js";
 import type { Label } from "../../src/encoding/labels.js";
+import { createMemberKeys } from "../../src/records/member-keys.js";
+import { openMemberKeysWrap, type MemberKeysWrap } from "../../src/records/member-keys-wrap.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { loadAttachment, loadVectors, tohex, toField, unhex, withRandom, type VectorField } from "../support/vectors.js";
 
@@ -17,8 +19,19 @@ interface WrapCase {
   inputs: { key: string; nonce: string; plaintext: string };
   outputs: { ciphertext: string };
 }
+interface BundleCase {
+  name: string;
+  signingSeed: string;
+  encryptionSecretKey: string;
+  teamStateKey: string;
+  floor?: { version: number; hash: string };
+  plaintext: string;
+  wrapped: { nonce: string; ciphertext: string };
+  error?: string;
+}
 interface Wraps {
   cases: WrapCase[];
+  bundles: { key: string; context: VectorField[]; cases: BundleCase[]; refused: BundleCase[] };
   tampered: (Partial<WrapCase> & { name: string; from: string; key?: string; nonce?: string; ciphertext?: string })[];
 }
 interface Seals {
@@ -62,6 +75,34 @@ describe("wrap.v1", () => {
         ciphertext: unhex(tamper.ciphertext ?? base.outputs.ciphertext),
       });
     expect(run).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
+  });
+});
+
+describe("wrap.v1: member keys bundles (§4.3)", () => {
+  const { key, cases, refused } = wraps.bundles;
+  const [first] = cases;
+  const signing = cc1.signingKeyPair(unhex(first!.signingSeed));
+  const published = createMemberKeys(
+    cc1,
+    {
+      teamId: "team-1", accountId: "acct-1", memberKeysVersion: 1, signingPublicKey: signing.publicKey,
+      encryptionPublicKey: cc1.encryptionPublicKey(unhex(first!.encryptionSecretKey)), recoveryPublicKey: signing.publicKey, createdAt: 1,
+    },
+    signing.secretKey,
+  );
+  const record = (wrapped: BundleCase["wrapped"]): MemberKeysWrap => ({
+    v: 1, suite: cc1, accountId: "acct-1", teamId: "team-1", memberKeysVersion: 1, accountKeyVersion: 1,
+    wrappedKeys: { nonce: unhex(wrapped.nonce), ciphertext: unhex(wrapped.ciphertext) },
+  });
+
+  it.each(cases)("opens a $name", ({ wrapped, teamStateKey, floor }) => {
+    const bundle = openMemberKeysWrap(record(wrapped), unhex(key), published);
+    expect(tohex(bundle.teamStateKey)).toBe(teamStateKey);
+    expect(bundle.floor ? { version: bundle.floor.version, hash: tohex(bundle.floor.hash) } : undefined).toEqual(floor);
+  });
+
+  it.each(refused)("refuses a $name", ({ wrapped, error }) => {
+    expect(() => openMemberKeysWrap(record(wrapped), unhex(key), published)).toThrow(expect.objectContaining({ code: error }));
   });
 });
 

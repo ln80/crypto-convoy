@@ -5,7 +5,7 @@ import { Reader, bytes, list, string, u32, type Field } from "../encoding/canoni
 import { malformed, unsupported } from "../errors.js";
 import { concat } from "../internal/bytes.js";
 import type { KeyPair, Suite } from "../suites/suite.js";
-import type { MemberKeyBundle } from "./member-keys-wrap.js";
+import { encodeFloor, readFloor, type MemberKeyBundle } from "./member-keys-wrap.js";
 
 const PREFIX = "1";
 const KEY = 32;
@@ -49,7 +49,7 @@ export function sealTransfer(
 ): string {
   checkBundles(bundles);
   const payload = list(bundles, (b) =>
-    concat(u32(b.memberKeysVersion), bytes(b.signingSeed), bytes(b.encryptionSecretKey), bytes(b.teamStateKey)),
+    concat(u32(b.memberKeysVersion), bytes(b.signingSeed), bytes(b.encryptionSecretKey), bytes(b.teamStateKey), encodeFloor(b.floor)),
   );
   try {
     return PREFIX + toBase64url(seal(suite, receiverPublicKey, "team-keys-transfer", context(ctx), payload));
@@ -68,12 +68,12 @@ export function openTransfer(suite: Suite, receiver: KeyPair, ctx: TransferConte
   try {
     const reader = new Reader(payload);
     const bundles = reader.list(
-      (r) => ({
-        memberKeysVersion: r.u32(),
-        signingSeed: r.bytes(),
-        encryptionSecretKey: r.bytes(),
-        teamStateKey: r.bytes(),
-      }),
+      (r) => {
+        const entry = { memberKeysVersion: r.u32(), signingSeed: r.bytes(), encryptionSecretKey: r.bytes(), teamStateKey: r.bytes() };
+        // The bundle's anchor floor (§3.8 step 2, D-48).
+        const floor = readFloor(r);
+        return floor ? { ...entry, floor } : entry;
+      },
       MAX_BUNDLES,
     );
     reader.end();

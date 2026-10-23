@@ -1,6 +1,6 @@
 {
   "file": "wrap.v1",
-  "covers": "Protocol §3.1 wrap / unwrap",
+  "covers": "Protocol §3.1 wrap / unwrap, §4.3 member keys bundles",
   "cases": [
     {
       "name": "wrap account-key-wrap",
@@ -211,5 +211,71 @@
       "nonce": "29628253042d34609e6ca910a71bef4ea78305e4583a4e",
       "error": "DECRYPTION_FAILED"
     }
-  ]
+  ],
+  "bundles": {
+    "key": "2b406ec3ff4a71e0ed2962b6122a9be66cf26d8c3cf29f95836a7a1fb1bd20bf",
+    "context": [
+      ["string", "acct-1"],
+      ["string", "team-1"],
+      ["u32", 1],
+      ["u32", 1]
+    ],
+    "cases": [
+      {
+        "name": "bundle without a floor",
+        "signingSeed": "65d790ca9d987162ed9d30ba2b3308d48bb39444e54829c077cd5544e02018d6",
+        "encryptionSecretKey": "9517eed69ee0b7bdad8cef97994023b37339d3c48bed625da49191f3d69b8c85",
+        "teamStateKey": "b814c77d891c5f6ed74b2fb6bc17f54158940550b1294acae2a9213d927cff96",
+        "plaintext": "65d790ca9d987162ed9d30ba2b3308d48bb39444e54829c077cd5544e02018d69517eed69ee0b7bdad8cef97994023b37339d3c48bed625da49191f3d69b8c85b814c77d891c5f6ed74b2fb6bc17f54158940550b1294acae2a9213d927cff9600",
+        "wrapped": {
+          "nonce": "f8e0ef626ae33b5c7a6338e5e1adcf1810475ad3e63f902e",
+          "ciphertext": "4b4bf050697ec70576d03e8c0c740564a7a4c656be321a2afe0bbe3837fcf6ccd37953a7448bc7cdb1f7e0fdb7d6ba9b8db3193b88369589b125eb73bcb3e409abec12cd75be18e0afa46547d304b0a86be4e611d751af2fb539dd310d9e29c5e55646f9374a53098c5d4276b86a083a90"
+        }
+      },
+      {
+        "name": "bundle with a floor",
+        "signingSeed": "65d790ca9d987162ed9d30ba2b3308d48bb39444e54829c077cd5544e02018d6",
+        "encryptionSecretKey": "9517eed69ee0b7bdad8cef97994023b37339d3c48bed625da49191f3d69b8c85",
+        "teamStateKey": "b814c77d891c5f6ed74b2fb6bc17f54158940550b1294acae2a9213d927cff96",
+        "floor": {
+          "version": 4,
+          "hash": "d00ed53d31798e7a123cbaec5609e107ca14aa60e00019d25b1559c4ec90de23"
+        },
+        "plaintext": "65d790ca9d987162ed9d30ba2b3308d48bb39444e54829c077cd5544e02018d69517eed69ee0b7bdad8cef97994023b37339d3c48bed625da49191f3d69b8c85b814c77d891c5f6ed74b2fb6bc17f54158940550b1294acae2a9213d927cff96010000000400000020d00ed53d31798e7a123cbaec5609e107ca14aa60e00019d25b1559c4ec90de23",
+        "wrapped": {
+          "nonce": "ea6d20b0d1c2c128148035a75ce2341171912ed9f8e0b977",
+          "ciphertext": "2c66cb7a0a9c97ae390a8bab31b51fbd49a73297ec242d42ba0fe6fca702205f910914f040a10bf8fda38151a7ccf07b033a243e9ab21f5845981d7c615ffcf6bda2ebf452e10b7b3e657bd5f6abc36595cb6991aac840c50b7f6756f1ea1a5eca0daa20f968194eced2d1c81ddf3c7622a2f0dcd42995dad70519fec418244bf41821e2518c3b9328b81e03f296911a57c115781e70b725d7"
+        }
+      }
+    ],
+    "refused": [
+      {
+        "name": "96 bytes, no floor flag",
+        "plaintext": "65d790ca9d987162ed9d30ba2b3308d48bb39444e54829c077cd5544e02018d69517eed69ee0b7bdad8cef97994023b37339d3c48bed625da49191f3d69b8c85b814c77d891c5f6ed74b2fb6bc17f54158940550b1294acae2a9213d927cff96",
+        "wrapped": {
+          "nonce": "0533ade75402c43074b0ba1857f4abb8c937f0ce70fff825",
+          "ciphertext": "705351fcc26a65d660b8ebe44921ff1a61112ec654986ed77bee1f67b8fdac1acb919f53c520818023137e29e3952e66b6ea3fdc30ba26b1a9a190cd2d3f084a02d1d7cbf8a058613e9aaf6cc24d88b302b825a6cc9f187f21920e79caf05f1d98c136ca54e277f482a2d87278bcc79e"
+        },
+        "error": "DECRYPTION_FAILED"
+      },
+      {
+        "name": "floor hash of 31 bytes",
+        "plaintext": "65d790ca9d987162ed9d30ba2b3308d48bb39444e54829c077cd5544e02018d69517eed69ee0b7bdad8cef97994023b37339d3c48bed625da49191f3d69b8c85b814c77d891c5f6ed74b2fb6bc17f54158940550b1294acae2a9213d927cff9601000000040000001fd00ed53d31798e7a123cbaec5609e107ca14aa60e00019d25b1559c4ec90de",
+        "wrapped": {
+          "nonce": "a7190dc93c11da6df97ffcafaaf6b1cc51bbde073431c77b",
+          "ciphertext": "200efc4ecdee70c4e022600ae04a3023d872ec1b3696504eae912087c81d0969582ecb025f70630d5831b6fab8176a1dfea35c373a8513f6ac059d763113219a4aae30f3743c646dab67828e4cff0c111b3dd9ae0ec3bcb574da584ea47570b977f8b206b3f732c0c3501db1eef0a5fedd1b8b2292bb103e629771a388d3d6ca350b954f3d1f8dd48936ca3109cf0bf8c7757b70e2fc9368"
+        },
+        "error": "DECRYPTION_FAILED"
+      },
+      {
+        "name": "trailing byte after the floor flag",
+        "plaintext": "65d790ca9d987162ed9d30ba2b3308d48bb39444e54829c077cd5544e02018d69517eed69ee0b7bdad8cef97994023b37339d3c48bed625da49191f3d69b8c85b814c77d891c5f6ed74b2fb6bc17f54158940550b1294acae2a9213d927cff960000",
+        "wrapped": {
+          "nonce": "7762609872500e2bd75f9c322e79b8c7b8cfd34cbb5fabd1",
+          "ciphertext": "81375dc7452a5e2d53edadcc063731519afcec2ebda970c74665d34d7244649273e3e310105104f2c57541ebd02ad338dd7cfc1654ae1dc3cf094695dcc7846689db5e91811ced9eff57440433f56df75da7f3acfaa23190e9addf6a4bd3176e21a01f4978042cc6ae23f81c777a1215c83b"
+        },
+        "error": "DECRYPTION_FAILED"
+      }
+    ]
+  }
 }

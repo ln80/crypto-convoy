@@ -11,7 +11,7 @@ import { loadVectors, tohex, unhex } from "../support/vectors.js";
 interface Transfers {
   receiver: { secretKey: string; publicKey: string; request: string };
   context: { accountId: string; teamId: string };
-  valid: { name: string; transfer: string; bundles: Record<string, string | number>[] }[];
+  valid: { name: string; transfer: string; bundles: Record<string, unknown>[] }[];
   refused: { name: string; transfer: string; error: string }[];
   refusedRequests: { name: string; request: string; error: string }[];
 }
@@ -28,7 +28,14 @@ describe("transfer.v1", () => {
 
   it.each(t.valid)("opens $name", ({ transfer, bundles }) => {
     const opened = openTransfer(cc1, receiver, t.context, transfer);
-    expect(opened.map((b) => ({ ...b, signingSeed: tohex(b.signingSeed), encryptionSecretKey: tohex(b.encryptionSecretKey), teamStateKey: tohex(b.teamStateKey) }))).toEqual(bundles);
+    const hexed = opened.map(({ floor, ...b }) => ({
+      ...b,
+      signingSeed: tohex(b.signingSeed),
+      encryptionSecretKey: tohex(b.encryptionSecretKey),
+      teamStateKey: tohex(b.teamStateKey),
+      ...(floor ? { floor: { version: floor.version, hash: tohex(floor.hash) } } : {}),
+    }));
+    expect(hexed).toEqual(bundles);
   });
 
   it.each(t.refused)("SP-02: refuses a transfer $name", ({ transfer, error }) => {

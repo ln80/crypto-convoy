@@ -1,5 +1,5 @@
 // wrap.v1.json: wrap with each label (§3.1, §4), plus tampering cases.
-import { encode, fixed, hex, label, sodium, writeVectors } from "./common.mjs";
+import { encode, fixed, hex, label, optionalOf, sodium, writeVectors } from "./common.mjs";
 
 const key32 = (name) => hex(fixed(name, 32));
 const contexts = {
@@ -51,4 +51,34 @@ const tampered = [
   { name: "nonce of 23 bytes", from: base.name, nonce: base.inputs.nonce.slice(0, 46) },
 ].map((c) => ({ ...c, error: "DECRYPTION_FAILED" }));
 
-writeVectors("wrap.v1.json", { file: "wrap.v1", covers: "Protocol §3.1 wrap / unwrap", cases, tampered });
+// Member keys bundles (§4.3): seed ‖ secret key ‖ team state key ‖ optional anchor floor (D-48).
+const bundleContext = contexts["member-keys-wrap"];
+const bundleKey = fixed("bundle account key", 32);
+const bundleParts = {
+  signingSeed: hex(fixed("bundle signing seed", 32)),
+  encryptionSecretKey: hex(fixed("bundle encryption secret", 32)),
+  teamStateKey: hex(fixed("bundle team state key", 32)),
+};
+const bundleFloor = { version: 4, hash: hex(fixed("bundle floor hash", 32)) };
+const sealBundle = (name, plaintext) => {
+  const nonce = fixed(`bundle nonce ${name}`, 24);
+  const ad = encode([label("member-keys-wrap"), ...bundleContext]);
+  return { nonce: hex(nonce), ciphertext: hex(sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext, ad, null, nonce, bundleKey)) };
+};
+const bundlePlaintext = (floorFields) =>
+  encode([["raw", bundleParts.signingSeed], ["raw", bundleParts.encryptionSecretKey], ["raw", bundleParts.teamStateKey], optionalOf(floorFields)]);
+const bundles = {
+  key: hex(bundleKey),
+  context: bundleContext,
+  cases: [
+    { name: "bundle without a floor", ...bundleParts, plaintext: hex(bundlePlaintext(null)) },
+    { name: "bundle with a floor", ...bundleParts, floor: bundleFloor, plaintext: hex(bundlePlaintext([["u32", bundleFloor.version], ["bytes", bundleFloor.hash]])) },
+  ].map((c) => ({ ...c, wrapped: sealBundle(c.name, Buffer.from(c.plaintext, "hex")) })),
+  refused: [
+    { name: "96 bytes, no floor flag", plaintext: bundleParts.signingSeed + bundleParts.encryptionSecretKey + bundleParts.teamStateKey },
+    { name: "floor hash of 31 bytes", plaintext: hex(bundlePlaintext([["u32", 4], ["bytes", bundleFloor.hash.slice(0, 62)]])) },
+    { name: "trailing byte after the floor flag", plaintext: hex(bundlePlaintext(null)) + "00" },
+  ].map((c) => ({ ...c, wrapped: sealBundle(c.name, Buffer.from(c.plaintext, "hex")), error: "DECRYPTION_FAILED" })),
+};
+
+writeVectors("wrap.v1.json", { file: "wrap.v1", covers: "Protocol §3.1 wrap / unwrap, §4.3 member keys bundles", cases, tampered, bundles });
