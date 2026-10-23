@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 004 (`change`), with medium findings. Open findings medium or above: none. No `adversarial` review with a fresh-context reviewer yet.
+**Now:** 0 of 2. Last review: 005 (`change`), with a medium finding. Open findings medium or above: 005-A. No `adversarial` review with a fresh-context reviewer yet.
 
 ## Findings
 
@@ -36,6 +36,9 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 004-D | Overclaim | Low | Fixed | Guides (edit, plan 010) |
 | 004-E | Spec → code | Low | Fixed | D-50 (plan 010) |
 | 004-F | Spec → code | Low | Fixed | D-50 (plan 010) |
+| 005-A | Forgeable input, combined attack | Medium | Open | — |
+| 005-B | Stale text | Low | Open | — |
+| 005-C | Stale text | Low | Open | — |
 
 ## Residuals
 

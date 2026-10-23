@@ -170,7 +170,7 @@ Attack: serves an older part of the chain (one where a removed owner was still a
 
 Impact: a removed owner or member regains influence or access.
 
-Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact, and a `team-state` older than the floor isn't followed (D-48, D-50). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
+Disposition: partly mitigated by SP-07: a client refuses any chain without its anchor and never encrypts with a version older than it, and the server can serve an older `team-state` but not forge one (§4.4, §6.1). Withholding it leaves a device with no local anchor at its member keys' anchor floor, not at first contact, and a `team-state` older than the floor isn't followed (D-48, D-50); the floor moves forward only from the account's own records, never from a device's local anchor (D-51). Accepted: a device that has never seen the newer state can be fooled until it does, since a server that controls delivery can always delay news. The same holds for a retired account key version on a device with no stored state, which matters only if someone also holds that old key (SP-19).
 
 ### TH-06: Server modifies or moves encrypted items
 

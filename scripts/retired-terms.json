@@ -111,6 +111,17 @@
           "D-50"
         ]
       }
+    },
+    {
+      "pattern": "floors, the local anchor and|the vault's local anchor and the account's|transfer carries it\\b|with the bundles' floors as in",
+      "decision": "D-51",
+      "use": "the floor at a re-key or rotation comes from the bundles' floors and the team-state anchor only; the transfer carries the floor set at join, and §6.1 uses the newest bundle's floor",
+      "allow": {
+        "decisions.md": [
+          "D-50",
+          "D-51"
+        ]
+      }
     }
   ]
 }

@@ -614,7 +614,7 @@ Consequence: a failed team is retried with the old phrase and stays proven. The 
 
 ## D-50: The anchor floor is the newest anchor the vault trusts
 
-Status: Accepted.
+Status: Accepted; the sources of the floor at a re-key or a rotation amended by D-51.
 
 Problem: D-48's floor was set once (version 1, or the invite anchor) and then only carried, or filled from another anchor when missing. It counted only when a device had no other anchor, so an archived `team-state` below it won (TH-05). A member who joined without an invite anchor had no floor until a re-key or rotation: while the server withheld `team-state`, each new device was a new first contact (TH-04). The "carry, else fill" rule had two branches, written in five places.
 
@@ -629,3 +629,16 @@ Rejected:
 - Keeping first contact at the first open for a joiner without an invite anchor: it repeats on each new device while `team-state` is withheld.
 
 Consequence: every member has a floor from its join on; a floor is at most one re-key or rotation old, and no `team-state` revision below it is followed. Without an invite anchor, the join is the member's one first contact (TH-04), and a join to a team with no chain fails there. The floor never adds a download: the fetch starts from the lowest anchor, as before.
+
+## D-51: The floor comes only from the account's own records
+
+Status: Accepted.
+
+Problem: D-50 wrote the floor at a re-key or a rotation from the highest of the team's bundles' floors, the local anchor and the `team-state` anchor. The local anchor is written on the device (`LocalKeyStore`), where an injected script or someone with the device (A9, A7) can change it, and nothing checked it against a chain. A re-key or a rotation, `secureAccount` included, copied it into every bundle of the team, under the account key: every new device of the member and every receiving context then trusted it. Alone, the attacker made the team unopenable for the member's new devices; with the server, they opened a forged team (review 005 A).
+
+Decision: at a re-key or an account rotation, the floor is the highest of the team's bundles' floors and the account's `team-state` anchor, opened with any of the team's bundles (one that doesn't open is skipped, TH-46). The local anchor isn't a source: it stays this device's anchor for its own opens (§6.1 step 1). Creation and join are unchanged.
+
+Rejected:
+- Keeping the local anchor and verifying the chain at each re-key and rotation: it refuses a bad local anchor, but costs one chain download per team at every rotation, `secureAccount` included.
+
+Consequence: what reaches the floor was written by the vault (a floor) or by `advanceAnchor` from a verified chain under a `teamStateKey` (§4.4); the server can only serve an older `team-state`, which the highest ignores. A local anchor a script or a thief changed stops only that device, and `secureAccount` no longer spreads it. A floor can lag this device's newest anchor until its `team-state` write lands; the next open writes it.
