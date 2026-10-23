@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 007 (`design`, D-52), after 006 (`adversarial`, fresh-context reviewer, high findings). Open findings medium or above: 006-A, 006-B, 006-C, 006-E, 007-A, 007-B, 007-C.
+**Now:** 0 of 2. Last review: 007 (`design`, D-52), after 006 (`adversarial`, fresh-context reviewer, high findings). Open findings medium or above: 006-A, 006-E.
 
 ## Findings
 
@@ -40,16 +40,16 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 005-B | Stale text | Low | Fixed | Guides, §3.8 (edit, plan 011) |
 | 005-C | Stale text | Low | Fixed | Course (maintain-course) |
 | 006-A | Combined attack | Medium | Open | — |
-| 006-B | Forgeable input, combined attack | High | Open | — |
-| 006-C | Forgeable input, wrong claim | High | Open | — |
-| 006-D | Overclaim | Low | Open | — |
+| 006-B | Forgeable input, combined attack | High | Fixed | D-52 (plan 012) |
+| 006-C | Forgeable input, wrong claim | High | Fixed | D-52 (plan 012) |
+| 006-D | Overclaim | Low | Fixed | §7.3, TH-23 (edit, plan 012) |
 | 006-E | Missing threat | Medium | Open | — |
-| 007-A | Spec cost | High (cost) | Open | — |
-| 007-B | Forgeable input | Medium | Open | — |
-| 007-C | Missing threat | Medium | Open | — |
-| 007-D | Spec gap | Low | Open | — |
-| 007-E | Stale text | Low | Open | — |
-| 007-F | Residual | Low | Open | — |
+| 007-A | Spec cost | High (cost) | Fixed | D-52 advance (plan 012) |
+| 007-B | Forgeable input | Medium | Fixed | D-52, §5.11 (plan 012) |
+| 007-C | Missing threat | Medium | Fixed | `state_conflict`, TH-46 (plan 012) |
+| 007-D | Spec gap | Low | Fixed | D-52 (plan 012) |
+| 007-E | Stale text | Low | Fixed | SP-07, §4.3, §5.7 (plan 012) |
+| 007-F | Residual | Low | Accepted | SP-07 assumptions, TH-05 |
 
 ## Residuals
 
@@ -78,5 +78,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-47 | A11 | Bait keys keep a member's keys unapprovable while the thief keeps the session | Only the newest keys are approved | — |
 | TH-48 | A8, A7, A2 | A support restore brings back what an attacker can open | Restores are the integration's to authenticate | — |
 | TH-49 | A2, A9 | A forged transfer opens a forged team in a receiving context | The two contexts share no secret; the channel is the integration's (D-29) | A shared secret between contexts |
+| TH-46 | A9, A7 (`teamStateKey`) | A readable `team-state` with a forged anchor stops the account's devices (`state_conflict`, `rollback`) until support restores | Overwriting it would discard evidence of a split view (D-52) | — |
+| TH-20 | A9, A7 (account key) | A planted floor on keys whose device never opened the team stays until a device that did runs `secureAccount` | The floor is the vault's; a leaked account key can write it (D-52) | — |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.

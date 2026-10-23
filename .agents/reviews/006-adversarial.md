@@ -74,3 +74,9 @@ Mode: `adversarial`, with a fresh-context reviewer. Scope: `docs/`, `src/` and `
 ## Forgeability table
 
 Updated: the `team-state` row (any context that holds a `teamStateKey` produces a readable one; a source of the floor since D-51), the local anchor row (writable by any script in the origin; it drops the floor when above it, B), the `item` row (older-version holders with the server, A). Status line set to this review.
+
+## Decided
+
+- **B, C: done (plan 012, D-52),** after design review 007: the floor is the root of trust, advanced when the vault opens or exports the team, and verified from the device's anchor at `secureAccount`.
+- **D: done (plan 012):** §7.3 and TH-23.
+- **A, E: open.**

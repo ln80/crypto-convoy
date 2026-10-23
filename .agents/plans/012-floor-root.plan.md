@@ -26,3 +26,15 @@ Review 007 (`.agents/reviews/007-design-d52.md`, design mode, fresh-context revi
 3. **Notes:** execution notes, reviews and ledger.
 
 ## Execution notes
+
+- **Read rule, as built:** `loadChain` passes the roots (the newest bundle's floor and the local anchor; `team-state` only for keys with no floor) to `verifiedChain`, and the `team-state` anchor as `state`; `verifyChain` checks `state` after the roots, and counts it for change reports when it lies on the chain.
+- **Advance, as built:** `maintainBundles` replaces `dropReplacedBundles`. On a vault open it runs after the session loads, from the chain the session verified (no second download); on an export it verifies the chain itself (one download per export, from the floor). One batch: the `replace` of the newest wrap, and the clean-up when it applies.
+- **Re-key, as built:** `verifiedFloor(current, root)` returns the tip of the chain verified from `root`, or `current` when that throws `TRUST_FAILURE`. No "never below the current floor" clause: verified from the floor, the tip is at least the floor; verified from the local anchor (`secureAccount`), a planted floor above it must not win.
+- **Rotation** re-wraps each bundle as it is, floor included; it fetches nothing.
+- **Tests:** `rollback.test.ts` (a forged local anchor above the floor, refused and not spread; a forged `team-state`, `state_conflict` then `rollback`, and support's restore; the receiving context now refuses with `rollback`, since the export moved the floor), `account-rotation.test.ts` (rotation keeps floors, a vault open and a re-key move them, an export moves them, a failed verification keeps the floor, a planted floor replaced by `secureAccount`; review 005's two cases adapted). D-50's two rotation tests were replaced.
+- **Guards:** weakening each rule fails a test: the D-50 read rule back, `state_conflict` ignored, rotation dropping floors, no advance, a re-key without verification, `secureAccount` from the floor, a failed verification dropping the floor.
+- **Checks:** `typecheck`, `npm test` (716 tests), `check:spec`, `build` and `test:package` pass.
+- **No layout or vector change.** New: the reason `state_conflict`; `replace` of a `member-keys-wrap` (a server contract change: integrations must accept it). Integration (doconvoy e2eev2): its key store must allow `replace` on member keys wraps, archiving the old one.
+- **Not changed after all:** SP-26, TH-04 and §6.8 step 4 (the clean-up now runs in §5.8 step 3's batch, its text still holds).
+- **Left:** the local course (maintain-course); review 006 A and E.
+

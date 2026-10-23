@@ -60,3 +60,7 @@ Mode: `design`, with a fresh-context reviewer. Input: the proposal for review 00
 ## Smallest rule (reviewer and this session agree)
 
 Rules 1–3 with D's "else the current floor". Rule 1 can't get cheaper without losing the guarantee: local and `team-state` anchors can be rewritten at any time, so each open must link them to the floor with owner checks. A's floor advance on vault opens is what keeps the cost near today's. A cheaper, weaker variant counts the floor only on a device with no local anchor; it leaves the tampered device itself open to B, with A2.
+
+## Decided
+
+- **A:** the vault advances the floor when it opens or exports a team (user). **B:** `secureAccount` verifies each new floor from the device's local anchor (user). **C:** `state_conflict`, restored by support (user). **D:** "else the current floor". **E:** reworded (SP-07, §4.3, §5.7). **F:** in SP-07's assumptions. All in plan 012 (D-52).
