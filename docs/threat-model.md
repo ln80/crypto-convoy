@@ -97,7 +97,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-38 | Split view: two records for one version | A6 with A2 | Accepted (needs key transparency) |
 | TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
 | TH-49 | A forged transfer opens a forged team | A2, A9 | Accepted: the integration's channel between contexts (SP-02 Limit, D-29) |
-| TH-50 | A key holder and the server rewrite or add items | A4 or A5 with A2 | Accepted: the server's write-once rule (SP-03 Limit, D-09 deferred) |
+| TH-50 | A key holder and the server rewrite or add items or inboxes | A4 or A5 with A2 | Accepted: the server's write-once rule (SP-03 Limit, D-09 deferred) |
 | TH-51 | A server front end forges PIN evaluations | A2 then A1 | Mitigated: SP-08 (D-53) |
 | TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
@@ -520,13 +520,13 @@ Impact: false attribution, for example a fake instruction attributed to an owner
 
 Disposition: accepted in v1. Author signatures are deferred (D-09, SP-13): any member can claim any author. The server alone can't change the author recorded on an item (SP-03); with a key holder it can (TH-50).
 
-### TH-50: A key holder and the server rewrite or add items
+### TH-50: A key holder and the server rewrite or add items or inboxes
 
 Actor: a member, or a member removed since, who held a team key version (A5, A4), together with the server (A2) or a server authorization bug.
 
-Attack: builds an `item` record at a version they held, for an existing item id or a new one, with any `createdBy` and new parts, and has the server serve it in place of the real record or as a new item.
+Attack: builds an `item` record at a version they held, for an existing item id or a new one, with any `createdBy` and new parts, and has the server serve it in place of the real record or as a new item. The same works for an `inbox` record, with a key pair of their own.
 
-Impact: every member opens the replaced or added item as genuine, after the attacker's removal too: forged content, attributed to anyone.
+Impact: every member opens the replaced or added item as genuine, after the attacker's removal too: forged content, attributed to anyone. A replaced inbox doesn't affect its existing links, whose senders seal to the key in the link; a link built from the stored record would give the attacker the submissions.
 
 Disposition: accepted in v1. Readers open an item at any version their chain holds, so only the server's write-once and current-version rules (§11) keep such a record out (SP-03 Limit). Author signatures (D-09) wouldn't stop it, since the author was in that version's roster; it needs an order the server can't fake, such as key transparency or an owner-signed item index.
 

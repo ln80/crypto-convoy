@@ -95,6 +95,7 @@ The library produces content and takes it back; the integration stores and serve
 
 - **Creating an item:** start a draft, add each part (buffered or as chunks) and store each ciphertext with your own upload pipeline, then seal the draft with the item's id: that stores the `item` record in the key store. Your server can assign the id after the first part is encrypted (D-26).
 - **Submissions:** the same draft flow on the sender's side; sealing returns the `submission` record, which you store with its parts.
+- **Inbox links:** build an inbox's link once, from the `linkKey` that `createInbox` or `replaceInbox` returns, and store the link. Never rebuild it from the stored `inbox` record: a former member with the server can replace that record with a key pair of their own (TH-50).
 - **Reading:** open the record, then give each part's ciphertext when it is needed, buffered or streamed.
 - **Recommended rules for your content storage:** write-once parts and submissions; an item isn't shown until its `item` record exists; parts of drafts never sealed are deleted after a while (they open with no key).
 - **File checks and deduplication** (type, size, content sniffing) run on the plaintext before encryption, in your code. To send your server a reference for a part, use `partRef`, never a plain hash of the content (D-28, TH-40).

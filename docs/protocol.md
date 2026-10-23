@@ -527,7 +527,7 @@ The account key opens only through one of these three paths (SP-19).
 
 - **Same device.** Read the `deviceKey` and `deviceId` from `LocalKeyStore`, fetch that device's wrap at the current version, and unwrap. If the wrap is gone (revoked, or removed by a rotation), the device must register again: `DEVICE_NOT_REGISTERED`.
 - **PIN.** Fetch the PIN wrap, derive the `pinKey` (purpose `unlock`), unwrap. Then register the device (§5.5). With no PIN wrap at the current version (after a rotation without a PIN, D-40): `PIN_NOT_SET_UP`, before any server evaluation.
-  - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the settings' `writeKeyId`, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget. If only the upgrade fails, the unlock stands and the old wrap is kept.
+  - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the settings' `writeKeyId`, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget. If only the upgrade fails, the unlock stands and the old wrap is kept; the vault reports it (`pin-upgrade-failed`) and doesn't try the upgrade again, so a failing key service never spends an evaluation per unlock.
 - **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6), the phrase being the current credential. Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it. They happen first: if setting the PIN is refused (`PIN_RATE_LIMITED`), the account stays unlocked on this device with its previous PIN wrap. If someone else may have set that PIN, secure the account with the phrase alone (§5.11).
 
 ### 5.5 Registering and revoking a device
@@ -871,7 +871,8 @@ Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyErr
 vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered, deviceId,
                                           //   recovery: "not-set-up" | "set-up", pin: "not-set-up" | "set-up" }
 vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying;
-                                          //   teams with keys this vault didn't make (`foreign-member-keys`, D-43)
+                                          //   teams with keys this vault didn't make (`foreign-member-keys`, D-43);
+                                          //   a PIN upgrade that failed (`pin-upgrade-failed`; a failed proof: report it, TH-51)
 vault.setup(pin)                          // then set up recovery before any team work
 vault.beginRecoverySetup()                → { recoveryPhrase }   // held in memory until confirmed (§5.10)
 vault.confirmRecoveryPhrase(phrase, { currentPhrase } | { currentPin }) → { rekeyed, failed }

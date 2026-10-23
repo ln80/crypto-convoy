@@ -2,7 +2,7 @@
 
 Every value a component of the library accepts from outside itself: who can produce it, what authenticates it, and what happens when it is missing or stale. Kept by the `adversarial` and `design` modes of [protocol-review](../skills/protocol-review/SKILL.md).
 
-**Status:** seeded from the specs at `19de2d5` (after plan 010); checked against the code by review 006 (`adversarial`) at `3dc80a4`. A row is a finding when someone in "Who can produce it" shouldn't, and "Authenticated by" doesn't stop them.
+**Status:** seeded from the specs at `19de2d5` (after plan 010); checked against the code by reviews 006 (`3dc80a4`) and 009 (`225392a`), both `adversarial`. A row is a finding when someone in "Who can produce it" shouldn't, and "Authenticated by" doesn't stop them.
 
 Actors: A1 data thief, A2 server, A3 network, A4 removed member, A5 member, A6 owner key, A7 device, A8 credential, A9 injected script, A10 outsider, A11 session. "Integration" means a value the integration hands the library.
 
@@ -11,12 +11,12 @@ Actors: A1 data thief, A2 server, A3 network, A4 removed member, A5 member, A6 o
 | Value | Who can produce it | Authenticated by | Missing or stale | § |
 | --- | --- | --- | --- | --- |
 | `account-key-wrap` | The account; A2 serves, withholds or replays archived ones; A11 replaces with garbage | AEAD under the method key, ids from the caller | `DEVICE_NOT_REGISTERED`, `PIN_NOT_SET_UP`; garbage: support restore (TH-36) | §4.1, §5.4 |
-| Current account key version | A2 | Nothing; the device refuses one below the highest it saw | A new device adopts a retired one (TH-05, SP-19) | §4.1 |
+| Current account key version | A2 | Nothing; the device refuses one below the highest it saw | A new device adopts a retired one (TH-05, SP-19) ; a fresh device served the retired version after `secureAccount` recovers into it with the kept phrase (review 009 C) | §4.1 |
 | `kdf` of the PIN wrap | A2 | AEAD associated data; bounds (§2) | Outside bounds: `MALFORMED_RECORD` | §2, §5.1 |
 | OPRF evaluation, `currentKeyId` | A2 | Nothing: a wrong evaluation gives a wrong PIN key, so `WRONG_CREDENTIAL` | Refused: `PIN_RATE_LIMITED`; a moved key id forces an upgrade (budget) | §5.1, §5.4 |
 | `member-keys-wrap` | The account; A11 deletes or writes garbage; A2 withholds | AEAD under the account key; the bundle checked against its published record | `NOT_GRANTED` or `not-joined`; deleted: support restore (TH-46) | §4.3 |
-| Anchor floor (in the bundle) | The vault, from a chain it verified; whoever holds the account key (TH-20) | Inside the `member-keys-wrap` AEAD | The root of trust; no floor: `team-state` is a root too | §4.3, §6.1, D-52 |
-| `member-keys` (public) | Its account; A11 under the account; A2 anything | Self-signature only; identity through a roster or an owner approval; proof by the held keys' recovery key | Withheld: `unverified` (D-46) | §4.2, §11 rule 8 |
+| Anchor floor (in the bundle) | The vault, from a chain it verified; whoever holds the account key (TH-20) | Inside the `member-keys-wrap` AEAD | The root of trust; a vault with no `anchors` (split layout) verifies `secureAccount`'s new floor from it, planted or not (review 009 B); no floor: `team-state` is a root too | §4.3, §6.1, D-52 |
+| `member-keys` (public) | Its account; A11 under the account; A2 anything | Self-signature only; the held version's record isn't pinned by the roster's `keysHash` in `reconcile` and `overview`, so A2 chooses the recovery key a proof is checked against (review 009 A); identity through a roster or an owner approval; proof by the held keys' recovery key | Withheld: `unverified` (D-46) | §4.2, §11 rule 8 |
 | `team-state` (for the floor at re-key or rotation) | The account's sessions, in any context, from a verified chain (`advanceAnchor`); **any holder of a `teamStateKey` (the TH-20 attacker, any context that received a transfer)**; a session that opened a forged team (review 006 B); A11 garbage or delete; A2 older revisions | AEAD under a `teamStateKey`, revision bound; **the anchor isn't checked against a chain** | Unreadable: skipped (TH-46); older: the highest of it and the bundles' floors wins; forged: `state_conflict` or `rollback`, never the floor (D-52, after review 006 C) | §6.1, D-52 |
 | Invite anchor (`joinTeam`) | An owner through the integration; A2 when the server delivers the link | Nothing: it is checked against the served chain, not against its sender | Without one: the join is the first contact (TH-04) | §6.4 |
 | Transfer request (`exportTeamKeys`) | The receiving context; anyone on the channel (A9; A2 if relayed) | Nothing; the integration decides who may ask (D-29) | Bad or low-order: `MALFORMED_RECORD` | §3.8, TH-39 |

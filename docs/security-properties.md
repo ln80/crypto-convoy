@@ -188,7 +188,7 @@ Property: nothing stored (backup, device storage) allows checking a PIN guess of
 Assumptions: AS-01, AS-05. Rate limiting, with one total budget per account, is enforced by the server ([server contract](scope.md#server-contract), rule 2).
 
 Verification:
-- `test/security/pin-hardening.test.ts`: try to open a backup with the correct PIN but no evaluation, with another account's evaluation, and with a wrong key; answer an evaluation with another key, a forged or replayed proof, or an unpinned key id (refused before any wrap is written); check that the server never chooses the key id, and that an unlock stands when only its upgrade fails.
+- `test/security/pin-hardening.test.ts`: try to open a backup with the correct PIN but no evaluation, with another account's evaluation, and with a wrong key; answer an evaluation with another key, a forged or replayed proof, or an unpinned key id (refused before any wrap is written); check that the server never chooses the key id, and that an unlock stands when only its upgrade fails, reported once and not retried at each unlock.
 - `test/vectors/pin-key.v1.json` (including the RFC 9497 POPRF vectors).
 
 Related threats: TH-07, TH-08, TH-34, TH-51.
@@ -363,7 +363,7 @@ Related threats: TH-14, TH-37.
 
 ### SP-23: A re-key proven by the recovery key is approved without an out-of-band check
 
-Property: a `member-keys` record signed by the recovery key that the account's currently held keys carry is a proven re-key. Owners' clients approve it in `reconcile` for accounts that aren't owners of the current version; anything else never counts as a proof. An owner's own re-key is approved by its own `reconcile` through possession of the keys instead (SP-22, D-47). Neither a stolen device nor a stolen session can produce the proof: the recovery signing key is derived from the phrase when the user types it and never stored. Replacing the phrase re-keys every team with the new recovery key, proven by the old phrase if given.
+Property: a `member-keys` record signed by the recovery key that the account's currently held keys carry is a proven re-key. The held keys are those the roster pins by keys hash: a record the server serves for that version with another hash is `TRUST_FAILURE` (`key_mismatch`), so the server can't choose the recovery key a proof is checked against. Owners' clients approve it in `reconcile` for accounts that aren't owners of the current version; anything else never counts as a proof. An owner's own re-key is approved by its own `reconcile` through possession of the keys instead (SP-22, D-47). Neither a stolen device nor a stolen session can produce the proof: the recovery signing key is derived from the phrase when the user types it and never stored. Replacing the phrase re-keys every team with the new recovery key, proven by the old phrase if given.
 
 Limits:
 - **A leaked phrase** proves re-keys too: a thief can replace a member's keys in every team, racing the real user (TH-41).
@@ -373,7 +373,7 @@ Limits:
 Assumptions: AS-01, AS-03 for the device where the phrase is typed.
 
 Verification:
-- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the old phrase is proven, and a phrase no bundle carries is refused (D-49).
+- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the old phrase is proven, and a phrase no bundle carries is refused (D-49); a record served for the held version with another keys hash, naming another recovery key, is refused by `reconcile` and `overview`.
 - `test/vectors/recovery-key.v1.json`.
 
 Related threats: TH-10, TH-12, TH-13, TH-37, TH-41.
