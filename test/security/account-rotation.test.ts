@@ -1,7 +1,8 @@
 /**
  * SP-11: The account key can be rotated.
  * SP-25: An open vault alone can't change the account's credentials (rotation needs the phrase).
- * SP-07: the member keys' anchor floor moves to the newest trusted anchor at rotations and re-keys (D-50).
+ * SP-07: the member keys' anchor floor moves to the newest trusted anchor at rotations and re-keys (D-50),
+ * from the account's own records, never the device's local anchor (D-51).
  * Threats: TH-04, TH-10, TH-12, TH-20, TH-45.
  */
 import { describe, expect, it } from "vitest";
@@ -12,7 +13,9 @@ import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
 import { openBundles } from "../../src/account/member-custody.js";
 import { vaultInternals, type Vault } from "../../src/account/vault.js";
-import { recordHash } from "../../src/records/team-key-version.js";
+import { createTeamKeyVersion, parseTeamKeyVersion, recordHash, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
+import { keysHash } from "../../src/records/member-keys.js";
+import { cc1 } from "../../src/suites/cc1/index.js";
 import type { RecordStore } from "../../src/ports.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { versionRecord } from "../support/forge.js";
@@ -21,6 +24,7 @@ const bundlesOf = (vault: Vault) => openBundles(vaultInternals(vault).ports, vau
 const anchorAt = async (store: RecordStore, version: number) => ({ version, hash: recordHash(await versionRecord(store, "team-1", version)) });
 
 const code = (c: string) => expect.objectContaining({ code: c });
+const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
 
 describe("SP-11: the account key can be rotated", () => {
   it("keeps the PIN and phrase working, and makes other devices register again", async () => {
@@ -125,5 +129,61 @@ describe("SP-11: teams survive an account key rotation", () => {
     const floors = (await bundlesOf(phone.vault)).map((b) => b.floor);
     expect(floors).toHaveLength(2);
     for (const floor of floors) expect(floor).toEqual(await anchorAt(bob.store, 3));
+  });
+});
+
+describe("SP-07: a local anchor changed on the device never reaches the floor (D-51)", () => {
+  it("a garbage local anchor stays out of the floor at a re-key and at secureAccount; a new device opens the team", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    const floor = (await bundleOf(bob.vault)).floor;
+    // A script or a thief on bob's laptop writes the local anchor (A9, A7).
+    await bob.localKeys.setAnchor("bob", "team-1", { version: 50, hash: cc1.randomBytes(32) });
+    await bob.vault.rekey("team-1");
+    expect((await bundleOf(bob.vault)).floor).toEqual(floor);
+    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin });
+    for (const b of await bundlesOf(bob.vault)) expect(b.floor).toEqual(floor);
+    const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+    await phone.vault.unlockWithPin(bob.pin);
+    expect((await phone.vault.openTeam("team-1")).state).not.toBe("failed");
+  });
+
+  it("with the server: a local anchor pointing at a forged version doesn't make new devices open it", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    const mallory = await w.account("mallory");
+    await mallory.vault.joinTeam("team-1");
+    const m = await bundleOf(mallory.vault);
+    const v = await bundleOf(bob.vault);
+    const entry = (accountId: string, b: typeof m) => ({
+      accountId,
+      memberKeysVersion: b.memberKeysVersion,
+      keysHash: keysHash(cc1, b.published),
+      encryptionPublicKey: b.pairs.encryption.publicKey,
+    });
+    // A version 9 the server forged: owned by mallory, rostering bob's real keys.
+    const forged = teamKeyVersionToJson(
+      createTeamKeyVersion(cc1, {
+        teamId: "team-1",
+        version: 9,
+        prevHash: cc1.randomBytes(32),
+        owners: [{ accountId: "mallory", signingPublicKey: m.pairs.signing.publicKey }],
+        roster: [entry("mallory", m), entry("bob", v)],
+        createdAt: 1,
+        signer: { accountId: "mallory", signingPublicKey: m.pairs.signing.publicKey },
+        signerSecretKey: m.pairs.signing.secretKey,
+        teamKey: cc1.randomBytes(32),
+        previousKey: cc1.randomBytes(32),
+      }),
+    );
+    const forgedAnchor = { version: 9, hash: recordHash(parseTeamKeyVersion(forged, { teamId: "team-1" })) };
+    await bob.localKeys.setAnchor("bob", "team-1", forgedAnchor);
+    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin });
+    expect((await bundleOf(bob.vault)).floor).not.toEqual(forgedAnchor);
+
+    const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+    await phone.vault.unlockWithPin(bob.pin);
+    phone.store.drop({ type: "team-state", accountId: "bob", teamId: "team-1" }).rollback("team-1", 1).fork("team-1", 9, forged);
+    expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
   });
 });

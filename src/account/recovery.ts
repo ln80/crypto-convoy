@@ -73,8 +73,9 @@ export async function rekeyTeam(
 }
 
 /**
- * The floor for new or re-wrapped keys: the highest of the bundles' floors, the local anchor and the
- * `team-state` anchor (§5.9, D-50). A garbage `team-state` is skipped, so it never blocks a re-key (TH-46).
+ * The floor for new or re-wrapped keys: the highest of the bundles' floors and the `team-state`
+ * anchor (§5.9, D-50). Never the local anchor, which a script or a thief on the device can change
+ * (D-51). A garbage `team-state` is skipped, so it never blocks a re-key (TH-46).
  */
 export async function newestTrustedAnchor(
   ports: AccountPorts,
@@ -82,14 +83,13 @@ export async function newestTrustedAnchor(
   teamId: string,
   bundles: readonly MemberBundle[],
 ): Promise<Anchor | undefined> {
-  const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(account.accountId, teamId)) : null;
   let server: Anchor | undefined;
   try {
     server = (await readServerState(ports, account.accountId, teamId, bundles))?.anchor;
   } catch (error) {
     if (!isConvoyError(error, "TRUST_FAILURE")) throw error;
   }
-  const anchors = [...bundles.map((b) => b.floor), local, server].filter((a): a is Anchor => a !== null && a !== undefined);
+  const anchors = [...bundles.map((b) => b.floor), server].filter((a): a is Anchor => a !== undefined);
   return anchors.reduce<Anchor | undefined>((best, a) => (!best || a.version > best.version ? a : best), undefined);
 }
 
