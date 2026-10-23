@@ -20,13 +20,15 @@ export async function loadChain(
   accountId: string,
   teamId: string,
   bundles: readonly MemberBundle[],
+  extraRoots: readonly Anchor[] = [],
 ): Promise<{ chain: VerifiedChain; server: ServerState | null }> {
   const server = await readServerState(ports, accountId, teamId, bundles);
   const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(accountId, teamId)) : null;
   // The roots: the floor, which only the vault writes from a verified chain, and this device's anchor.
   // The team-state, which others can write, counts only on their chain; it is a root only for keys with no floor (D-52).
   const floor = bundles[0]?.floor;
-  const roots = [floor, local, floor ? undefined : server?.anchor].filter((a): a is Anchor => a !== null && a !== undefined);
+  // In the vault's context, its own anchor is a root too (D-54).
+  const roots = [floor, local, ...extraRoots, floor ? undefined : server?.anchor].filter((a): a is Anchor => a !== null && a !== undefined);
   const state = floor ? server?.anchor : undefined;
   return { chain: await verifiedChain(ports, teamId, roots, state), server };
 }

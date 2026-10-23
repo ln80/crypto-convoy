@@ -88,6 +88,7 @@ export async function createIndexedDbLocalKeyStore(options: IndexedDbLocalKeySto
   const deviceId = (accountId: string) => `device\0${accountId}`;
   const versionId = (accountId: string) => `account-version\0${accountId}`;
   const anchorId = (accountId: string, teamId: string) => `anchor\0${accountId}\0${teamId}`;
+  const vaultAnchorId = (accountId: string, teamId: string) => `vault-anchor\0${accountId}\0${teamId}`;
 
   return {
     async getDevice(accountId): Promise<LocalDevice | null> {
@@ -120,6 +121,17 @@ export async function createIndexedDbLocalKeyStore(options: IndexedDbLocalKeySto
     setAnchor: (accountId, teamId, anchor) =>
       put(anchorId(accountId, teamId), "local-anchor", [accountId, teamId], enc(u32(anchor.version), bytes(anchor.hash))),
     deleteAnchor: (accountId, teamId) => remove(anchorId(accountId, teamId)),
+
+    async getVaultAnchor(accountId, teamId): Promise<LocalAnchor | null> {
+      const reader = await get(vaultAnchorId(accountId, teamId), "local-vault-anchor", [accountId, teamId]);
+      if (!reader) return null;
+      const anchor = { version: reader.u32(), hash: reader.bytes() };
+      reader.end();
+      return anchor;
+    },
+    setVaultAnchor: (accountId, teamId, anchor) =>
+      put(vaultAnchorId(accountId, teamId), "local-vault-anchor", [accountId, teamId], enc(u32(anchor.version), bytes(anchor.hash))),
+    deleteVaultAnchor: (accountId, teamId) => remove(vaultAnchorId(accountId, teamId)),
 
     async clear(accountId) {
       const keys = (await request(db.transaction(VALUES).objectStore(VALUES).getAllKeys())) as string[];

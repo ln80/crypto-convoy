@@ -156,10 +156,25 @@ export function newTeamOps(
   return [...memberKeysOps(ports, account, keys, floor), { op: "create", key: { type: "team-key-version", teamId, version: 1 }, record: teamKeyVersionToJson(version) }];
 }
 
+/** The vault's own anchor for a team, apart from the sessions' (D-54). */
+export async function vaultAnchorOf(ports: AccountPorts, accountId: string, teamId: string): Promise<Anchor | null> {
+  return callPort(() => ports.deviceKeys.getVaultAnchor(accountId, teamId));
+}
+
 /**
- * Opens a session in the vault's own context (§5.8). Any trust failure, in this account's own
- * keys or in the team's records, gives an `unverified` session (§6.1). Then moves the floor and
- * cleans up from the chain the session verified, with no second download.
+ * Records the tip of a chain the vault verified as its anchor, never moving it down; `replace`
+ * when an owner's anchor rooted the chain, so a forged higher one is corrected (D-54).
+ */
+export async function recordVaultAnchor(ports: AccountPorts, accountId: string, teamId: string, anchor: Anchor, replace = false): Promise<void> {
+  const known = await vaultAnchorOf(ports, accountId, teamId);
+  if (replace || !known || known.version < anchor.version) await callPort(() => ports.deviceKeys.setVaultAnchor(accountId, teamId, anchor));
+}
+
+/**
+ * Opens a session in the vault's own context (§5.8), with the vault's anchor as a root too. Any
+ * trust failure, in this account's own keys or in the team's records, gives an `unverified` session
+ * (§6.1). Then records the vault's anchor, moves the floor and cleans up from the chain the session
+ * verified, with no second download.
  */
 export async function openSession(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<TeamSession> {
   if (!ports.anchors) throw new Error("crypto-convoy: give the vault `anchors` to open teams in its context, or use exportTeamKeys");
@@ -170,10 +185,13 @@ export async function openSession(ports: AccountPorts, account: OpenAccount, tea
     if (isConvoyError(error, "TRUST_FAILURE")) return TeamSession.failed(teamPorts(ports), account.accountId, teamId, error);
     throw error;
   }
-  const session = await TeamSession.open(teamPorts(ports), account.accountId, teamId, bundles);
+  const vault = await vaultAnchorOf(ports, account.accountId, teamId);
+  const session = await TeamSession.open(teamPorts(ports), account.accountId, teamId, bundles, vault ? [vault] : []);
   if (bundles.length > 0 && session.state !== "unverified") {
     const internals = sessionInternals(session);
-    await maintainBundles(ports, account, teamId, bundles, internals.current(), internals.currentHash());
+    const tip = internals.current();
+    await recordVaultAnchor(ports, account.accountId, teamId, { version: tip.version, hash: internals.currentHash() });
+    await maintainBundles(ports, account, teamId, bundles, tip, internals.currentHash());
   }
   return session;
 }
@@ -183,20 +201,22 @@ function teamPorts({ suite, store, anchors, clock, settings }: AccountPorts): Te
   return { suite, store, anchors: anchors!, clock, settings };
 }
 
-/** One team's member keys sealed to a receiver in another context (§3.8, D-29). Throws `NOT_GRANTED` without keys. */
+/**
+ * One team's member keys sealed to a receiver in another context (§3.8, D-29), after the vault
+ * verified the chain from its roots: a planted floor or a forged chain is refused, never sealed
+ * (D-54). Throws `NOT_GRANTED` without keys, `TRUST_FAILURE`.
+ */
 export async function exportBundles(ports: AccountPorts, account: OpenAccount, teamId: string, request: string): Promise<string> {
   const { suite } = ports;
   const receiver = decodeRequest(suite, request);
   let bundles = await openBundles(ports, account, teamId);
   if (bundles.length === 0) throw new ConvoyError("NOT_GRANTED");
-  try {
-    const { chain } = await loadChain(ports, account.accountId, teamId, bundles);
-    const tip = chain.records.at(-1)!;
-    bundles = await maintainBundles(ports, account, teamId, bundles, tip, chain.hashes.get(tip.version)!);
-  } catch (error) {
-    // The receiving context verifies the chain itself (§3.8 step 4).
-    if (!isConvoyError(error, "TRUST_FAILURE")) throw error;
-  }
+  const vault = await vaultAnchorOf(ports, account.accountId, teamId);
+  const { chain } = await loadChain(ports, account.accountId, teamId, bundles, vault ? [vault] : []);
+  const tip = chain.records.at(-1)!;
+  const tipHash = chain.hashes.get(tip.version)!;
+  await recordVaultAnchor(ports, account.accountId, teamId, { version: tip.version, hash: tipHash });
+  bundles = await maintainBundles(ports, account, teamId, bundles, tip, tipHash);
   return sealTransfer(
     suite,
     receiver,
@@ -215,13 +235,14 @@ export async function exportBundles(ports: AccountPorts, account: OpenAccount, t
 /** The owners of the newest verified version, read in the vault for the last-owner rule (§5.9). */
 export async function currentOwners(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<string[]> {
   const bundles = await openBundles(ports, account, teamId);
-  const { chain } = await loadChain(ports, account.accountId, teamId, bundles);
+  const vault = await vaultAnchorOf(ports, account.accountId, teamId);
+  const { chain } = await loadChain(ports, account.accountId, teamId, bundles, vault ? [vault] : []);
   return chain.records.at(-1)!.owners.map((o) => o.accountId);
 }
 
 /**
  * Vault upkeep after the chain was verified up to `tip` (§5.8 step 3), in one batch. The floor
- * follows the verified chain: the newest bundle's wrap is replaced with `tip` as its floor (D-52).
+ * follows the chain verified from every root: the newest bundle's wrap is replaced with `tip` as its floor (D-52, D-54).
  * Once the tip's roster holds the newest keys, older bundles open nothing the chain doesn't
  * (§6.8 step 4): their wraps are deleted, and the team state is rewritten under the newest keys,
  * so it never stays readable only by a deleted bundle. Best effort: on any failure nothing is written.

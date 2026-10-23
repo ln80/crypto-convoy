@@ -1,14 +1,13 @@
 // The recovery phrase as the account's root: setting it up, proving re-keys, securing the account (§5.6, §5.10, §5.11).
 import type { Anchor } from "../encoding/link.js";
-import { ConvoyError, isConvoyError } from "../errors.js";
+import { ConvoyError } from "../errors.js";
 import { verifiedChain } from "../team/load.js";
-import type { MemberBundle } from "../team/context.js";
 import { callPort } from "../ports.js";
 import { openRecoveryPublicKey } from "../records/account-key-wrap.js";
 import { parseMemberKeysWrap } from "../records/member-keys-wrap.js";
 import type { KeyPair } from "../suites/suite.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
-import { newMemberKeys, nextMemberKeysVersion, openBundles } from "./member-custody.js";
+import { newMemberKeys, nextMemberKeysVersion, openBundles, recordVaultAnchor, vaultAnchorOf } from "./member-custody.js";
 import { deriveRecoveryKeys } from "./recovery-key.js";
 import { commit, fetchWrap } from "./unlock-methods.js";
 
@@ -54,9 +53,11 @@ export async function accountTeams(ports: AccountPorts, account: OpenAccount): P
 }
 
 /**
- * New member keys in one team (§6.8), with a recovery signature when `signer` is given, and a
- * floor verified from the current one, or from this device's anchor with `fromLocal` (§5.11,
- * D-52). Throws `NOT_GRANTED` without keys for the team.
+ * New member keys in one team (§6.8), with a recovery signature when `signer` is given. Their floor
+ * is the tip of a chain that contains every root the vault holds (the newest bundle's floor and its
+ * own anchor), or, given `ownerAnchor`, that anchor alone (D-54); the tip becomes the vault's anchor.
+ * Throws `NOT_GRANTED` without keys for the team, `TRUST_FAILURE` when the roots conflict or the
+ * chain doesn't verify: nothing is written then.
  */
 export async function rekeyTeam(
   ports: AccountPorts,
@@ -64,52 +65,35 @@ export async function rekeyTeam(
   teamId: string,
   recoveryPublicKey: Uint8Array,
   signer?: KeyPair,
-  fromLocal = false,
+  ownerAnchor?: Anchor,
 ): Promise<void> {
   const bundles = await openBundles(ports, account, teamId);
   const [newest] = bundles;
   if (!newest) throw new ConvoyError("NOT_GRANTED");
-  const local = fromLocal && ports.anchors ? await callPort(() => ports.anchors!.getAnchor(account.accountId, teamId)) : null;
-  const floor = await verifiedFloor(ports, teamId, newest.floor, local ?? newest.floor);
-  const options = { recoveryPublicKey, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}), ...(floor ? { floor } : {}) };
+  const vault = ownerAnchor ? null : await vaultAnchorOf(ports, account.accountId, teamId);
+  const roots = ownerAnchor ? [ownerAnchor] : [newest.floor, vault].filter((a): a is Anchor => a !== null && a !== undefined);
+  const chain = await verifiedChain(ports, teamId, roots);
+  const tip = chain.records.at(-1)!;
+  const floor = { version: tip.version, hash: chain.hashes.get(tip.version)! };
+  const options = { recoveryPublicKey, floor, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}) };
   await commit(ports, newMemberKeys(ports, account, teamId, await nextMemberKeysVersion(ports, account, teamId), options).ops);
+  await recordVaultAnchor(ports, account.accountId, teamId, floor, ownerAnchor !== undefined);
 }
 
-/**
- * The newest version of the chain verified from `root`; `current` when it doesn't verify, so a
- * chain problem never blocks a re-key (§5.9, D-52).
- */
-export async function verifiedFloor(
-  ports: AccountPorts,
-  teamId: string,
-  current: Anchor | undefined,
-  root: Anchor | undefined,
-): Promise<Anchor | undefined> {
-  if (!root) return current;
-  try {
-    const chain = await verifiedChain(ports, teamId, [root]);
-    const tip = chain.records.at(-1)!;
-    return { version: tip.version, hash: chain.hashes.get(tip.version)! };
-  } catch (error) {
-    if (!isConvoyError(error, "TRUST_FAILURE")) throw error;
-    return current;
-  }
-}
-
-/** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11); `fromLocal` for `secureAccount` (D-52). */
+/** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11); `anchors` from owners, by team (D-54). */
 export async function rekeyTeams(
   ports: AccountPorts,
   account: OpenAccount,
   teamIds: readonly string[],
   recoveryPublicKey: Uint8Array,
   signer?: KeyPair,
-  fromLocal = false,
+  anchors: ReadonlyMap<string, Anchor> = new Map(),
 ): Promise<RekeyReport> {
   const rekeyed: string[] = [];
   const failed: string[] = [];
   for (const teamId of teamIds) {
     try {
-      await rekeyTeam(ports, account, teamId, recoveryPublicKey, signer, fromLocal);
+      await rekeyTeam(ports, account, teamId, recoveryPublicKey, signer, anchors.get(teamId));
       rekeyed.push(teamId);
     } catch {
       // Reported by id only: the error may concern any record of that team (§9).

@@ -71,6 +71,28 @@ describe("IndexedDB LocalKeyStore", () => {
     await expect(store.getAnchor("alice", "team-1")).rejects.toEqual(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
   });
 
+  it("keeps the vault's anchor apart from the sessions' one: a session's value never reads as the vault's (D-54)", async () => {
+    const factory = fresh();
+    const store = await createIndexedDbLocalKeyStore({ indexedDB: factory });
+    // A session's anchor (the only value stored yet), copied into the vault's slot: another label, refused.
+    await store.setAnchor("alice", "team-2", { version: 9, hash: new Uint8Array(32) });
+    const [sessionRow] = (await rawRows(factory, "values")) as Uint8Array[];
+    await new Promise<void>((resolve) => {
+      const open = factory.open("crypto-convoy", 1);
+      open.onsuccess = () => {
+        const tx = open.result.transaction("values", "readwrite");
+        tx.objectStore("values").put(sessionRow!, "vault-anchor\0alice\0team-2");
+        tx.oncomplete = () => resolve();
+      };
+    });
+    await expect(store.getVaultAnchor("alice", "team-2")).rejects.toEqual(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
+    await store.setVaultAnchor("alice", "team-1", { version: 3, hash: new Uint8Array(32).fill(7) });
+    expect((await store.getVaultAnchor("alice", "team-1"))?.version).toBe(3);
+    expect(await store.getAnchor("alice", "team-1")).toBeNull();
+    await store.deleteVaultAnchor("alice", "team-1");
+    expect(await store.getVaultAnchor("alice", "team-1")).toBeNull();
+  });
+
   it("clear removes one account's values only", async () => {
     const store = await createIndexedDbLocalKeyStore({ indexedDB: fresh() });
     await store.setAccountKeyVersion("alice", 1);

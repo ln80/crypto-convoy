@@ -103,6 +103,10 @@ export interface DeviceKeyStore {
   deleteDevice(accountId: string): Promise<void>;
   getAccountKeyVersion(accountId: string): Promise<number | null>;
   setAccountKeyVersion(accountId: string, version: number): Promise<void>;
+  /** The vault's own anchor for a team, apart from the sessions' (D-54). */
+  getVaultAnchor(accountId: string, teamId: string): Promise<LocalAnchor | null>;
+  setVaultAnchor(accountId: string, teamId: string, anchor: LocalAnchor): Promise<void>;
+  deleteVaultAnchor(accountId: string, teamId: string): Promise<void>;
 }
 
 /** The team sessions' half: each team's anchor (SP-07). Same rule on unreadable values. */

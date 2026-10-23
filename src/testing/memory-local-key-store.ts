@@ -5,6 +5,7 @@ export class MemoryLocalKeyStore implements LocalKeyStore {
   readonly #devices = new Map<string, LocalDevice>();
   readonly #versions = new Map<string, number>();
   readonly #anchors = new Map<string, LocalAnchor>();
+  readonly #vaultAnchors = new Map<string, LocalAnchor>();
 
   async getDevice(accountId: string) {
     const device = this.#devices.get(accountId);
@@ -31,5 +32,15 @@ export class MemoryLocalKeyStore implements LocalKeyStore {
   }
   async deleteAnchor(accountId: string, teamId: string) {
     this.#anchors.delete(`${accountId}\0${teamId}`);
+  }
+  async getVaultAnchor(accountId: string, teamId: string) {
+    const anchor = this.#vaultAnchors.get(`${accountId}\0${teamId}`);
+    return anchor ? { version: anchor.version, hash: anchor.hash.slice() } : null;
+  }
+  async setVaultAnchor(accountId: string, teamId: string, anchor: LocalAnchor) {
+    this.#vaultAnchors.set(`${accountId}\0${teamId}`, { version: anchor.version, hash: anchor.hash.slice() });
+  }
+  async deleteVaultAnchor(accountId: string, teamId: string) {
+    this.#vaultAnchors.delete(`${accountId}\0${teamId}`);
   }
 }

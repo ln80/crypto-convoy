@@ -2,17 +2,18 @@
  * SP-11: The account key can be rotated.
  * SP-25: An open vault alone can't change the account's credentials (rotation needs the phrase).
  * SP-07: the member keys' anchor floor is the root of trust: it moves only along a chain verified from
- * it (vault open or export, re-key), a rotation keeps it, and nothing written outside the vault reaches it (D-52).
+ * it (vault open or export, re-key) where every root agrees, a rotation keeps it, nothing written outside the
+ * vault reaches it, and an owner's anchor repairs it (D-52, D-54).
  * Threats: TH-04, TH-10, TH-12, TH-20, TH-45.
  */
 import { describe, expect, it } from "vitest";
 import { openAccountKeyWrap, parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
-import { world } from "../support/fixtures.js";
+import { FAST, world } from "../support/fixtures.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
 import { openBundles } from "../../src/account/member-custody.js";
-import { vaultInternals, type Vault } from "../../src/account/vault.js";
+import { createVault, vaultInternals, type Vault } from "../../src/account/vault.js";
 import { createMemberKeysWrap, memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
 import { createTeamKeyReceiver } from "../../src/team/receiver.js";
 import { createTeamKeyVersion, parseTeamKeyVersion, recordHash, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
@@ -129,34 +130,108 @@ describe("SP-11: teams survive an account key rotation", () => {
     expect((await bundleOf(bob.vault)).floor).toEqual(await anchorAt(bob.store, 3));
   });
 
-  it("SP-07: a re-key keeps the current floor when the chain from it doesn't verify (D-52)", async () => {
+  it("SP-07: a re-key whose chain doesn't verify from its roots writes nothing (D-54)", async () => {
     const { members } = await team("bob");
     const bob = members.bob!;
-    const floor = (await bundleOf(bob.vault)).floor!;
-    bob.store.rollback("team-1", floor.version - 1);
-    await bob.vault.rekey("team-1");
-    expect((await bundleOf(bob.vault)).floor).toEqual(floor);
+    const before = await bundleOf(bob.vault);
+    bob.store.rollback("team-1", before.floor!.version - 1);
+    await expect(bob.vault.rekey("team-1")).rejects.toEqual(trust("rollback"));
+    expect((await bundleOf(bob.vault)).memberKeysVersion).toBe(before.memberKeysVersion);
   });
 
-  it("SP-07: a floor planted with the account key doesn't survive secureAccount from a device that opened the team (D-52, TH-20)", async () => {
-    const { members, w } = await team("bob");
-    const bob = members.bob!;
-    (await bob.vault.openTeam("team-1")).close();
-    // A9 in the vault or A7: the account key and a session; same keys, a forged floor.
-    const held = await bundleOf(bob.vault);
-    const { ports, account } = vaultInternals(bob.vault);
+  /** A9 in the vault or A7: the account key and a session; the newest wrap, same keys, a planted floor. */
+  async function plantFloor(vault: Vault) {
+    const held = await bundleOf(vault);
+    const { ports, account } = vaultInternals(vault);
     const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: held.memberKeysVersion, accountKeyVersion: account().version };
     const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey, floor: { version: 50, hash: cc1.randomBytes(32) } };
     await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
+  }
+
+  it("SP-07, TH-20: a planted floor fails its team at secureAccount, and an owner's anchor repairs it (D-54)", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const bob = members.bob!;
+    (await bob.vault.openTeam("team-1")).close();
+    await plantFloor(bob.vault);
     const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
     await phone.vault.unlockWithPin(bob.pin);
     expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
 
-    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin });
+    // The vault's own anchor disagrees with the planted floor: the team is reported, nothing is carried.
+    const report = await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
+    expect(report.failed).toEqual(["team-1"]);
+    // An owner sends the team's anchor out of band; it is the only root of the repair.
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase, anchor: aliceTeam.inviteAnchor() });
     expect((await bundleOf(bob.vault)).floor).toEqual(await anchorAt(bob.store, 2));
     const later = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
-    await later.vault.unlockWithPin(bob.pin);
+    await later.vault.unlockWithPin("5678");
     expect((await later.vault.openTeam("team-1")).failure).toBeUndefined();
+  });
+
+  it("SP-07: in a split layout too, the vault's anchor refuses a planted floor, and export refuses to seal it (review 009 B)", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    // The split layout's vault: no `anchors`; it records its own anchor when it exports.
+    const vault = await createVault({ store: bob.store, oprf: w.oprf, deviceKeys: bob.localKeys, clock: w.clock, settings: { ...FAST, oprf: await w.oprf.clientSettings() } }, "bob");
+    await vault.unlock();
+    await vault.exportTeamKeys("team-1", (await createTeamKeyReceiver("bob", "team-1")).request);
+    await plantFloor(vault);
+    await expect(vault.exportTeamKeys("team-1", (await createTeamKeyReceiver("bob", "team-1")).request)).rejects.toEqual(trust("rollback"));
+    const report = await vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
+    expect(report.failed).toEqual(["team-1"]);
+  });
+
+  it("Limit (TH-20): a vault with no anchor of its own verifies from the floor it holds; an owner's anchor repairs it (D-54)", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const bob = members.bob!;
+    const fresh = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+    await fresh.vault.unlockWithPin(bob.pin);
+    await plantFloor(fresh.vault);
+    // A forged vault anchor too: the owner's anchor must replace it, even though it is higher.
+    await fresh.localKeys.setVaultAnchor("bob", "team-1", { version: 60, hash: cc1.randomBytes(32) });
+    // Honest server: the planted floor isn't on the chain, so the team fails rather than carrying it.
+    const report = await fresh.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
+    expect(report.failed).toEqual(["team-1"]);
+    await fresh.vault.rekey("team-1", { phrase: bob.recoveryPhrase, anchor: aliceTeam.inviteAnchor() });
+    expect((await bundleOf(fresh.vault)).floor).toEqual(await anchorAt(bob.store, 2));
+    expect(await fresh.localKeys.getVaultAnchor("bob", "team-1")).toEqual(await anchorAt(bob.store, 2));
+  });
+
+  it("SP-07, TH-20: with the server, a planted floor naming a forged version still fails against the vault's anchor (D-54)", async () => {
+    const t = await team("bob");
+    const bob = t.members.bob!;
+    (await bob.vault.openTeam("team-1")).close(); // the vault's anchor: version 2
+    const mallory = await t.w.account("mallory");
+    await mallory.vault.joinTeam("team-1");
+    const m = await bundleOf(mallory.vault);
+    const v = await bundleOf(bob.vault);
+    const entry = (accountId: string, b: typeof m) => ({ accountId, memberKeysVersion: b.memberKeysVersion, keysHash: keysHash(cc1, b.published), encryptionPublicKey: b.pairs.encryption.publicKey });
+    const forged = teamKeyVersionToJson(
+      createTeamKeyVersion(cc1, {
+        teamId: "team-1", version: 9, prevHash: cc1.randomBytes(32),
+        owners: [{ accountId: "mallory", signingPublicKey: m.pairs.signing.publicKey }],
+        roster: [entry("mallory", m), entry("bob", v)], createdAt: 1,
+        signer: { accountId: "mallory", signingPublicKey: m.pairs.signing.publicKey },
+        signerSecretKey: m.pairs.signing.secretKey, teamKey: cc1.randomBytes(32), previousKey: cc1.randomBytes(32),
+      }),
+    );
+    const forgedAnchor = { version: 9, hash: recordHash(parseTeamKeyVersion(forged, { teamId: "team-1" })) };
+    // Plant the forged anchor as the floor, and serve the forged version (A2).
+    const { ports, account } = vaultInternals(bob.vault);
+    const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: v.memberKeysVersion, accountKeyVersion: account().version };
+    const raw = { signingSeed: v.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: v.pairs.encryption.secretKey, teamStateKey: v.pairs.teamStateKey, floor: forgedAnchor };
+    await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
+    bob.store.fork("team-1", 9, forged);
+    const report = await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
+    expect(report.failed).toEqual(["team-1"]);
+    expect((await bundleOf(bob.vault)).floor).toEqual(forgedAnchor); // the old bundle, re-wrapped: reported, not re-keyed
+  });
+
+  it("refuses a secureAccount PIN that opens the current PIN wrap: the retired version would open with it (SP-19)", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin })).rejects.toEqual(code("MALFORMED_RECORD"));
+    expect(await bob.store.getAccountKeyVersion("bob")).toBe(1);
   });
 });
 
@@ -170,11 +245,11 @@ describe("SP-07: a local anchor changed on the device never reaches the floor (D
     // The floor follows the chain verified from the floor: the tip, version 2.
     const floor = await anchorAt(bob.store, 2);
     expect((await bundleOf(bob.vault)).floor).toEqual(floor);
-    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin });
-    // The garbage anchor doesn't verify, so secureAccount keeps the current floor in the new keys.
+    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
+    // The sessions' anchor isn't one of the vault's roots: the floor follows the floor and the vault's anchor.
     expect((await bundleOf(bob.vault)).floor).toEqual(floor);
     const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
-    await phone.vault.unlockWithPin(bob.pin);
+    await phone.vault.unlockWithPin("5678");
     expect((await phone.vault.openTeam("team-1")).failure).toBeUndefined();
   });
 
@@ -208,12 +283,13 @@ describe("SP-07: a local anchor changed on the device never reaches the floor (D
     );
     const forgedAnchor = { version: 9, hash: recordHash(parseTeamKeyVersion(forged, { teamId: "team-1" })) };
     await bob.localKeys.setAnchor("bob", "team-1", forgedAnchor);
-    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin });
+    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
     expect((await bundleOf(bob.vault)).floor).not.toEqual(forgedAnchor);
 
     const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
-    await phone.vault.unlockWithPin(bob.pin);
+    await phone.vault.unlockWithPin("5678");
     phone.store.drop({ type: "team-state", accountId: "bob", teamId: "team-1" }).rollback("team-1", 1).fork("team-1", 9, forged);
-    expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
+    // Served from the floor, the forged version doesn't link to it.
+    expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
   });
 });

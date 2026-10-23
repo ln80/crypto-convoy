@@ -33,7 +33,7 @@ import {
 } from "./recovery.js";
 import { rotateAccount } from "./rotation.js";
 import { verifiedChain } from "../team/load.js";
-import { currentOwners, exportBundles, newMemberKeys, newTeamOps, nextMemberKeysVersion, openBundles, openSession } from "./member-custody.js";
+import { currentOwners, exportBundles, newMemberKeys, newTeamOps, nextMemberKeysVersion, openBundles, openSession, recordVaultAnchor } from "./member-custody.js";
 import {
   acceptVersion,
   commit,
@@ -90,7 +90,7 @@ export interface VaultWarning {
    * `report` for `pin-upgrade-failed` with a failed proof: the OPRF service answered with a key
    * the client doesn't pin (TH-51); `changePin` for any other upgrade failure.
    */
-  readonly action: "beginRecoverySetup" | "changePin" | "rekey" | "report";
+  readonly action: "beginRecoverySetup" | "changePin" | "rekey" | "report" | "secureAccount";
 }
 
 export type { RekeyReport };
@@ -346,16 +346,22 @@ export class Vault {
    * (§5.11, D-36): rotates the account key with a new PIN, or none when the PIN budget is spent
    * (D-40, TH-44), which cuts every other device, then re-keys every team with a recovery proof
    * that owners' `reconcile` approves. With `newPhrase`, the phrase `beginRecoverySetup` showed,
-   * typed back, it also replaces the phrase; the proofs are still made with `phrase` (D-45). Run
-   * it on a device the attacker didn't control. Retry a failed team with `rekey(teamId, { phrase })`.
-   * Throws `WRONG_CREDENTIAL`, `RECOVERY_NOT_SET_UP`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   * typed back, it also replaces the phrase; the proofs are still made with `phrase` (D-45). A new
+   * phrase and a different PIN are recommended: the retired version still opens with the old ones
+   * (SP-19), and a `newPin` that opens the current PIN wrap is refused. Each new floor comes from a
+   * chain containing every root the vault holds, or from `anchors[teamId]`, an anchor an owner gave
+   * (D-54). Run it on a device the attacker didn't control. Retry a failed team with
+   * `rekey(teamId, { phrase, anchor? })`. Throws `WRONG_CREDENTIAL`, `RECOVERY_NOT_SET_UP`,
+   * `PIN_RATE_LIMITED`, `STALE_VERSION`, `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`.
    */
-  async secureAccount(input: { phrase: string; newPhrase?: string; newPin?: string }): Promise<RekeyReport> {
+  async secureAccount(input: { phrase: string; newPhrase?: string; newPin?: string; anchors?: Readonly<Record<string, string>> }): Promise<RekeyReport> {
     const current = this.#requireAccount();
     const recoveryPublicKey = await currentRecoveryKey(this.#ports, current);
     if (!recoveryPublicKey) throw new ConvoyError("RECOVERY_NOT_SET_UP");
     const pending = this.#pendingPhrase;
     if (input.newPhrase !== undefined && (pending === null || !samePhrase(input.newPhrase, pending))) throw new ConvoyError("WRONG_CREDENTIAL");
+    const anchors = new Map(Object.entries(input.anchors ?? {}).map(([teamId, anchor]) => [teamId, decodeAnchor(anchor)]));
+    if (input.newPin !== undefined) await this.#refuseCurrentPin(current, input.newPin);
     const signer = recoverySigner(this.#ports, this.accountId, input.phrase, recoveryPublicKey);
     try {
       const pin = input.newPin !== undefined ? { newPin: input.newPin } : {};
@@ -365,11 +371,27 @@ export class Vault {
       this.#account = account;
       // The new keys carry the new version's recovery key; the proof is by the current one (D-45).
       const next = input.newPhrase !== undefined ? await currentRecoveryKey(this.#ports, account) : recoveryPublicKey;
-      // From this device's anchors: a floor planted with the stolen account key isn't carried (§5.11, D-52).
-      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), next!, signer, true);
+      // Floors only where every root agrees, or from an owner's anchor: a planted floor fails its team (D-54).
+      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), next!, signer, anchors);
     } finally {
       this.#ports.suite.wipe(signer.secretKey);
     }
+  }
+
+  /**
+   * A new PIN that opens the current PIN wrap would leave the retired version opening with it
+   * (SP-19): `MALFORMED_RECORD`. One evaluation; skipped when the budget is spent (D-40, TH-44).
+   */
+  async #refuseCurrentPin(account: OpenAccount, newPin: string): Promise<void> {
+    const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
+    if (!wrap) return;
+    try {
+      this.#ports.suite.wipe(await openWithPin(this.#ports, wrap, newPin, "unlock"));
+    } catch (error) {
+      if (isConvoyError(error, "WRONG_CREDENTIAL") || isConvoyError(error, "PIN_RATE_LIMITED")) return;
+      throw error;
+    }
+    throw malformed();
   }
 
   /** Whether the account is set up, the vault unlocked, and this device registered (§12). Never calls the OPRF. */
@@ -398,7 +420,8 @@ export class Vault {
     const stale = await teamsWithOldRecoveryKey(this.#ports, account, recovery);
     if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
     const foreign = await teamsWithForeignKeys(this.#ports, account);
-    if (foreign.length > 0) warnings.push({ code: "foreign-member-keys", teamIds: foreign, action: "rekey" });
+    // Keys this vault didn't make: someone holds the session or the old account key (D-54).
+    if (foreign.length > 0) warnings.push({ code: "foreign-member-keys", teamIds: foreign, action: "secureAccount" });
     if (this.#upgradeFailure) {
       const proof = isConvoyError(this.#upgradeFailure, "TRUST_FAILURE");
       warnings.push({ code: "pin-upgrade-failed", teamIds: [], action: proof ? "report" : "changePin" });
@@ -411,6 +434,8 @@ export class Vault {
     const account = this.#requireAccount();
     const version = await nextMemberKeysVersion(this.#ports, account, teamId);
     await commit(this.#ports, newTeamOps(this.#ports, account, teamId, await recoveryPublicKey(this.#ports, account), version));
+    const [created] = await openBundles(this.#ports, account, teamId);
+    await recordVaultAnchor(this.#ports, this.accountId, teamId, created!.floor!);
   }
 
   /**
@@ -433,6 +458,7 @@ export class Vault {
     const tip = chain.records.at(-1)!;
     const floor = { version: tip.version, hash: chain.hashes.get(tip.version)! };
     await commit(this.#ports, newMemberKeys(this.#ports, account, teamId, await nextMemberKeysVersion(this.#ports, account, teamId), { recoveryPublicKey: recovery, floor }).ops);
+    await recordVaultAnchor(this.#ports, this.accountId, teamId, floor);
   }
 
   /**
@@ -458,13 +484,14 @@ export class Vault {
    * nothing until an owner approves them by rotating. Throws `NOT_GRANTED`, `RECOVERY_NOT_SET_UP`,
    * `WRONG_CREDENTIAL` (a phrase neither current nor carried by the team's keys).
    */
-  async rekey(teamId: string, options: { phrase?: string } = {}): Promise<void> {
+  async rekey(teamId: string, options: { phrase?: string; anchor?: string } = {}): Promise<void> {
     const account = this.#requireAccount();
+    const ownerAnchor = options.anchor !== undefined ? decodeAnchor(options.anchor) : undefined;
     const recovery = await recoveryPublicKey(this.#ports, account);
     const carried = (await openBundles(this.#ports, account, teamId)).map((b) => b.published.recoveryPublicKey);
     const signer = options.phrase !== undefined ? recoverySigner(this.#ports, this.accountId, options.phrase, [recovery, ...carried]) : undefined;
     try {
-      await rekeyTeam(this.#ports, account, teamId, recovery, signer);
+      await rekeyTeam(this.#ports, account, teamId, recovery, signer, ownerAnchor);
     } finally {
       if (signer) this.#ports.suite.wipe(signer.secretKey);
     }
@@ -487,6 +514,7 @@ export class Vault {
       { op: "delete", key: { type: "team-state", accountId: this.accountId, teamId } },
     ]);
     if (this.#ports.anchors) await callPort(() => this.#ports.anchors!.deleteAnchor(this.accountId, teamId));
+    await callPort(() => this.#ports.deviceKeys.deleteVaultAnchor(this.accountId, teamId));
   }
 
   /** Registers this device unless it has a live wrap at the account's version (§5.5). */

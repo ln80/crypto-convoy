@@ -138,7 +138,7 @@ describe("SP-12: keys published under the account by someone else never block th
     const bob = members.bob!;
     // Someone holding bob's session publishes keys at his next version.
     await bob.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) }]);
-    expect(await bob.vault.warnings()).toContainEqual({ code: "foreign-member-keys", teamIds: ["team-1"], action: "rekey" });
+    expect(await bob.vault.warnings()).toContainEqual({ code: "foreign-member-keys", teamIds: ["team-1"], action: "secureAccount" });
     await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
     expect((await bundleOf(bob.vault)).memberKeysVersion).toBe(3);
     expect(await bob.vault.warnings()).toEqual([]);
@@ -168,6 +168,6 @@ describe("SP-12: keys published under the account by someone else never block th
       expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven" }] });
       await expect(aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: real }])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
     }
-    expect(await bob.vault.warnings()).toContainEqual({ code: "foreign-member-keys", teamIds: ["team-1"], action: "rekey" });
+    expect(await bob.vault.warnings()).toContainEqual({ code: "foreign-member-keys", teamIds: ["team-1"], action: "secureAccount" });
   });
 });
