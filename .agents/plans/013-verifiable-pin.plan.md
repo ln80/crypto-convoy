@@ -28,3 +28,16 @@ RFC 9497 Appendix A.1.3 (POPRF, ristretto255-SHA512) checked against `@noble/cur
 3. **Notes:** execution notes, reviews and ledger.
 
 ## Execution notes
+
+- **Suite:** `oprfBlind(input, info, publicKey)` returns the tweaked key; `oprfFinalize(input, info, blind, blindedElement, { evaluatedElement, proof }, tweakedKey)` checks sizes (`MALFORMED_RECORD`), then lets noble's POPRF `finalize` verify the proof: any failure there is `TRUST_FAILURE` (`bad_signature`). `oprfPublicKeyValid` decodes the point and refuses the identity.
+- **Settings:** `settings.oprf = { keys, writeKeyId }`, checked in `resolveSettings` (u32 ids, 32-byte keys, `writeKeyId` present) and in `createVault` (valid points). Without `settings.oprf`, every PIN operation is `UNSUPPORTED_VERSION`.
+- **Pin key:** `derivePinKey` takes the pinned keys; an unpinned id stops before Argon2id. `pinWrap` writes with `writeKeyId`. `unlockWithPin` upgrades when the id isn't `writeKeyId`, and keeps the unlock when the upgrade throws a `ConvoyError`.
+- **Kit:** `FakeOprfServer` holds one POPRF key pair per id (seeded from libsodium), builds `info` from the request's account, draws the proof nonce from libsodium, and offers `clientSettings(writeKeyId?)`; `currentKeyId` is gone. README, using guide and the package smoke test pass `settings.oprf`.
+- **Vectors:** `pin-key.v1.json` regenerated (v1 unreleased): RFC 9497 Appendix A.1.3 copied from the RFC and checked against noble in the generator (key pair, evaluated element, output from the RFC's proof); the composition records the public key, tweaked key and proof. The replay also checks that a flipped proof byte is refused.
+- **Tests:** `pin-hardening.test.ts`: another account's evaluation and another key are now `TRUST_FAILURE`; new: a front end's own key at enrolment (no wrap written), a replayed proof, an unpinned id (no evaluation spent), writers use `writeKeyId` while a newer key is pinned, an unlock that stands when its upgrade fails, invalid OPRF settings. `memory-store.test.ts` checks the kit.
+- **Guards:** weakening each rule fails a test: no proof check, an unpinned id falling back to another key, writing with the newest pinned key instead of `writeKeyId`, an upgrade failure aborting the unlock, no point check on settings. The first guard run was invalid (zsh didn't split the file list, so backups failed and weakenings stacked); the weakenings were reverted by hand and each guard re-run on its own with backups.
+- **Test timeout:** the `compatibility` project gets the 30 s timeout `security` and `properties` have: the scenario test, many Argon2id runs at 64 MiB plus proofs, crossed vitest's 5 s default under the full parallel run (alone it takes about 3 s).
+- **Checks:** `typecheck`, `npm test` (723 tests, twice), `check:spec`, `build`, `test:package`, `test:browser` pass.
+- **Integration (doconvoy e2eev2):** breaking. `OprfService.evaluate` returns `{ evaluatedElement, proof }` and `currentKeyId` is gone; the Go OPRF service moves to POPRF (one key pair per key id, `info` from the charged account, CSPRNG proof nonces), and the client ships `settings.oprf` in its code. Stored base-mode PIN wraps from test data fail as `UNSUPPORTED_VERSION` once their key id isn't pinned: reset or recover with the phrase.
+- **Left:** the local course (D-52, D-53).
+

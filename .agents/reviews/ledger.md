@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 008 (`design`, D-53), after 007 (`design`) and 006 (`adversarial`, fresh-context reviewer, high findings). Open findings medium or above: 006-E, 008-A, 008-B, 008-C, 008-D.
+**Now:** 0 of 2. Last review: 008 (`design`, D-53), after 007 (`design`) and 006 (`adversarial`, fresh-context reviewer, high findings). Open findings medium or above: none. Next: a fresh `adversarial` review (the stop rule needs two clean reviews in a row).
 
 ## Findings
 
@@ -43,19 +43,19 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 006-B | Forgeable input, combined attack | High | Fixed | D-52 (plan 012) |
 | 006-C | Forgeable input, wrong claim | High | Fixed | D-52 (plan 012) |
 | 006-D | Overclaim | Low | Fixed | §7.3, TH-23 (edit, plan 012) |
-| 006-E | Missing threat | Medium | Open | — |
+| 006-E | Missing threat | Medium | Fixed | D-53, TH-51 (plan 013) |
 | 007-A | Spec cost | High (cost) | Fixed | D-52 advance (plan 012) |
 | 007-B | Forgeable input | Medium | Fixed | D-52, §5.11 (plan 012) |
 | 007-C | Missing threat | Medium | Fixed | `state_conflict`, TH-46 (plan 012) |
 | 007-D | Spec gap | Low | Fixed | D-52 (plan 012) |
 | 007-E | Stale text | Low | Fixed | SP-07, §4.3, §5.7 (plan 012) |
 | 007-F | Residual | Low | Accepted | SP-07 assumptions, TH-05 |
-| 008-A | Forgeable input | High | Open | — |
-| 008-B | Hardening | Medium | Open | — |
-| 008-C | Spec gap | Medium | Open | — |
-| 008-D | Spec gap | Medium | Open | — |
-| 008-E | Spec choice | Low | Open | — |
-| 008-F | Missing threat | Low | Open | — |
+| 008-A | Forgeable input | High | Fixed | D-53 `writeKeyId` (plan 013) |
+| 008-B | Hardening | Medium | Accepted | Scope rule 2, integration guide (plan 013) |
+| 008-C | Spec gap | Medium | Fixed | Scope rule 2 (plan 013) |
+| 008-D | Spec gap | Medium | Fixed | §5.1, §5.4 (plan 013) |
+| 008-E | Spec choice | Low | Fixed | cc1 in place (plan 013) |
+| 008-F | Missing threat | Low | Fixed | TH-51, AS-05 (plan 013) |
 
 ## Residuals
 
@@ -85,6 +85,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-48 | A8, A7, A2 | A support restore brings back what an attacker can open | Restores are the integration's to authenticate | — |
 | TH-49 | A2, A9 | A forged transfer opens a forged team in a receiving context | The two contexts share no secret; the channel is the integration's (D-29) | A shared secret between contexts |
 | TH-50 | A4 or A5 with A2 | A holder of an older team key version and the server rewrite or add items | Readers can't order writes; the server's write-once rule is the barrier | D-09 with key transparency or an owner-signed item index |
+| TH-09, TH-51 | A2, A10 | One POPRF key per key id serves every account: a repeated proof nonce or one exported tweaked key reveals it; queries concentrate on it | Per-account public keys can't be pinned in client code (D-53) | Key ids rotated, or a cap per key id, in the integration |
 | TH-46 | A9, A7 (`teamStateKey`) | A readable `team-state` with a forged anchor stops the account's devices (`state_conflict`, `rollback`) until support restores | Overwriting it would discard evidence of a split view (D-52) | — |
 | TH-20 | A9, A7 (account key) | A planted floor on keys whose device never opened the team stays until a device that did runs `secureAccount` | The floor is the vault's; a leaked account key can write it (D-52) | — |
 

@@ -80,4 +80,4 @@ Updated: the `team-state` row (any context that holds a `teamStateKey` produces 
 - **B, C: done (plan 012, D-52),** after design review 007: the floor is the root of trust, advanced when the vault opens or exports the team, and verified from the device's anchor at `secureAccount`.
 - **D: done (plan 012):** §7.3 and TH-23.
 - **A: accepted (user).** TH-50, SP-03 Limit with its test, TH-15 corrected, the integration guide (enforce write-once and the current version in the server). The guide's `replace` row, which plan 012 missed, now names `member-keys-wrap`.
-- **E: open,** for its own plan (POPRF) with a design review first.
+- **E: done (plan 013, D-53),** after design review 008: POPRF with proofs checked against keys pinned in client settings, and the key id writers use a setting.

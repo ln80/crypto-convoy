@@ -58,3 +58,7 @@ PIN hardening moves from RFC 9497 base mode to POPRF (mode 0x02, ristretto255-SH
 ## Smallest rule (reviewer)
 
 PIN evaluations are RFC 9497 POPRF with `info = enc(label("pin-oprf"), accountId)`, built by the server from the account it charges. The client verifies every proof against the public key its settings pin for the wrap's `oprfKeyId`, and writes only with the settings' `writeKeyId`, never a server value. An unpinned id is `UNSUPPORTED_VERSION` before any work; a failed proof is `TRUST_FAILURE` before anything is derived. Neither is retried, and the unlock stands if only the upgrade fails.
+
+## Decided
+
+- **A:** the key id writers use is a client setting; `currentKeyId` removed (user). **B:** the shared key accepted with integration duties, in scope rule 2 and the integration guide (user). **C:** scope rule 2. **D:** `UNSUPPORTED_VERSION` before any work, `TRUST_FAILURE` (`bad_signature`, user) before anything is derived, the unlock standing when only the upgrade fails. **E:** cc1 changed in place (user). **F:** TH-51, AS-05. All in plan 013 (D-53).
