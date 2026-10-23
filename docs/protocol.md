@@ -399,7 +399,7 @@ Reader checks, for the chain from the client's anchor (or from version 1 at firs
 1. Versions are consecutive: n, n+1, n+2, … with no gap.
 2. **Version 1:** `prevHash` is all zeros, `wrappedPreviousKey` is `null`, and the signer is in its own `owners` list.
 3. **Version n > 1:** `prevHash` equals the record hash of version n−1; `wrappedPreviousKey` is present; and the signer (same `accountId` **and** same key) is in the `owners` list of version n−1.
-4. **Owners are real members:** for each owner, a valid `member-keys` record (§4.2) of that `accountId` has that `signingPublicKey`. Otherwise `TRUST_FAILURE` (reason `key_mismatch`). Owner changes reported to the integration (SP-15) therefore name the account the key belongs to.
+4. **Roster entries and owners are published keys:** every roster entry matches a valid `member-keys` record (§4.2) of its `accountId` and `memberKeysVersion`, with its `keysHash`, and for each owner, a valid `member-keys` record of that `accountId` has that `signingPublicKey` (D-46). Otherwise `TRUST_FAILURE` (reason `key_mismatch`). Owner and roster changes reported to the integration (SP-15) therefore name the account the keys belong to.
 5. **Owners hold the version:** every owner has a roster entry whose `keysHash` is that of the `member-keys` record holding the owner's `signingPublicKey`, and the signer has a roster entry (with any of its keys: a signer approving its own re-key signs with its previous key). Otherwise `TRUST_FAILURE` (reason `key_mismatch`).
 6. The chain contains every anchor the client holds (§6.1). If a version holds a different record: `TRUST_FAILURE` (reason `chain_conflict`). If the chain stops before an anchor: `TRUST_FAILURE` (reason `rollback`).
 
@@ -963,7 +963,7 @@ A write that a server rule refuses (write-once, current version, compare-and-set
 
 ## 13. Test vectors
 
-Frozen JSON files under `test/vectors/`, each with inputs (including fixed random values), intermediate values and outputs. A change to a released vector means stored data would break. Protocol v1 isn't released yet: `item.v1.json` and `submission.v1.json` were regenerated for D-26, and `team-key.v1.json`, `recovery-key.v1.json` and `link.v1.json` for D-33, D-34, D-37 and D-38, before the first release; they are frozen from then on.
+Frozen JSON files under `test/vectors/`, each with inputs (including fixed random values), intermediate values and outputs. A change to a released vector means stored data would break. Protocol v1 isn't released yet: `item.v1.json` and `submission.v1.json` were regenerated for D-26, `team-key.v1.json`, `recovery-key.v1.json` and `link.v1.json` for D-33, D-34, D-37 and D-38, and `team-key.v1.json` again for D-46, before the first release; they are frozen from then on.
 
 | File | Covers |
 | --- | --- |
@@ -973,7 +973,7 @@ Frozen JSON files under `test/vectors/`, each with inputs (including fixed rando
 | `stream.v1.json` | Empty, one-chunk, exact-multiple and multi-chunk streams; truncation |
 | `pin-key.v1.json` | Argon2id, the RFC 9497 vectors, and the final combination |
 | `recovery-key.v1.json` | BIP-39 seed, recovery key, recovery signing key, and member keys recovery signatures |
-| `team-key.v1.json` | Version records and their chain (owners, rosters, hashes, links), opening one's roster entry; rosters without the signer or an owner, out of order, duplicated or empty; forks, rollbacks, gaps, owner-rule cases (a removed owner signing a later version), owner keys not matching `member-keys`, and strict Ed25519 edge cases (non-canonical `S`, small-order keys and `R`) |
+| `team-key.v1.json` | Version records and their chain (owners, rosters, hashes, links), opening one's roster entry; rosters without the signer or an owner, out of order, duplicated or empty; forks, rollbacks, gaps, owner-rule cases (a removed owner signing a later version), owner keys not matching `member-keys`, roster entries naming keys nobody published (D-46), and strict Ed25519 edge cases (non-canonical `S`, small-order keys and `R`) |
 | `item.v1.json` | `item` record, manifest, parts bound by index (D-26); parts swapped, moved to another item, dropped |
 | `link.v1.json` | Link values: item keys, inbox public keys and invite anchors, with their version prefix; refused prefixes, lengths and low-order keys |
 | `submission.v1.json` | Envelope and parts bound by index; envelope moved to another inbox or id |

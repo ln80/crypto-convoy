@@ -550,3 +550,15 @@ Rejected:
 - A new phrase on `rotate` as well: securing is the operation for a compromise; a rotation alone leaves member keys the thief may hold (SP-11).
 
 Consequence: one call ends a phrase leak: new account key, new phrase, other devices cut, every team re-keyed with a proof. The proof is still made with the leaked phrase, so a thief who publishes proven keys first races the user as in TH-41; ending the account's other sessions first removes the way to publish. A team that failed to re-key is retried with `rekey(teamId, { phrase })` and the new phrase, whose proof doesn't match the keys the team holds: an owner approves it by hand.
+
+## D-46: Every roster entry names published member keys
+
+Status: Accepted.
+
+Problem: readers checked owners' roster entries against published `member-keys` records (§4.5), but took every other entry as written. Someone holding a stolen owner key could seal a version to keys of their own under an existing member's account id, keys nobody published. Every client then reported "re-keyed" for that member instead of a new account, and listed the member among the holders: the admission was hidden in the one report that detects a stolen owner key (TH-17, SP-15).
+
+Decision: a reader accepts a version record only if every roster entry matches a published `member-keys` record of that account and `memberKeysVersion`, with that `keysHash`; otherwise `TRUST_FAILURE` (`key_mismatch`). It applies to every record the client verifies, as the owner check does.
+
+Rejected: checking only entries that changed since the client's anchor. Same safety for a smaller cost, but one more rule to implement, and the cost is already small.
+
+Consequence: a roster names only keys their account published, so the accounts SP-15 reports are the accounts the keys belong to, as long as the server honours rule 8. The client already fetches every `member-keys` record of the team (§6.1), so the check costs one hash per entry and no request. A server that loses or hides one `member-keys` record makes the team `unverified` for every member, where before only owners failed, at their next rotation: an availability loss like TH-28.

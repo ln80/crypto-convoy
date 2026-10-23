@@ -3,6 +3,7 @@
  * Threats: TH-17, TH-41.
  */
 import { describe, expect, it } from "vitest";
+import { bundleOf, forgeVersion, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 describe("SP-15: owner and membership changes are visible", () => {
@@ -128,5 +129,23 @@ describe("SP-15: owners see each member's access and what needs their action", (
     await aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: 2 }]);
     const seen = await bob.vault.openTeam("team-1");
     expect(seen.memberChanges).toEqual([{ version: seen.currentVersion, signer: "alice", added: [], removed: [], rekeyed: ["bob"] }]);
+  });
+
+  it("TH-17: a stolen owner key can't pass an admission off as a member's re-key (D-46)", async () => {
+    const { members, aliceTeam } = await team("bob", "carol");
+    const alice = await bundleOf(members.alice!.vault);
+    const owner = { accountId: "alice", keys: alice.pairs, published: alice.published };
+    const carol = members.carol!;
+    const ownKeys = await bundleOf(carol.vault);
+    const version = aliceTeam.currentVersion + 1;
+    // Signed with alice's owner key: bob "re-keyed" to keys he never published, the attacker's.
+    const forged = await forgeVersion(carol.store, {
+      version,
+      owners: [owner],
+      signer: owner,
+      roster: [owner, { accountId: "bob", memberKeysVersion: 99, keys: strangerKeys() }, { accountId: "carol", keys: ownKeys.pairs, published: ownKeys.published }],
+    });
+    carol.store.fork("team-1", version, forged);
+    expect((await carol.vault.openTeam("team-1")).failure).toEqual(expect.objectContaining({ code: "TRUST_FAILURE", reason: "key_mismatch" }));
   });
 });

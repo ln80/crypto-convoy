@@ -107,10 +107,13 @@ Each finding was first reproduced with a throwaway test against the code: B (the
 - **G:** TH-14 residual, D-31 Consequence.
 - **H:** TH-36 Attack; test in `record-archive.test.ts`.
 
+## Decided
+
+- **A: anchor floor in the member keys bundle** (to plan). Set at team creation (version 1) and at join (the invite anchor, which moves from `openTeam` to `joinTeam`), carried forward by re-keys and account rotations, and carried in transfers; §6.1 counts it as an anchor. Layouts of `member-keys-wrap` and of transfer bundles change (unreleased).
+- **C: done (D-46).** §4.5 check 4 covers every roster entry; SP-15, TH-17; `verifyChain`; `team-key.v1.json` regenerated with two cases (seals are randomised, so every sealed entry and hash changed; no other vector depends on them); test in `change-visibility.test.ts`. The test and the vector case fail with the check weakened.
+
 ## Need a decision
 
-- A: document only, or an anchor floor in `member-keys-wrap`.
-- C: check every new roster entry against published member keys.
 - E: document owner self-approval, or have `secureAccount` do it.
 - I: confirm with a test, then fix.
 - J: proven retries after a phrase replacement.

@@ -265,14 +265,14 @@ Related threats: TH-11, TH-18.
 
 ### SP-15: Owner and membership changes are visible
 
-Property: every change to the owner list or to the roster (accounts added, removed or re-keyed) in the records a client verifies since its last verified state is reported by the library to the integration, with the signer and what changed, on every member's client (D-44). Who received each version created by a rotation is its signed roster, which the server can't edit or trim. Owners also get an overview of each member's access, its proof, and what needs their action (members awaiting approval, unproven re-keys, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Each owner's key must match that account's published member keys, so a report names the account the key belongs to, unless the server also forges that account's member keys record.
+Property: every change to the owner list or to the roster (accounts added, removed or re-keyed) in the records a client verifies since its last verified state is reported by the library to the integration, with the signer and what changed, on every member's client (D-44). Who received each version created by a rotation is its signed roster, which the server can't edit or trim. Owners also get an overview of each member's access, its proof, and what needs their action (members awaiting approval, unproven re-keys, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Every roster entry and every owner's key must match that account's published member keys (D-46), so a report names the account the keys belong to, unless the server also forges that account's member keys record.
 
 Limit: this is detection, not prevention. Someone holding a stolen owner key can admit a member, rotate, and remove the other owners before anyone reads the report. The "given by a removed owner" list shown during an owner removal is a warning, not a control: a later rotation by another owner hides the origin (TH-17).
 
 Assumptions: the integration displays these changes.
 
 Verification:
-- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; every member sees every admission in the roster; a member admitted and removed again between two opens is reported to a member whose anchor predates both.
+- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; every member sees every admission in the roster; a member admitted and removed again between two opens is reported to a member whose anchor predates both; a rotation that seals to keys an existing member never published, to pass an admission off as a re-key, is refused (`key_mismatch`).
 
 Related threats: TH-17, TH-41.
 

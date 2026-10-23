@@ -515,7 +515,7 @@ Attack: uses the owner's keys to admit members they control, or to remove the ot
 
 Impact: reads future items; may lock out the honest owners.
 
-Disposition: partly mitigated by SP-15, detection rather than prevention: every owner and roster change is reported on every member's client (D-44), under the account the owner key belongs to, but the attacker can act before anyone reads it. The honest owners remove the stolen key while still owners (SP-05), or else start a new team out of band, and automatic approvals never change the owner list (SP-23, TH-41). Accepted: one stolen owner key is enough for a takeover (D-06), and the removed owner's warning (§6.7) can be washed out by a later rotation.
+Disposition: partly mitigated by SP-15, detection rather than prevention: every owner and roster change is reported on every member's client (D-44), under the account the keys belong to (D-46), but the attacker can act before anyone reads it. The honest owners remove the stolen key while still owners (SP-05), or else start a new team out of band, and automatic approvals never change the owner list (SP-23, TH-41). Accepted: one stolen owner key is enough for a takeover (D-06), and the removed owner's warning (§6.7) can be washed out by a later rotation.
 
 ### TH-18: Owner loses their credentials
 

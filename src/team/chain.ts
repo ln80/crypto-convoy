@@ -74,14 +74,16 @@ export function verifyChain(input: {
       if (!equal(record.prevHash, hashes.get(previous.version)!)) throw trustFailure("chain_conflict");
       if (!isOwner(previous, record.signer)) throw trustFailure("not_an_owner");
     }
+    // Every roster entry names keys its account published (§4.5 rule 4, D-46).
+    for (const entry of record.roster) {
+      const published = memberKeys.find((m) => m.accountId === entry.accountId && m.memberKeysVersion === entry.memberKeysVersion);
+      if (!published || !equal(entry.keysHash, keysHash(record.suite, published))) throw trustFailure("key_mismatch");
+    }
     for (const owner of record.owners) {
-      const published = memberKeys.find((m) => m.accountId === owner.accountId && equal(m.signingPublicKey, owner.signingPublicKey));
-      if (!published) throw trustFailure("key_mismatch");
-      // Owners hold the version they own, with these keys (§4.5 rule 5).
+      // Owners hold the version they own, with the keys that carry their signing key (§4.5 rules 4–5).
       const entry = record.roster.find((e) => e.accountId === owner.accountId);
-      if (!entry || entry.memberKeysVersion !== published.memberKeysVersion || !equal(entry.keysHash, keysHash(record.suite, published))) {
-        throw trustFailure("key_mismatch");
-      }
+      const published = entry && memberKeys.find((m) => m.accountId === owner.accountId && m.memberKeysVersion === entry.memberKeysVersion);
+      if (!published || !equal(published.signingPublicKey, owner.signingPublicKey)) throw trustFailure("key_mismatch");
     }
     if (!record.roster.some((e) => e.accountId === record.signer.accountId)) throw trustFailure("key_mismatch");
     hashes.set(record.version, hash);

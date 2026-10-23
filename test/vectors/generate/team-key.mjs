@@ -103,6 +103,9 @@ const chainCases = [
   { name: "owner missing from the roster", chain: [1, "bobNotRosteredV2"], anchors: [], expect: { error: "TRUST_FAILURE", reason: "key_mismatch" } },
   { name: "owner rostered with other keys", chain: [1, "bobOtherRosterKeysV2"], anchors: [], expect: { error: "TRUST_FAILURE", reason: "key_mismatch" } },
   { name: "signer missing from the roster", chain: [1, "signerNotRosteredV2"], anchors: [], expect: { error: "TRUST_FAILURE", reason: "key_mismatch" } },
+  // D-46: every roster entry names keys its account published.
+  { name: "member rostered with keys it never published", chain: [1, "carolOtherKeysV2"], anchors: [], expect: { error: "TRUST_FAILURE", reason: "key_mismatch" } },
+  { name: "account with no published keys rostered", chain: [1, "malloryRosteredV2"], anchors: [], expect: { error: "TRUST_FAILURE", reason: "key_mismatch" } },
 ];
 
 const bobOtherKey = account("bob-other");
@@ -116,6 +119,8 @@ const variants = {
   bobNotRosteredV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice), ownerRef(bob)], roster: [alice], signer: alice }).record,
   bobOtherRosterKeysV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice), ownerRef(bob)], roster: [alice, { ...bob, encryptionPublicKey: mallory.encryptionPublicKey }], signer: alice }).record,
   signerNotRosteredV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(bob)], roster: [bob], signer: alice }).record,
+  carolOtherKeysV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice)], roster: [alice, { ...carol, encryptionPublicKey: mallory.encryptionPublicKey }], signer: alice }).record,
+  malloryRosteredV2: versionRecord({ version: 2, prevHash: fromHex(v1.recordHash), owners: [ownerRef(alice)], roster: [alice, mallory], signer: alice }).record,
 };
 // aliceOtherKeyV2: signer claims accountId "alice" with mallory's key; the signature is mallory's.
 variants.aliceOtherKeyV2 = (() => {
