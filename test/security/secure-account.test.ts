@@ -10,7 +10,7 @@ import { deriveRecoveryKeys } from "../../src/account/recovery-key.js";
 import { vaultInternals } from "../../src/account/vault.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { world } from "../support/fixtures.js";
-import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
+import { accessOf, bundleOf, forgeMemberKeys, forgeVersion, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
@@ -143,5 +143,22 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
     await bob.vault.unlock();
     await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPhrase: shown })).rejects.toEqual(code("WRONG_CREDENTIAL"));
     expect(await bob.store.getAccountKeyVersion("bob")).toBe(1);
+  });
+
+  it("TH-17: a single owner's own reconcile approves its re-key, and the copied owner key can't sign any more (D-47)", async () => {
+    const { members, w } = await team("bob");
+    const alice = members.alice!;
+    const copied = await bundleOf(alice.vault);
+    const clean = await w.device("alice");
+    await clean.vault.recover(alice.recoveryPhrase, "1111");
+    await clean.vault.secureAccount({ phrase: alice.recoveryPhrase, newPin: "2222" });
+    const session = await clean.vault.openTeam("team-1");
+    expect(await session.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["alice"], needsHuman: [] });
+
+    // A rotation signed with the copied owner key is refused by every member.
+    const version = session.currentVersion + 1;
+    const thief = { accountId: "alice", keys: copied.pairs, published: copied.published };
+    members.bob!.store.fork("team-1", version, await forgeVersion(clean.store, { version, owners: [thief], signer: thief }));
+    expect((await members.bob!.vault.openTeam("team-1")).failure).toEqual(expect.objectContaining({ code: "TRUST_FAILURE", reason: "not_an_owner" }));
   });
 });

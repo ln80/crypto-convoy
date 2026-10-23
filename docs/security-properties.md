@@ -213,7 +213,7 @@ Assumptions: AS-01. The server stops serving the wrap ([server contract](scope.m
 
 Verification:
 - `test/security/device-revocation.test.ts`: revoke a device, then try to unlock with its device key (refused). Then run the full remedy and check that keys copied from the device open nothing written afterwards.
-- `test/security/secure-account.test.ts`: a misused device; after `secureAccount` and an owner's `reconcile`, keys copied from it open nothing written afterwards; a team that failed to re-key is retried. With the PIN budget spent, `secureAccount` with the phrase alone cuts the thief's PIN and devices, and a PIN is set later (D-40, TH-44).
+- `test/security/secure-account.test.ts`: a misused device; after `secureAccount` and an owner's `reconcile`, keys copied from it open nothing written afterwards; a team that failed to re-key is retried. With the PIN budget spent, `secureAccount` with the phrase alone cuts the thief's PIN and devices, and a PIN is set later (D-40, TH-44). In a single-owner team, the owner's own `reconcile` approves its re-key, and the copied owner key can't sign a later version (D-47).
 
 Related threats: TH-10.
 
@@ -344,25 +344,25 @@ Related threats: TH-40.
 
 ### SP-22: Automatic owner actions never widen access
 
-Property: `reconcile` (D-31) gives a team key version only to accounts that already hold the current version with the same keys, and to accounts whose re-key is proven by their recovery key (SP-23) and who aren't owners. It never gives a version to a first-time joiner, to an account that held only an older version, to unproven keys, or to an owner's new keys. It never changes the owner list: an inactive owner is left to a human. Removing any other account from the active list leads to a rotation without it.
+Property: `reconcile` (D-31) gives a team key version only to accounts that already hold the current version with the same keys, to accounts whose re-key is proven by their recovery key (SP-23) and who aren't owners, and to the calling owner's own new keys when its session holds them (D-47). It never gives a version to a first-time joiner, to an account that held only an older version, to unproven keys, or to another owner's new keys. It never adds or removes an owner, and replaces only the caller's own owner key: an inactive owner is left to a human. Removing any other account from the active list leads to a rotation without it.
 
 Limit: the active list comes from the integration. An account the integration wrongly lists as active, and that still holds the current version, keeps it; one wrongly left out loses access until an owner approves it again.
 
 Assumptions: AS-01. An owner runs `reconcile` with the integration's active list.
 
 Verification:
-- `test/security/reconcile.test.ts`: a removed member listed as active again doesn't get the version back; an inactive holder is rotated out; unproven re-keys, owners' re-keys, inactive owners and joins are returned as needing a human; a dry run writes nothing.
+- `test/security/reconcile.test.ts`: a removed member listed as active again doesn't get the version back; an inactive holder is rotated out; unproven re-keys, other owners' re-keys, inactive owners and joins are returned as needing a human; the caller's own re-key is approved when its session holds the keys, never when they were published by someone else (D-47); a dry run writes nothing.
 - `test/properties/reconcile.properties.test.ts`: for any snapshot, the plan gives the new version to no account outside the rule above.
 
 Related threats: TH-14, TH-37.
 
 ### SP-23: A re-key proven by the recovery key is approved without an out-of-band check
 
-Property: a `member-keys` record signed by the recovery key that the account's currently held keys carry is a proven re-key. Owners' clients approve it in `reconcile` for accounts that aren't owners of the current version; anything else never counts. Neither a stolen device nor a stolen session can produce the proof: the recovery signing key is derived from the phrase when the user types it and never stored. Replacing the phrase re-keys every team with the new recovery key, proven by the old phrase if given.
+Property: a `member-keys` record signed by the recovery key that the account's currently held keys carry is a proven re-key. Owners' clients approve it in `reconcile` for accounts that aren't owners of the current version; anything else never counts as a proof. An owner's own re-key is approved by its own `reconcile` through possession of the keys instead (SP-22, D-47). Neither a stolen device nor a stolen session can produce the proof: the recovery signing key is derived from the phrase when the user types it and never stored. Replacing the phrase re-keys every team with the new recovery key, proven by the old phrase if given.
 
 Limits:
 - **A leaked phrase** proves re-keys too: a thief can replace a member's keys in every team, racing the real user (TH-41).
-- **Owners** are never approved automatically, even with a proof.
+- **Owners** are never approved automatically by a proof, even a valid one; only the owner's own `reconcile`, holding the keys, approves them (D-47).
 - A phrase replaced with the PIN instead of the old phrase (D-41) re-keys every team without proof, so each needs a human approval.
 
 Assumptions: AS-01, AS-03 for the device where the phrase is typed.

@@ -1,6 +1,6 @@
 /**
- * SP-22: Automatic owner actions never widen access.
- * Threats: TH-14, TH-37.
+ * SP-22: Automatic owner actions never widen access; an owner's own re-key self-approves (D-47).
+ * Threats: TH-14, TH-17, TH-37.
  */
 import { describe, expect, it } from "vitest";
 import { StoreConflictError } from "../../src/errors.js";
@@ -103,5 +103,37 @@ describe("SP-22: reconcile only narrows access by itself", () => {
     expect((await members.carol!.vault.openTeam("team-1")).state).toBe("ready");
     const reloaded = await members.alice!.vault.openTeam("team-1");
     expect(() => reloaded.owner()).toThrow(expect.objectContaining({ code: "NOT_AN_OWNER" }));
+  });
+
+  it("D-47: the caller's own re-key is approved when its session holds the keys, in a single-owner team too", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const alice = members.alice!;
+    const before = (await bundleOf(alice.vault)).published.signingPublicKey;
+    await alice.vault.rekey("team-1");
+    const session = await alice.vault.openTeam("team-1");
+    expect(await session.owner().reconcile(["alice", "bob"])).toMatchObject({ rotatedTo: aliceTeam.currentVersion + 1, approvedRekeys: ["alice"], needsHuman: [] });
+    const seen = await members.bob!.vault.openTeam("team-1");
+    expect(seen.ownerChanges.at(-1)).toMatchObject({ signer: "alice", rekeyed: ["alice"] });
+    expect(seen.owners()).toEqual(["alice"]);
+    // The previous owner key is out of the owner list.
+    const current = await accessOf(alice.store, "alice", seen.currentVersion);
+    expect(current).not.toBeNull();
+    expect(Buffer.from((await bundleOf(alice.vault)).published.signingPublicKey).equals(Buffer.from(before))).toBe(false);
+  });
+
+  it("D-47: keys published under the caller by someone else are left to a human", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const alice = members.alice!;
+    await alice.store.commit([
+      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "alice", memberKeysVersion: 2 }, record: forgeMemberKeys("alice", 2, strangerKeys()) },
+    ]);
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "alice", reason: "owner-rekey" }] });
+  });
+
+  it("D-47: another owner's re-key stays with a human, even when proven", async () => {
+    const { members, aliceTeam } = await team("bob");
+    await aliceTeam.owner().setOwners(["alice", "bob"]);
+    await members.bob!.vault.rekey("team-1", { phrase: members.bob!.recoveryPhrase });
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "owner-rekey" }] });
   });
 });

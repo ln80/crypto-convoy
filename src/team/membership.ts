@@ -61,6 +61,8 @@ export interface MembershipSnapshot {
   readonly keys: ReadonlyMap<string, readonly MemberKeys[]>;
   /** Accounts without the current version that held an older one. */
   readonly heldBefore: ReadonlySet<string>;
+  /** The caller's published keys versions whose bundle its session holds: only those self-approve (D-47). */
+  readonly selfHeld: ReadonlySet<number>;
   readonly active: ReadonlySet<string>;
 }
 
@@ -116,9 +118,10 @@ export function overviewOf(snapshot: MembershipSnapshot): TeamOverview {
 }
 
 /**
- * What `reconcile` may do alone (§6.9, SP-22): remove inactive holders who aren't owners, and
- * approve recovery-proven re-keys of members who aren't owners. Everything that would widen
- * access otherwise, or change the owner list, needs a human.
+ * What `reconcile` may do alone (§6.9, SP-22): remove inactive holders who aren't owners,
+ * approve recovery-proven re-keys of members who aren't owners, and approve the caller's own
+ * re-key to keys its session holds (D-47). Everything that would widen access otherwise, or add
+ * or remove an owner, needs a human.
  */
 export function planReconcile(snapshot: MembershipSnapshot): ReconcilePlan {
   const { accounts } = overviewOf(snapshot);
@@ -140,7 +143,11 @@ export function planReconcile(snapshot: MembershipSnapshot): ReconcilePlan {
     }
     switch (a.status) {
       case "rekey-awaiting-approval":
-        if (a.isOwner) human(a, "owner-rekey");
+        // An owner's re-key: only the caller's own, to keys its session holds (D-47).
+        if (a.isOwner) {
+          if (a.accountId === snapshot.self && snapshot.selfHeld.has(a.keys!.memberKeysVersion)) approveRekeys.push(a.keys!);
+          else human(a, "owner-rekey");
+        }
         else if (a.proof === "recovery") approveRekeys.push(a.keys!);
         else human(a, "rekey-unproven");
         break;

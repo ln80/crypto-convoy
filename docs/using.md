@@ -108,7 +108,7 @@ const report = await team.owner().reconcile(activeIds);
 // report.removed, approvedRekeys: done. report.needsHuman: show these, with their reason.
 ```
 
-It rotates out holders no longer active (never owners), and approves re-keys proven by the member's recovery phrase. It never widens access otherwise, never changes owners, and leaves `awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey` and `inactive-owner` to a human (SP-22). `{ dryRun: true }` returns the plan for a preview.
+It rotates out holders no longer active (never owners), approves re-keys proven by the member's recovery phrase, and approves your own re-key when this session holds the keys (D-47). It never widens access otherwise, never changes owners, and leaves `awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey` and `inactive-owner` to a human (SP-22). `{ dryRun: true }` returns the plan for a preview.
 
 | Situation | Calls |
 | --- | --- |

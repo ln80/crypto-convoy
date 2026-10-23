@@ -358,9 +358,10 @@ Problem: owners must turn warnings into the right operation themselves: rotate a
 
 Decision: an owner's session offers `reconcile(activeAccountIds)`, meant to run at every owner session. It does what needs no human judgement and reports the rest:
 - rotates the team key without accounts that hold the current version but are no longer active;
-- approves re-keys proven by the member's recovery key (D-33), for members who aren't owners.
+- approves re-keys proven by the member's recovery key (D-33), for members who aren't owners;
+- approves the calling owner's own re-key when its session holds those keys (D-47).
 
-Everything else (first joins, members who held only an older version, unproven re-keys, owners' re-keys, inactive owners) is returned as needing a human. **Automatic actions only reduce access; widening it needs a cryptographic proof or a human.** Owner operations live on a separate owner object, so code paths that aren't an owner's can't reach them. A dry run returns the plan without writing.
+Everything else (first joins, members who held only an older version, unproven re-keys, other owners' re-keys, inactive owners) is returned as needing a human. **Automatic actions only reduce access; widening it needs a cryptographic proof or a human.** Owner operations live on a separate owner object, so code paths that aren't an owner's can't reach them. A dry run returns the plan without writing.
 
 Rejected: giving the version again to accounts whose keys an owner approved in the past (`outdated`). The active list comes from the integration's server; a server listing a removed member as active would undo the removal.
 
@@ -386,7 +387,7 @@ Status: Accepted.
 
 Problem: replacing compromised member keys needs an owner to verify the request out of band in every team, because the old keys can't vouch for their replacement: the attacker may hold them (SP-12). After a misused device, that's one human check per team.
 
-Decision: the recovery phrase also derives an Ed25519 **recovery signing key**. Its public key is in every `member-keys` record, so an owner's approval pins it with the keys. A re-key signed by the recovery key of the keys an account currently holds is **proven**: the phrase isn't stored anywhere, so a stolen device or session doesn't have it. `reconcile` approves proven re-keys of members automatically. An owner's re-key still needs another owner's (human) approval, so a leaked phrase can't silently change the owner list. Replacing the phrase re-keys every team with the new recovery key: proven when the user still has the old phrase, a human approval otherwise.
+Decision: the recovery phrase also derives an Ed25519 **recovery signing key**. Its public key is in every `member-keys` record, so an owner's approval pins it with the keys. A re-key signed by the recovery key of the keys an account currently holds is **proven**: the phrase isn't stored anywhere, so a stolen device or session doesn't have it. `reconcile` approves proven re-keys of members automatically. An owner's re-key still needs a human approval, or the owner's own `reconcile` holding those keys (D-47), so a leaked phrase can't silently change the owner list. Replacing the phrase re-keys every team with the new recovery key: proven when the user still has the old phrase, a human approval otherwise.
 
 Proofs are `recovery` or none: the continuity signature is gone (D-38).
 
@@ -562,3 +563,17 @@ Decision: a reader accepts a version record only if every roster entry matches a
 Rejected: checking only entries that changed since the client's anchor. Same safety for a smaller cost, but one more rule to implement, and the cost is already small.
 
 Consequence: a roster names only keys their account published, so the accounts SP-15 reports are the accounts the keys belong to, as long as the server honours rule 8. The client already fetches every `member-keys` record of the team (§6.1), so the check costs one hash per entry and no request. A server that loses or hides one `member-keys` record makes the team `unverified` for every member, where before only owners failed, at their next rotation: an availability loss like TH-28.
+
+## D-47: An owner's own reconcile approves its own re-key
+
+Status: Accepted.
+
+Problem: owners' re-keys were never approved automatically (D-33), so after `secureAccount` an owner waited for another owner, and in a single-owner team the spec named nobody who could approve. Until then, the owner key an attacker copied from a misused device stayed an owner key, able to admit members or remove the other owners (TH-17). Owners could already approve their own keys with `approve`, but only if the integration added that step.
+
+Decision: an owner's `reconcile` approves the **caller's own** re-key when its newest published keys are keys the session holds: one of the bundles the vault handed it, each already checked against its published record (§4.3). The rotation is signed with the caller's previous owner key and replaces it in the owner list (§6.8 step 3). Every other owner's re-key, proven or not, stays `owner-rekey` for a human.
+
+Rejected:
+- Approving owners' proven re-keys for anyone: a leaked phrase would become a silent change of the owner list (D-33).
+- Having `secureAccount` approve in each team itself: the vault would open owner sessions, which a split layout's vault can't do without the team's anchors.
+
+Consequence: the owner's next routine `reconcile`, on the device where it secured the account, closes the window, in a single-owner team too. Holding the private keys is the proof: the vault holds only bundles it made, so keys a session thief or a phrase thief publish under the account never qualify (TH-37, TH-41). A device thief who re-keys from the stolen vault gains nothing new: they could already approve with the owner key they held (TH-17). Automatic actions still never add an account or an owner.

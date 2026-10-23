@@ -16,6 +16,7 @@ import { commitTeam, type MemberBundle, type TeamPorts } from "./context.js";
 import { holdersOf, openOwnAccess, type Holder, type OwnAccess } from "./access.js";
 import { TeamOwner } from "./owner.js";
 import type { Signer } from "./rotation.js";
+import type { MemberKeys } from "../records/member-keys.js";
 
 /** What this account can do in the team (§9). */
 export type AccessState = "not-joined" | "pending" | "ready" | "unverified";
@@ -41,6 +42,8 @@ export interface SessionInternals {
   holdersOf(version: number): Promise<Holder[]>;
   /** The caller's owner keys for the current version. Throws `NOT_GRANTED`, `NOT_AN_OWNER`. */
   ownerSigner(): Signer;
+  /** The published keys of the bundles this session holds, each checked against its record (§4.3). */
+  ownKeys(): readonly MemberKeys[];
   /** Runs `run`; a `TRUST_FAILURE` makes the session `unverified` (§9). */
   guard<T>(run: () => Promise<T>): Promise<T>;
   markUnverified(error: ConvoyError): ConvoyError;
@@ -85,6 +88,7 @@ export class TeamSession {
       chainFrom: (v) => this.#chainFrom(v),
       holdersOf: (v) => this.#holdersOf(v),
       ownerSigner: () => this.#ownerSigner(),
+      ownKeys: () => this.#bundles.map((b) => b.published),
       guard: (run) => this.#guard(run),
       markUnverified: (error) => this.#markUnverified(error),
       reload: () => this.#load(),

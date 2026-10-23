@@ -1,7 +1,8 @@
 /**
  * SP-22: for any team snapshot, the reconcile plan gives the new version to no account outside
- * the rule: a current holder with the same keys, or a recovery-proven re-key of a non-owner. It
- * never removes an owner or the caller, and leaves every other pending account to a human.
+ * the rule: a current holder with the same keys, a recovery-proven re-key of a non-owner, or the
+ * caller's own re-key to keys its session holds (D-47). It never removes an owner or the caller,
+ * and leaves every other pending account to a human.
  */
 import { fc, test } from "@fast-check/vitest";
 import { describe, expect } from "vitest";
@@ -52,12 +53,17 @@ function account(accountId: string, c: Case): MemberKeys[] {
 }
 
 describe("SP-22: the reconcile plan never widens access outside its rule", () => {
-  test.prop([fc.array(caseArb, { minLength: 1, maxLength: 6 })], { numRuns: 60 })("for any snapshot", (cases) => {
+  const selfArb = fc.constantFrom<"none" | "held" | "foreign">("none", "held", "foreign");
+  test.prop([fc.array(caseArb, { minLength: 1, maxLength: 6 }), selfArb], { numRuns: 60 })("for any snapshot", (cases, selfRekey) => {
     const ids = cases.map((_, i) => `acct-${i}`);
     const self = "self";
     const keys = new Map<string, readonly MemberKeys[]>();
     const holders: Holder[] = [];
     const signer = { accountId: self, signingPublicKey: cc1.signingKeyPair(cc1.randomBytes(32)).publicKey };
+    // The caller holds the current version; "held" keys are in its session, "foreign" ones someone published.
+    const selfKeys = account(self, { holds: selfRekey !== "none", heldBefore: false, active: true, owner: true, newest: selfRekey === "none" ? "same" : "unproven" });
+    keys.set(self, selfKeys);
+    holders.push({ accountId: self, memberKeysVersion: 1, keysHash: keysHash(cc1, selfKeys[0]!), teamKeyVersion: VERSION, signer });
     cases.forEach((c, i) => {
       const id = ids[i]!;
       const list = account(id, c);
@@ -71,6 +77,7 @@ describe("SP-22: the reconcile plan never widens access outside its rule", () =>
       holders,
       keys,
       heldBefore: new Set(ids.filter((_, i) => cases[i]!.heldBefore && !cases[i]!.holds)),
+      selfHeld: new Set(selfRekey === "held" ? [1, 2] : [1]),
       active: new Set([self, ...ids.filter((_, i) => cases[i]!.active)]),
     };
     const plan = planReconcile(snapshot);
@@ -80,7 +87,10 @@ describe("SP-22: the reconcile plan never widens access outside its rule", () =>
       expect(c.holds && !c.active && !c.owner).toBe(true);
     }
     expect(plan.remove).not.toContain(self);
-    for (const { accountId } of plan.approveRekeys) {
+    // The caller's own re-key: approved exactly when its session holds the keys (D-47).
+    expect(plan.approveRekeys.some((h) => h.accountId === self)).toBe(selfRekey === "held");
+    if (selfRekey === "foreign") expect(plan.needsHuman).toContainEqual(expect.objectContaining({ accountId: self, reason: "owner-rekey" }));
+    for (const { accountId } of plan.approveRekeys.filter((h) => h.accountId !== self)) {
       const c = cases[ids.indexOf(accountId)]!;
       expect(c.holds && c.active && !c.owner && c.newest === "recovery").toBe(true);
     }

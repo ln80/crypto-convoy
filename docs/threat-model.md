@@ -333,7 +333,7 @@ Attack: publishes new member keys signed with the recovery key in every team of 
 
 Impact: the thief reads what the teams write next, and the real member is cut out until a human intervenes. The phrase also opens the account key, so the thief already read everything the account could (TH-11).
 
-Disposition: partly mitigated: owners' re-keys are never approved automatically, so the owner list can't change this way (SP-23), each approved re-key is reported (SP-15), and the cut-out member sees `pending` and the `foreign-member-keys` warning (D-43). Accepted: the race itself, which ends when an owner removes the account or approves one set of keys by hand, after the user has secured the account with a new phrase (D-45).
+Disposition: partly mitigated: owners' re-keys are approved automatically only by the owner's own `reconcile`, for keys its session holds, which a thief's published keys never are, so the owner list can't change this way (SP-23, D-47); each approved re-key is reported (SP-15), and the cut-out member sees `pending` and the `foreign-member-keys` warning (D-43). Accepted: the race itself, which ends when an owner removes the account or approves one set of keys by hand, after the user has secured the account with a new phrase (D-45).
 
 ### TH-44: Session thief spends the PIN budget
 

@@ -547,7 +547,7 @@ A PIN change takes the current PIN or the phrase (only the phrase when the curre
 **PIN.** With the `accountKey` open and a current credential checked, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12), or as a new wrap when the current version has none (D-40). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
 
 **Recovery phrase.** With a current credential checked, set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new `recoveryPublicKey`:
-- if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the current recovery key: proven, and approved by owners' `reconcile` unless the account is an owner of that team (SP-23);
+- if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the current recovery key: proven, and approved by owners' `reconcile` (SP-23); where the account is an owner, by its own `reconcile` (D-47);
 - with the current PIN instead, the re-keys carry no proof, and an owner approves each by hand.
 
 Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed; a failed team is retried with the re-key of §6.8.
@@ -595,7 +595,7 @@ For a device that may have been used while unlocked, a leaked PIN or a leaked ph
 3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase now current; after a new phrase, that proof doesn't match the keys the team holds, so an owner approves it by hand (D-45).
 4. Wipe the phrases and the keys derived from them; the vault forgets the new phrase it held.
 
-Each team's owners approve the new keys at their next `reconcile` (§6.9, SP-23), except where the account is an owner: another owner approves by hand. Until a team approves them, keys copied by the attacker still open what that team writes.
+Each team's owners approve the new keys at their next `reconcile` (§6.9, SP-23). Where the account is an owner, its own next `reconcile`, from this device, approves them (D-47), in a single-owner team too. Until a team approves them, keys copied by the attacker still open what that team writes.
 
 ---
 
@@ -675,7 +675,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with a `recoverySignature` if the user entered the recovery phrase. The member stays able to read with the old keys until the rotation.
 2. An owner approves the new keys by rotating the team key (§6.6), naming the `memberKeysVersion` reviewed. The library classifies the request:
-   - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23);
+   - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23): then only its own `reconcile` does, holding the keys (D-47);
    - **unproven**: anything else. The owner verifies out of band (AS-06, TH-37). The old keys can't vouch for the new ones, since an attacker may hold them (D-38).
 
    Whatever the class, the rotation is the approval: the new version is sealed to the new keys, and the old keys receive nothing (SP-12). The approval is pinned to the reviewed `memberKeysVersion`: keys published after the review, for example by someone holding the member's session (TH-37), are never approved by it, and for an owner never replace their signing key in the owner list.
@@ -703,11 +703,12 @@ Warnings, each naming the operation that clears it:
 
 1. **Remove:** accounts holding the current version that aren't in `activeAccountIds` are left out of a rotation, except owners: removing one is an owner change, left to a human (`inactive-owner`). The caller is always kept.
 2. **Approve proven re-keys:** active accounts holding the current version, not owners of it, whose newest keys are proven by their recovery key: the rotation approves those keys.
+   **Approve the caller's own re-key:** if the caller holds the current version and its newest published keys are keys of a bundle its session holds (D-47), the rotation approves them, signed with its previous owner key and replacing it in the owner list (§6.8 step 3). Another owner's re-key is `owner-rekey`.
 3. If step 1 or 2 found anything, run one rotation (§6.6) keeping every other holder and approving the keys of step 2.
 4. Return the report: the version rotated to, if any; the accounts removed and re-keys approved; and everything else needing a human, with its handle and reason (`awaiting-approval`, `outdated`, `rekey-unproven`, `owner-rekey`, `inactive-owner`).
 
 Rules (SP-22):
-- `reconcile` never gives a version to a first-time joiner, to an `outdated` account, to unproven keys, or to an owner's new keys, and never changes the owner list. **Automatic actions only reduce access**; widening it needs a proof the rules accept, or a human.
+- `reconcile` never gives a version to a first-time joiner, to an `outdated` account, to unproven keys, or to another owner's new keys, never adds or removes an owner, and replaces only the caller's own owner key, with keys its session holds (D-47). **Automatic actions only reduce access**; widening it needs a proof the rules accept, or a human.
 - On `STALE_VERSION` (another owner wrote first), it reloads the team (§6.1) and plans once more; a second conflict is returned to the caller.
 - `options.dryRun` returns the plan without writing; the report says whether it was a dry run.
 

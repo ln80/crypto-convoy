@@ -201,10 +201,20 @@ export class TeamOwner {
       for (const id of unresolved) if (inRoster(chain.records, id)) heldBefore.add(id);
     }
 
+    // Keys the caller holds: the same version and keys hash as the published record (§4.3, D-47).
+    const { suite } = core.ports;
+    const selfHeld = new Set(
+      core
+        .ownKeys()
+        .filter((own) => keys.get(core.accountId)?.some((k) => k.memberKeysVersion === own.memberKeysVersion && suite.equal(keysHash(suite, k), keysHash(suite, own))))
+        .map((own) => own.memberKeysVersion),
+    );
+
     return {
       version: current.version,
       owners: current.owners.map((o) => o.accountId),
       self: core.accountId,
+      selfHeld,
       holders,
       keys,
       heldBefore,

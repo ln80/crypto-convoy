@@ -129,7 +129,7 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 | Generation | Random, on the client, when the account joins the team or re-keys. |
 | Storage | Private half: in the member keys bundle, wrapped by the `accountKey`. Public half: in the member keys record, published. |
 | Access | That team's session. |
-| Rotation | On re-key after a suspected leak (SP-12). An owner must approve the new keys, pinned to the version they reviewed; owners' clients approve a re-key proven by the recovery key automatically, except for owners (SP-23). |
+| Rotation | On re-key after a suspected leak (SP-12). An owner must approve the new keys, pinned to the version they reviewed; owners' clients approve a re-key proven by the recovery key automatically, except for owners, whose own `reconcile` approves keys it holds (SP-23, D-47). |
 | Recovery | Through the `accountKey`. |
 | Destruction | The old bundle is deleted once the new keys are approved: at the next open or export of the team, the vault deletes it (protocol §6.8 step 4). |
 
@@ -320,7 +320,7 @@ A copy of the old wrap taken before the replacement, or restored from the archiv
 
 1. Open the `accountKey`, enter the current phrase or the current PIN (D-41), set up a new phrase as at account setup (two steps), and store its wrap in place of the old one (SP-09).
 2. Re-key every team (§6.8): the new member keys carry the new recovery public key.
-   - The user still has the old phrase: the re-keys are signed by the old recovery key, and owners' `reconcile` approves them (SP-23), except in teams where the account is an owner.
+   - The user still has the old phrase: the re-keys are signed by the old recovery key, and owners' `reconcile` approves them (SP-23); in teams where the account is an owner, its own `reconcile` does (D-47).
    - The old phrase is lost, and the user entered the PIN: the re-keys carry no proof, and an owner approves each by hand. If the old phrase may have leaked, secure the account with the new one next.
 
 If the phrase may have leaked and the user still has it, `secureAccount` with a new phrase does the replacement, the rotation and proven re-keys in one pass (D-45).
@@ -333,7 +333,7 @@ Two cases:
 - **Possibly used while unlocked.** Assume the attacker copied the `accountKey` and the member keys of every team the device opened. Revocation alone doesn't evict them, because every new team key version is still sealed to those member keys. The integration ends the account's other sign-in sessions first (D-43). From another device, the user runs `secureAccount` with the recovery phrase and a new PIN, or the phrase alone when the PIN budget is spent (D-40, TH-44). The stolen device can't take this remedy away first: it can't change the account's credentials (D-41).
   1. the account key is rotated (SP-11), which cuts every other device (D-10);
   2. every team is re-keyed, each re-key signed by the recovery key (SP-23);
-  3. each team's owners approve the new keys at their next `reconcile`, by rotating; an owner's own re-key waits for another owner.
+  3. each team's owners approve the new keys at their next `reconcile`, by rotating; where the user is an owner, their own next `reconcile` on this device approves them (D-47).
 
   After that, the copied keys open nothing written afterwards. A team that failed to re-key is reported and retried.
 
