@@ -47,9 +47,9 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | `create` | No live record under that key (write-once, rule 3) |
 | `create` of `team-key-version` | Version = current + 1 (§11). Accept records up to 384 KiB: the roster of a team of up to 1,000 members (D-34); DynamoDB's 400 KB item limit fits |
 | `create` of `member-keys` | The caller is the record's account, and `memberKeysVersion` is that account's newest for the team plus 1, or 1 (rule 8, D-43) |
-| `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6) |
+| `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6). Enforce it, and write-once, in the server itself: they are the only barrier against a former member who kept an old team key (TH-50) |
 | `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4); archive the previous revision (rule 7, D-42) |
-| `replace` (`account-key-wrap` only) | A live record exists under the key; archive it, then store the new one as live (D-39) |
+| `replace` (`account-key-wrap`, `member-keys-wrap`) | A live record exists under the key; archive it, then store the new one as live (D-39, D-52) |
 | `delete` | Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
 | `set-account-key-version` | The current version equals `expected`; then stop serving every record of the old version, keeping it archived (rule 7, D-42) |
 

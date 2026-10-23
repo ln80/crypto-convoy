@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 007 (`design`, D-52), after 006 (`adversarial`, fresh-context reviewer, high findings). Open findings medium or above: 006-A, 006-E.
+**Now:** 0 of 2. Last review: 007 (`design`, D-52), after 006 (`adversarial`, fresh-context reviewer, high findings). Open findings medium or above: 006-E.
 
 ## Findings
 
@@ -39,7 +39,7 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 005-A | Forgeable input, combined attack | Medium | Fixed | D-51 (plan 011); incomplete, see 006-B, 006-C |
 | 005-B | Stale text | Low | Fixed | Guides, §3.8 (edit, plan 011) |
 | 005-C | Stale text | Low | Fixed | Course (maintain-course) |
-| 006-A | Combined attack | Medium | Open | — |
+| 006-A | Combined attack | Medium | Accepted | TH-50, SP-03 Limit |
 | 006-B | Forgeable input, combined attack | High | Fixed | D-52 (plan 012) |
 | 006-C | Forgeable input, wrong claim | High | Fixed | D-52 (plan 012) |
 | 006-D | Overclaim | Low | Fixed | §7.3, TH-23 (edit, plan 012) |
@@ -78,6 +78,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-47 | A11 | Bait keys keep a member's keys unapprovable while the thief keeps the session | Only the newest keys are approved | — |
 | TH-48 | A8, A7, A2 | A support restore brings back what an attacker can open | Restores are the integration's to authenticate | — |
 | TH-49 | A2, A9 | A forged transfer opens a forged team in a receiving context | The two contexts share no secret; the channel is the integration's (D-29) | A shared secret between contexts |
+| TH-50 | A4 or A5 with A2 | A holder of an older team key version and the server rewrite or add items | Readers can't order writes; the server's write-once rule is the barrier | D-09 with key transparency or an owner-signed item index |
 | TH-46 | A9, A7 (`teamStateKey`) | A readable `team-state` with a forged anchor stops the account's devices (`state_conflict`, `rollback`) until support restores | Overwriting it would discard evidence of a split view (D-52) | — |
 | TH-20 | A9, A7 (account key) | A planted floor on keys whose device never opened the team stays until a device that did runs `secureAccount` | The floor is the vault's; a leaked account key can write it (D-52) | — |
 

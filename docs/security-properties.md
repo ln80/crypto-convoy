@@ -119,13 +119,15 @@ Related threats: TH-21, TH-22.
 
 Property: every ciphertext uses authenticated encryption bound to its context. Key records bind their team, item (or inbox and submission) and key version. Each part binds its index and is encrypted under its own item's (or submission's) random key; the key record lists every part's index, size and ciphertext hash (D-16, D-26). So a part can't be swapped, dropped, added, reordered or moved to another item without opening failing, and a key record moved to another id fails to open. Changing any byte makes decryption fail.
 
+Limit: this holds against the server alone. Anyone who holds a team key version, including a member removed since, can build a new key record for any item id at that version, and with the server's help it opens for every member like the real one: only the server's write-once and current-version rules keep it out (TH-50, §11).
+
 Assumptions: AS-01. Nonces are never reused under the same key.
 
 Verification:
-- `test/security/ciphertext-tampering.test.ts`: flip bits, truncate, and swap ciphertexts across parts, items, inboxes, teams and versions; drop, add and reorder parts.
+- `test/security/ciphertext-tampering.test.ts`: flip bits, truncate, and swap ciphertexts across parts, items, inboxes, teams and versions; drop, add and reorder parts. Limit: a removed member's record at a version he held opens, served in place of an item or as a new one.
 - `test/vectors/item.v1.json`.
 
-Related threats: TH-06, TH-29.
+Related threats: TH-06, TH-29, TH-50.
 
 ### SP-04: Team keys go only to owner-approved member keys
 

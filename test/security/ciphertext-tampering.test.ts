@@ -1,12 +1,14 @@
 /**
  * SP-03: Encrypted data can't be modified or moved undetected.
- * Threats: TH-06, TH-29.
+ * Threats: TH-06, TH-29, TH-50.
  */
 import { describe, expect, it } from "vitest";
 import { streamEncrypt } from "../../src/blocks/stream.js";
 import { u32 } from "../../src/encoding/canonical.js";
 import { decodeLinkKey } from "../../src/encoding/link.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
+import { createItem, itemToJson } from "../../src/records/item.js";
+import { sessionInternals } from "../../src/team/session.js";
 import { ContentStore, addParts, read } from "../support/content-store.js";
 import { outsider } from "../support/link-client.js";
 import { team } from "../support/teams.js";
@@ -106,5 +108,23 @@ describe("SP-03: tampered or moved content fails to open", () => {
     draft.addPart(new Uint8Array([1]));
     await draft.seal("item-3");
     expect(() => draft.addPart(new Uint8Array([2]))).toThrow(/sealed/);
+  });
+});
+
+describe("SP-03 Limit (TH-50): a key holder with the server rewrites or adds items", () => {
+  it("a removed member's record at a version he held opens for the team, in place of the real one or as a new item", async () => {
+    const { members, aliceTeam } = await team("bob", "carol");
+    const bob = members.bob!;
+    await addParts(aliceTeam.beginItem(), new ContentStore(), "plan", ["the real plan"]).seal("plan");
+    const held = await sessionInternals(await bob.vault.openTeam("team-1")).teamKey(2);
+    await aliceTeam.owner().remove(["bob"]);
+    const carol = await members.carol!.vault.openTeam("team-1");
+    const text = new TextEncoder();
+    for (const itemId of ["plan", "new"]) {
+      const forged = createItem(cc1, { teamId: "team-1", itemId, teamKeyVersion: 2, createdBy: "alice", createdAt: 1 }, held, [{ content: text.encode("forged") }]);
+      // Only the server's write-once and current-version rules keep it out (§11).
+      members.carol!.store.replace(itemKey(itemId), itemToJson(forged.record));
+      expect(read(await (await carol.openItem(itemId)).part(0, forged.parts[0]!))).toBe("forged");
+    }
   });
 });
