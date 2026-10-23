@@ -5,6 +5,7 @@
 1. **Spec.** If the change alters behaviour, formats or guarantees, update `docs/` first ([protocol-change](../workflows/protocol-change.md)). Never implement what the protocol doesn't specify.
 2. **Plan.** Break the work into small steps, each with its tests. Once approved, copy the plan to `.agents/plans/NNN-name.plan.md` (next free number).
 3. **Execution.** One commit per step. Append execution notes to the plan (what changed, deviations, follow-ups).
+4. **Review.** A [protocol review](../workflows/protocol-review.md): `design` before a protocol plan is approved, `change` after it; `adversarial`, `complexity` and `residuals` every few plans, as the [ledger](../reviews/ledger.md) shows.
 
 ## Before each commit
 

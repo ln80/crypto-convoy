@@ -16,9 +16,10 @@ The specs lead; code follows. Guide: [spec-docs](../guides/spec-docs.md).
    - new labels go in the §1 table; new errors and reasons in §9; new records in the §4 catalogue and §11.
 6. **Vectors:** list new vector files in §13.
 7. **Check:** `npm run check:spec` passes.
-8. **Then implement** ([implement-from-spec](implement-from-spec.md)): readers in one release, writers in the next.
+8. **Design review:** a [protocol review](protocol-review.md) in `design` mode of the decision, before the plan is approved; the plan cites it.
+9. **Then implement** ([implement-from-spec](implement-from-spec.md)): readers in one release, writers in the next.
 
 ## Done when
 
 - Decisions, threats, properties, hierarchy and protocol agree, `check:spec` passes, and released formats are untouched.
-- After a plan that changes `docs/`, a [spec review](spec-review.md) finds nothing new, or its findings are recorded.
+- After a plan that changes `docs/`, a [protocol review](protocol-review.md) in `change` mode finds nothing new, or its findings are recorded in the ledger.

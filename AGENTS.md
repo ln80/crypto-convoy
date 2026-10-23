@@ -35,8 +35,8 @@ Never implement behaviour the protocol doesn't specify. If the spec is missing o
 ## Guides and workflows
 
 - Guides: [architecture](.agents/guides/architecture.md) · [crypto rules](.agents/guides/crypto-rules.md) · [testing](.agents/guides/testing.md) · [editing specs](.agents/guides/spec-docs.md) · [workflow](.agents/guides/workflow.md)
-- Workflows: [implement from spec](.agents/workflows/implement-from-spec.md) · [add an algorithm suite](.agents/workflows/add-algorithm-suite.md) · [security property tests](.agents/workflows/security-property-tests.md) · [protocol change](.agents/workflows/protocol-change.md) · [capture a learning note](.agents/workflows/capture-learning.md) · [maintain the protocol course](.agents/workflows/maintain-course.md) · [spec review](.agents/workflows/spec-review.md)
-- Plans: `.agents/plans/NNN-name.plan.md` · Reviews: `.agents/reviews/NNN-name.md`
+- Workflows: [implement from spec](.agents/workflows/implement-from-spec.md) · [add an algorithm suite](.agents/workflows/add-algorithm-suite.md) · [security property tests](.agents/workflows/security-property-tests.md) · [protocol change](.agents/workflows/protocol-change.md) · [capture a learning note](.agents/workflows/capture-learning.md) · [maintain the protocol course](.agents/workflows/maintain-course.md) · [protocol review](.agents/workflows/protocol-review.md)
+- Plans: `.agents/plans/NNN-name.plan.md` · Reviews: `.agents/reviews/NNN-name.md`, with the [ledger](.agents/reviews/ledger.md) of findings and accepted risks, and the [forgeability table](.agents/reviews/forgeability.md)
 
 ## Commands
 
