@@ -636,7 +636,7 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 ### 6.4 Inviting and joining a team
 
 1. **Invite (owner).** Put the team's anchor (`team.inviteAnchor()`, §3.5) in the invite link, for the integration to deliver.
-2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5), fetches the chain from version 1 and verifies it with that anchor (§4.5, §6.1 step 2), else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. It then creates the member's keys for the team (§5.9) with the anchor as their floor (D-48), so every device of the member, in any context, starts from it: a server can't present a forged team. Without an anchor, the keys have no floor, and the first open is a first contact (TH-04).
+2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5), fetches the chain from the anchor's version and verifies it with that anchor (§4.5, §6.1 step 2), else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. It then creates the member's keys for the team (§5.9) with the anchor as their floor (D-48), so every device of the member, in any context, starts from it: a server can't present a forged team. Without an anchor, the keys have no floor, and the first open is a first contact (TH-04).
 3. The member is `pending` until an owner approves their keys (§6.5).
 
 ### 6.5 Approving members (owner)
