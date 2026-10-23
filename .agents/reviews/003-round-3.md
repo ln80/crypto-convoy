@@ -111,10 +111,10 @@ Each finding was first reproduced with a throwaway test against the code: B (the
 
 - **A: anchor floor in the member keys bundle** (to plan). Set at team creation (version 1) and at join (the invite anchor, which moves from `openTeam` to `joinTeam`), carried forward by re-keys and account rotations, and carried in transfers; §6.1 counts it as an anchor. Layouts of `member-keys-wrap` and of transfer bundles change (unreleased).
 - **C: done (D-46).** §4.5 check 4 covers every roster entry; SP-15, TH-17; `verifyChain`; `team-key.v1.json` regenerated with two cases (seals are randomised, so every sealed entry and hash changed; no other vector depends on them); test in `change-visibility.test.ts`. The test and the vector case fail with the check weakened.
+- **E: `reconcile` self-approval** (to plan or apply). The calling owner's `reconcile` approves its own re-key when the session holds those keys' private half (newest published keys equal one of its bundles); anything else stays `owner-rekey` for a human. Validated first: self-approval already works through `approve`, signed with the previous owner key, in a single-owner team too. Spec: SP-22 exception, §6.9 step 2, D-31 and D-33 notes, §5.11, key hierarchy "Losing a device".
 
 ## Need a decision
 
-- E: document owner self-approval, or have `secureAccount` do it.
 - I: confirm with a test, then fix.
 - J: proven retries after a phrase replacement.
 
