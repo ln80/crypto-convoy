@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 010 (`design`, plan 015), after 009 (`adversarial`, high findings). Open findings medium or above: 009-B, 009-C, 010-A to 010-G.
+**Now:** 0 of 2. Last review: 010 (`design`, plan 015), after 009 (`adversarial`, high findings). Open findings medium or above: none. Next: a fresh `adversarial` review.
 
 ## Findings
 
@@ -57,19 +57,19 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 008-E | Spec choice | Low | Fixed | cc1 in place (plan 013) |
 | 008-F | Missing threat | Low | Fixed | TH-51, AS-05 (plan 013) |
 | 009-A | Forgeable input, spec → code | High | Fixed | Owner snapshot pins held keys (plan 014) |
-| 009-B | Combined attack, wrong premise | High | Open | — |
-| 009-C | Combined attack | Medium | Open | — |
+| 009-B | Combined attack, wrong premise | High | Fixed | D-54 (plan 015) |
+| 009-C | Combined attack | Medium | Accepted | SP-11, SP-19, TH-12 limits; D-54 mitigations (plan 015) |
 | 009-D | Hardening | Low | Fixed | `pin-upgrade-failed` (plan 014) |
 | 009-E | Missing threat | Low | Fixed | TH-50, integration guide (plan 014) |
 | 009-F | Hardening | Low | Accepted | TH-46 |
-| 010-A | Forgeable input | High | Open | — |
-| 010-B | Forgeable input | High | Open | — |
-| 010-C | Wrong claim, combined attack | Medium | Open | — |
-| 010-D | Forgeable input | Medium | Open | — |
-| 010-E | Forgeable input | Medium | Open | — |
-| 010-F | Forgeable input | Medium | Open | — |
-| 010-G | Residual | Medium | Open | — |
-| 010-H | Hardening | Low | Open | — |
+| 010-A | Forgeable input | High | Fixed | D-54 (plan 015) |
+| 010-B | Forgeable input | High | Fixed | D-54: re-key fails, reported (plan 015) |
+| 010-C | Wrong claim, combined attack | Medium | Accepted | Limits corrected (plan 015) |
+| 010-D | Forgeable input | Medium | Fixed | D-54 roots agree (plan 015) |
+| 010-E | Forgeable input | Medium | Fixed | D-54 (plan 015) |
+| 010-F | Forgeable input | Medium | Fixed | Export refuses (plan 015) |
+| 010-G | Residual | Medium | Accepted | Owner's anchor repair (plan 015) |
+| 010-H | Hardening | Low | Fixed | §5.5 (plan 015) |
 
 ## Residuals
 
@@ -99,8 +99,9 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-48 | A8, A7, A2 | A support restore brings back what an attacker can open | Restores are the integration's to authenticate | — |
 | TH-49 | A2, A9 | A forged transfer opens a forged team in a receiving context | The two contexts share no secret; the channel is the integration's (D-29) | A shared secret between contexts |
 | TH-50 | A4 or A5 with A2 | A holder of an older team key version and the server rewrite or add items | Readers can't order writes; the server's write-once rule is the barrier | D-09 with key transparency or an owner-signed item index |
+| TH-12, SP-19 | A2 or a support restore, with the old account key | A retired account key version, served to a stateless or stale device or restored, opens with unchanged credentials; keys made there are the attacker's | No client rule tells a retired version from the current one without state (D-54) | Key transparency for account versions |
 | TH-09, TH-51 | A2, A10 | One POPRF key per key id serves every account: a repeated proof nonce or one exported tweaked key reveals it; queries concentrate on it | Per-account public keys can't be pinned in client code (D-53) | Key ids rotated, or a cap per key id, in the integration |
 | TH-46 | A9, A7 (`teamStateKey`) | A readable `team-state` with a forged anchor stops the account's devices (`state_conflict`, `rollback`) until support restores | Overwriting it would discard evidence of a split view (D-52) | — |
-| TH-20 | A9, A7 (account key) | A planted floor on keys whose device never opened the team stays until a device that did runs `secureAccount` | The floor is the vault's; a leaked account key can write it (D-52) | — |
+| TH-20 | A9, A7 (account key), A2 | A planted floor on a device whose vault never verified the team, with a server serving a matching forged chain, is trusted until an owner's anchor is given | The vault has no other root there (D-54) | Owner fingerprints (D-11) |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.

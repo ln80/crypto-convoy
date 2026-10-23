@@ -66,3 +66,5 @@ Mode: `design`, with a fresh-context reviewer. Input: the proposal for review 00
 - **H:** the §5.5 remedy points to `secureAccount`.
 
 Plan 015 (D-54).
+
+All done in plan 015: A, B, D, E, F, H fixed; C and G accepted with the mitigations above.

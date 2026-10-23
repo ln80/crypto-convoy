@@ -24,3 +24,15 @@ Review 010 (`.agents/reviews/010-design-plan-015.md`, design mode, fresh-context
 3. **Notes:** execution notes, reviews and ledger.
 
 ## Execution notes
+
+- **Port:** `DeviceKeyStore` gains `getVaultAnchor`, `setVaultAnchor`, `deleteVaultAnchor`; `MemoryLocalKeyStore` and the IndexedDB adapter implement them, the browser one under the new label `local-vault-anchor` (§1, §3.7). `VaultOptions.anchors` stays optional: the vault's anchor lives in its own half.
+- **Roots, as built:** `loadChain` and `TeamSession.open` take extra roots; `openSession`, `exportBundles` and `currentOwners` pass the vault's anchor. `recordVaultAnchor` never moves it down, except when an owner's anchor rooted the chain (it then replaces a forged higher one). Export no longer catches `TRUST_FAILURE`.
+- **Re-key, as built:** `rekeyTeam(..., ownerAnchor?)` verifies from `[floor, vault anchor]`, or the owner's anchor alone, and throws on failure; `verifiedFloor` and its fallback are gone, and so is `fromLocal`: `rekey`, `secureAccount` and `confirmRecoveryPhrase` share the rule. `rekeyTeams` takes owners' anchors by team.
+- **Rotation** unchanged: it keeps each bundle's floor; a planted floor stays in the re-wrapped old bundle of a team that `secureAccount` reports failed, until the owner's-anchor repair.
+- **C, as built:** `#refuseCurrentPin` opens the current PIN wrap with the new PIN before anything is written (skipped when the budget is spent); `foreign-member-keys` now says `secureAccount`; the limits of SP-11, SP-19, TH-05 and TH-12 and the guides say what remains.
+- **Tests:** `account-rotation.test.ts`: a failed chain writes nothing; a planted floor fails `secureAccount` and an owner's anchor repairs it; the same with the server serving a forged chain matching the planted floor; the split layout (export refuses, `secureAccount` fails); a vault with no anchor (fails with an honest server; the owner's anchor repairs, replacing a forged vault anchor); a `secureAccount` PIN equal to the current one refused. Earlier tests now use a different PIN. `member-rekey.test.ts`: the warning's action. `indexeddb-local-key-store.test.ts`: the vault anchor's own label.
+- **Guards:** removing the vault anchor from the roots, adding the floor to an owner's anchor, catching export's failure, not recording the vault anchor, dropping the PIN check, and not forcing the owner's reset each fail a test (bash arrays for the file list this time).
+- **Checks:** `typecheck`, `npm test` (731), `test:browser` (10), `check:spec`, `build`, `test:package` pass.
+- **Integration (doconvoy e2eev2):** a `DeviceKeyStore` written by the integration needs the three vault-anchor methods; `secureAccount` may now report teams `failed` on their roots, repaired with `rekey(teamId, { phrase, anchor })` from an owner's `inviteAnchor()`; offer a new phrase and a different PIN; reset other devices afterwards.
+- **Left:** the local course (D-52 to D-54).
+

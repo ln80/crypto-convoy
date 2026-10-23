@@ -78,5 +78,6 @@ Updated: `member-keys` (the held version's record, as served to `reconcile` and 
 ## Decided
 
 - **A, D, E: done (plan 014).** The held keys are pinned by the roster's keys hash in the owner's snapshot (`key_mismatch` otherwise); a failed PIN upgrade is reported (`pin-upgrade-failed`) and not retried by the vault; TH-50 covers inboxes, and inbox links are built only at creation.
-- **B:** the vault keeps its own anchor in every layout (user). **C:** `secureAccount` always replaces the phrase (user). Both in plan 015, after a design review.
+- **B: done (plan 015, D-54),** after design review 010: floors only where the floor and the vault's own anchor agree, export refuses otherwise, an owner's anchor repairs.
+- **C: accepted with mitigations (plan 015, D-54),** after design review 010 showed a required phrase closes one path of several: the limits corrected, a new phrase recommended, a PIN equal to the current one refused, other devices reset, `foreign-member-keys` advising `secureAccount`.
 - **F:** accepted under TH-46.
