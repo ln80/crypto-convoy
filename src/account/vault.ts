@@ -350,7 +350,8 @@ export class Vault {
       this.#account = account;
       // The new keys carry the new version's recovery key; the proof is by the current one (D-45).
       const next = input.newPhrase !== undefined ? await currentRecoveryKey(this.#ports, account) : recoveryPublicKey;
-      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), next!, signer);
+      // From this device's anchors: a floor planted with the stolen account key isn't carried (§5.11, D-52).
+      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), next!, signer, true);
     } finally {
       this.#ports.suite.wipe(signer.secretKey);
     }

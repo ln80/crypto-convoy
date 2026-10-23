@@ -5,7 +5,7 @@ import { ConvoyError, RateLimitedError, StoreConflictError, malformed } from "./
 export type RecordKey =
   | AccountKeyWrapKey
   | { type: "member-keys"; teamId: string; accountId: string; memberKeysVersion: number }
-  | { type: "member-keys-wrap"; accountId: string; teamId: string; memberKeysVersion: number; accountKeyVersion: number }
+  | MemberKeysWrapKey
   | TeamStateKey
   | { type: "team-key-version"; teamId: string; version: number }
   | { type: "item"; teamId: string; itemId: string }
@@ -18,6 +18,7 @@ export type AccountKeyWrapKey = {
   method: "pin" | "recovery" | "device";
   deviceId?: string;
 };
+export type MemberKeysWrapKey = { type: "member-keys-wrap"; accountId: string; teamId: string; memberKeysVersion: number; accountKeyVersion: number };
 export type TeamStateKey = { type: "team-state"; accountId: string; teamId: string };
 
 /** What `RecordStore.list` can be asked; results come in identity order (versions ascending). */
@@ -35,8 +36,8 @@ export type WriteOp =
   | { op: "create"; key: RecordKey; record: WireRecord }
   /** `expectedRevision` is `null` when the record must not exist yet. */
   | { op: "compare-and-set"; key: TeamStateKey; expectedRevision: number | null; record: WireRecord }
-  /** Archives the live wrap under `key` and stores `record` in its place (D-39). */
-  | { op: "replace"; key: AccountKeyWrapKey; record: WireRecord }
+  /** Archives the live wrap under `key` and stores `record` in its place (D-39); a member keys wrap when its floor moves (D-52). */
+  | { op: "replace"; key: AccountKeyWrapKey | MemberKeysWrapKey; record: WireRecord }
   /** Archives the live record: no longer served, kept for the restore window. */
   | { op: "delete"; key: RecordKey }
   /** Switches an account's current account key version; `expected` is `null` at setup. */

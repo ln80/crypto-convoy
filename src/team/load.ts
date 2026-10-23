@@ -23,22 +23,26 @@ export async function loadChain(
 ): Promise<{ chain: VerifiedChain; server: ServerState | null }> {
   const server = await readServerState(ports, accountId, teamId, bundles);
   const local = ports.anchors ? await callPort(() => ports.anchors!.getAnchor(accountId, teamId)) : null;
-  const anchors = [local, server?.anchor].filter((a): a is Anchor => a !== null && a !== undefined);
-  // The newest bundle's floor, unless below every other anchor: it never adds a download, and no older team-state wins (D-50).
+  // The roots: the floor, which only the vault writes from a verified chain, and this device's anchor.
+  // The team-state, which others can write, counts only on their chain; it is a root only for keys with no floor (D-52).
   const floor = bundles[0]?.floor;
-  if (floor && (anchors.length === 0 || anchors.some((a) => a.version <= floor.version))) anchors.push(floor);
-  return { chain: await verifiedChain(ports, teamId, anchors), server };
+  const roots = [floor, local, floor ? undefined : server?.anchor].filter((a): a is Anchor => a !== null && a !== undefined);
+  const state = floor ? server?.anchor : undefined;
+  return { chain: await verifiedChain(ports, teamId, roots, state), server };
 }
 
-/** The chain from the lowest of `anchors` (version 1 with none), verified to contain them all (§6.1 step 2). Throws `TRUST_FAILURE`. */
-export async function verifiedChain(ports: ChainPorts, teamId: string, anchors: readonly Anchor[]): Promise<VerifiedChain> {
+/**
+ * The chain from the lowest of `anchors` (version 1 with none), verified to contain them all, and
+ * `state` if it lies on it (§6.1 step 2). Throws `TRUST_FAILURE`.
+ */
+export async function verifiedChain(ports: ChainPorts, teamId: string, anchors: readonly Anchor[], state?: Anchor): Promise<VerifiedChain> {
   // From the lowest anchor: what lies below it is pinned by hash and fetched only when needed (§6.1 step 2).
   const fromVersion = anchors.length > 0 ? Math.min(...anchors.map((a) => a.version)) : 1;
   const records = await fetchVersions(ports, teamId, fromVersion);
   const memberKeys = (await callPort(() => ports.store.list({ type: "member-keys", teamId }))).map((json) =>
     parseMemberKeys(json, { teamId, accountId: (json as { accountId: string }).accountId }),
   );
-  return verifyChain({ records, anchors, memberKeys });
+  return verifyChain({ records, anchors, memberKeys, ...(state ? { state } : {}) });
 }
 
 async function fetchVersions(ports: ChainPorts, teamId: string, fromVersion: number) {

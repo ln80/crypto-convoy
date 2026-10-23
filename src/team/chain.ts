@@ -44,15 +44,17 @@ export function isOwner(record: TeamKeyVersion, signer: SignerRef): boolean {
 
 /**
  * `records` is the chain as served, from version 1 or from an anchored version, to the newest.
- * Nothing in it is adopted unless every check passes, anchors included (SP-05, SP-07).
+ * Nothing in it is adopted unless every check passes, anchors included (SP-05, SP-07). `state`,
+ * the `team-state` anchor, counts only on the chain the anchors verified (§6.1 step 2, D-52).
  * Throws `TRUST_FAILURE`.
  */
 export function verifyChain(input: {
   records: readonly TeamKeyVersion[];
   anchors: readonly Anchor[];
   memberKeys: readonly MemberKeys[];
+  state?: Anchor;
 }): VerifiedChain {
-  const { records, anchors, memberKeys } = input;
+  const { records, anchors, memberKeys, state } = input;
   if (records.length === 0) throw trustFailure("rollback");
   // Above version 1, the first record is trusted only through an anchor (§6.1 step 2).
   const first = records[0]!;
@@ -97,7 +99,15 @@ export function verifyChain(input: {
     if (!records[0]!.suite.equal(hashes.get(anchor.version)!, anchor.hash)) throw trustFailure("chain_conflict");
   }
 
-  const highestAnchor = anchors.length > 0 ? Math.max(...anchors.map((a) => a.version)) : 0;
+  // Below the chain it isn't followed; on it, it must match; above it, the chain was cut.
+  const followed = [...anchors];
+  if (state && state.version >= first.version) {
+    if (state.version > newest) throw trustFailure("rollback");
+    if (!records[0]!.suite.equal(hashes.get(state.version)!, state.hash)) throw trustFailure("state_conflict");
+    followed.push(state);
+  }
+
+  const highestAnchor = followed.length > 0 ? Math.max(...followed.map((a) => a.version)) : 0;
   const ownerChanges: OwnerChange[] = [];
   const memberChanges: MemberChange[] = [];
   records.forEach((record, i) => {

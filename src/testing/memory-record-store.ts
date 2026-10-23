@@ -209,7 +209,7 @@ export class MemoryRecordStore {
         }
         case "replace": {
           ownOnly(op.key);
-          if (op.key.type !== "account-key-wrap") throw new Forbidden("only wraps are replaced");
+          if (op.key.type !== "account-key-wrap" && op.key.type !== "member-keys-wrap") throw new Forbidden("only wraps are replaced");
           checkIdentity(op.key, op.record);
           const id = keyString(op.key);
           if (!live.has(id)) throw conflict("nothing to replace");

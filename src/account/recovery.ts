@@ -1,7 +1,7 @@
 // The recovery phrase as the account's root: setting it up, proving re-keys, securing the account (§5.6, §5.10, §5.11).
 import type { Anchor } from "../encoding/link.js";
 import { ConvoyError, isConvoyError } from "../errors.js";
-import { readServerState } from "../team/anchors.js";
+import { verifiedChain } from "../team/load.js";
 import type { MemberBundle } from "../team/context.js";
 import { callPort } from "../ports.js";
 import { openRecoveryPublicKey } from "../records/account-key-wrap.js";
@@ -54,8 +54,9 @@ export async function accountTeams(ports: AccountPorts, account: OpenAccount): P
 }
 
 /**
- * New member keys in one team (§6.8), with a recovery signature when `signer` is given, and the
- * newest trusted anchor as floor (D-50). Throws `NOT_GRANTED` without keys for the team.
+ * New member keys in one team (§6.8), with a recovery signature when `signer` is given, and a
+ * floor verified from the current one, or from this device's anchor with `fromLocal` (§5.11,
+ * D-52). Throws `NOT_GRANTED` without keys for the team.
  */
 export async function rekeyTeam(
   ports: AccountPorts,
@@ -63,49 +64,52 @@ export async function rekeyTeam(
   teamId: string,
   recoveryPublicKey: Uint8Array,
   signer?: KeyPair,
+  fromLocal = false,
 ): Promise<void> {
   const bundles = await openBundles(ports, account, teamId);
   const [newest] = bundles;
   if (!newest) throw new ConvoyError("NOT_GRANTED");
-  const floor = await newestTrustedAnchor(ports, account, teamId, bundles);
+  const local = fromLocal && ports.anchors ? await callPort(() => ports.anchors!.getAnchor(account.accountId, teamId)) : null;
+  const floor = await verifiedFloor(ports, teamId, newest.floor, local ?? newest.floor);
   const options = { recoveryPublicKey, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}), ...(floor ? { floor } : {}) };
   await commit(ports, newMemberKeys(ports, account, teamId, await nextMemberKeysVersion(ports, account, teamId), options).ops);
 }
 
 /**
- * The floor for new or re-wrapped keys: the highest of the bundles' floors and the `team-state`
- * anchor (§5.9, D-50). Never the local anchor, which a script or a thief on the device can change
- * (D-51). A garbage `team-state` is skipped, so it never blocks a re-key (TH-46).
+ * The newest version of the chain verified from `root`; `current` when it doesn't verify, so a
+ * chain problem never blocks a re-key (§5.9, D-52).
  */
-export async function newestTrustedAnchor(
+export async function verifiedFloor(
   ports: AccountPorts,
-  account: OpenAccount,
   teamId: string,
-  bundles: readonly MemberBundle[],
+  current: Anchor | undefined,
+  root: Anchor | undefined,
 ): Promise<Anchor | undefined> {
-  let server: Anchor | undefined;
+  if (!root) return current;
   try {
-    server = (await readServerState(ports, account.accountId, teamId, bundles))?.anchor;
+    const chain = await verifiedChain(ports, teamId, [root]);
+    const tip = chain.records.at(-1)!;
+    return { version: tip.version, hash: chain.hashes.get(tip.version)! };
   } catch (error) {
     if (!isConvoyError(error, "TRUST_FAILURE")) throw error;
+    return current;
   }
-  const anchors = [...bundles.map((b) => b.floor), server].filter((a): a is Anchor => a !== undefined);
-  return anchors.reduce<Anchor | undefined>((best, a) => (!best || a.version > best.version ? a : best), undefined);
 }
 
-/** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11). */
+/** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11); `fromLocal` for `secureAccount` (D-52). */
 export async function rekeyTeams(
   ports: AccountPorts,
   account: OpenAccount,
   teamIds: readonly string[],
   recoveryPublicKey: Uint8Array,
   signer?: KeyPair,
+  fromLocal = false,
 ): Promise<RekeyReport> {
   const rekeyed: string[] = [];
   const failed: string[] = [];
   for (const teamId of teamIds) {
     try {
-      await rekeyTeam(ports, account, teamId, recoveryPublicKey, signer);
+      await rekeyTeam(ports, account, teamId, recoveryPublicKey, signer, fromLocal);
       rekeyed.push(teamId);
     } catch {
       // Reported by id only: the error may concern any record of that team (§9).

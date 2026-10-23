@@ -10,7 +10,8 @@ import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { openBundles } from "../../src/account/member-custody.js";
 import { vaultInternals, type Vault } from "../../src/account/vault.js";
 import { StoreConflictError } from "../../src/errors.js";
-import { parseTeamKeyVersion, recordHash } from "../../src/records/team-key-version.js";
+import { createTeamKeyVersion, parseTeamKeyVersion, recordHash, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
+import { keysHash } from "../../src/records/member-keys.js";
 import { createTeamState, teamStateToJson } from "../../src/records/team-state.js";
 import type { TamperingStore } from "../support/fake-store.js";
 import { bundleOf, forgeFirstVersion, forgeVersion, versionRecord } from "../support/forge.js";
@@ -162,7 +163,7 @@ describe("SP-07: a client never goes back", () => {
       expect((await fresh.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
     });
 
-    it("in a receiving context too (§3.8): the transfer carries the floor", async () => {
+    it("in a receiving context too (§3.8): the transfer carries the floor, moved to the tip at the export (D-52)", async () => {
       const { w } = await team("bob");
       const fresh = await w.device("alice");
       await fresh.vault.unlockWithPin("1234");
@@ -171,7 +172,7 @@ describe("SP-07: a client never goes back", () => {
       fresh.store.drop(stateOf("alice"));
       await forgedTeam(w, fresh, "alice");
       const page = { store: fresh.store, anchors: new MemoryLocalKeyStore(), clock: w.clock };
-      expect((await receiver.openTeam(page, transfer)).failure).toEqual(trust("chain_conflict"));
+      expect((await receiver.openTeam(page, transfer)).failure).toEqual(trust("rollback"));
     });
 
     it("a joiner without an invite anchor is protected from its join on: its floor is the chain verified at join (D-50)", async () => {
@@ -252,3 +253,59 @@ describe("SP-07: a client never goes back", () => {
     expect((await bob.vault.openTeam("team-1")).failure).toBeUndefined();
   });
 });
+
+describe("SP-07: anchors written outside the vault can't choose the chain (D-52)", () => {
+  /** A version 9 the server forged, owned by mallory and rostering bob's real keys. */
+  async function forgedNine(t: Awaited<ReturnType<typeof team>>) {
+    const mallory = await t.w.account("mallory");
+    await mallory.vault.joinTeam("team-1");
+    const m = await bundleOf(mallory.vault);
+    const v = await bundleOf(t.members.bob!.vault);
+    const entry = (accountId: string, b: typeof m) => ({
+      accountId, memberKeysVersion: b.memberKeysVersion, keysHash: keysHash(cc1, b.published), encryptionPublicKey: b.pairs.encryption.publicKey,
+    });
+    const json = teamKeyVersionToJson(
+      createTeamKeyVersion(cc1, {
+        teamId: "team-1", version: 9, prevHash: cc1.randomBytes(32),
+        owners: [{ accountId: "mallory", signingPublicKey: m.pairs.signing.publicKey }],
+        roster: [entry("mallory", m), entry("bob", v)], createdAt: 1,
+        signer: { accountId: "mallory", signingPublicKey: m.pairs.signing.publicKey },
+        signerSecretKey: m.pairs.signing.secretKey, teamKey: cc1.randomBytes(32), previousKey: cc1.randomBytes(32),
+      }),
+    );
+    return { json, anchor: { version: 9, hash: recordHash(parseTeamKeyVersion(json, { teamId: "team-1" })) } };
+  }
+
+  it("a forged local anchor above the floor is refused, and doesn't spread through team-state (review 006 B)", async () => {
+    const t = await team("bob");
+    const bob = t.members.bob!;
+    const forged = await forgedNine(t);
+    await bob.localKeys.setAnchor("bob", "team-1", forged.anchor);
+    await bob.store.commit([{ op: "delete", key: stateKey }]);
+    bob.store.fork("team-1", 9, forged.json);
+    expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
+    expect(await bob.store.get(stateKey)).toBeNull();
+  });
+
+  it("a readable team-state whose anchor the chain contradicts is state_conflict; above the chain, rollback; support restores it (review 006 C)", async () => {
+    const t = await team("bob");
+    const bob = t.members.bob!;
+    (await bob.vault.openTeam("team-1")).close();
+    const stolen = (await bundleOf(bob.vault)).pairs.teamStateKey; // A9 in a context that holds the team, A7
+    const write = async (anchor: { version: number; hash: Uint8Array }) => {
+      const json = (await bob.store.get(stateKey)) as { revision: number };
+      const record = createTeamState(cc1, { accountId: "bob", teamId: "team-1" }, json.revision + 1, stolen, anchor);
+      await bob.store.commit([{ op: "compare-and-set", key: stateKey, expectedRevision: json.revision, record: teamStateToJson(record) }]);
+    };
+    const phone = await t.w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+    await phone.vault.unlockWithPin("1234");
+    await write({ version: 2, hash: cc1.randomBytes(32) });
+    expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("state_conflict"));
+    expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("state_conflict"));
+    t.w.server.restore(stateKey);
+    expect((await phone.vault.openTeam("team-1")).failure).toBeUndefined();
+    await write({ version: 50, hash: cc1.randomBytes(32) });
+    expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
+  });
+});
+

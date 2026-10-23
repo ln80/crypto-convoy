@@ -27,7 +27,7 @@ export interface MemberKeyBundle {
   readonly signingSeed: Uint8Array;
   readonly encryptionSecretKey: Uint8Array;
   readonly teamStateKey: Uint8Array;
-  /** An anchor this vault built or verified, used when a device has no other (§4.3, D-48). */
+  /** The account's root of trust for the team: an anchor this vault built or verified (§4.3, D-52). */
   readonly floor?: Anchor;
 }
 
