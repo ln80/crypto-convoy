@@ -61,7 +61,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-01 | Server reads stored items or keys | A1, A2 | Mitigated: SP-01 |
 | TH-02 | Server swaps a member key or adds a fake member | A2 | Mitigated: SP-04 |
 | TH-03 | Server forges the owner list | A2 | Mitigated: SP-05 |
-| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); limited to the join by the anchor floor in the member keys: SP-07 (D-48, D-50) |
+| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); limited to the join, and to an owner's repair anchor, by the anchor floor in the member keys: SP-07 (D-48, D-50, D-54) |
 | TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07 (anchors, anchor floor in the member keys, D-48, D-52); residual accepted |
 | TH-06 | Server modifies or moves encrypted items | A2 | Mitigated: SP-03 |
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |
@@ -163,6 +163,8 @@ Attack: the first time a client meets something, it has nothing earlier to compa
 Impact: the user trusts fake owners and their fake members, or the owner seals the team key to the server.
 
 Disposition: accepted in v1, by choice: out-of-band fingerprints are deferred (D-11, SP-20). The exposure is limited to the join: every later change is checked against what the client accepted (SP-05, SP-07), and the member keys carry an anchor floor from the join on, so every device of the member starts from it, in either context (D-48, D-50). A joiner whose invite anchor travelled outside the server isn't exposed at all; one without it, or whose link the server delivered, trusts the chain served at join.
+
+An owner's anchor given to repair a floor (`rekey`, `secureAccount`, D-54) is a second first contact: it replaces every root the vault holds, and nothing authenticates who sent it. One that reaches the user through the server, or from someone posing as an owner, roots the account's devices on the chain it names: with the server, a forged team, or a real older version below a removal the account had verified, whose key the removed member still holds (review 013 C). Accepted as the integration's duty, like the invite anchor: the repair anchor comes from an owner, outside the server. Closing it belongs to the same deferred mechanism as fingerprints (D-11).
 
 ### TH-05: Server rolls back or hides team state
 

@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 013 (`adversarial`) and 014 (`design`); plan 016 and the edit-only fixes closed 013-A, B, E, F, G and 013-D's claim. Still open: 013-C (needs an integration error or a removed member with the server) and 013-D's optional hardening (needs the session with an open vault); under the [hardening direction](../guides/direction.md) both default to accept and document, pending the user's confirmation. Next: settle those, then a `complexity` review (counts against review 011), then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 013 (`adversarial`) and 014 (`design`); every finding of 013 is fixed or accepted (013-C, 013-D under the [hardening direction](../guides/direction.md)). Open findings to fix in the protocol: none. Still open, low: 011-A (simplification) and 012-A, B, D, E, F (text to correct before the freeze). Next: a `complexity` review (counts against review 011), then a fresh `adversarial` review; two clean in a row make the freeze candidate.
 
 ## Findings
 
@@ -81,8 +81,8 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 012-F | Stale text | Low | Open | — |
 | 013-A | Forgeable input, overclaim | High | Fixed | D-55 (plan 016) |
 | 013-B | Forgeable input, combined attack | High | Fixed | D-56 (plan 016) |
-| 013-C | Combined attack, missing threat | Medium | Open | |
-| 013-D | Overclaim, combined attack | Medium | Open | Claim corrected: TH-45, TH-10, SP-25, SP-26 (edit); the optional hardening needs a decision |
+| 013-C | Combined attack, missing threat | Medium | Accepted | TH-04, SP-07, §6.8, guides (hardening direction: integration duty) |
+| 013-D | Overclaim, combined attack | Medium | Accepted | Claim corrected: TH-45, TH-10, SP-25, SP-26; hardening declined (hardening direction); integration guide |
 | 013-E | Missing threat | Medium | Accepted | TH-39 (integration duty, edit) |
 | 013-F | Spec → code, spec gap | Medium | Fixed | Scope rule 3, §11, §12; kit refuses public deletes (edit) |
 | 013-G | Hardening | Low | Fixed | §5.11: the check draws on the `enroll` share (edit) |
@@ -126,5 +126,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-20 | A9, A7 (account key), A2 | A planted floor on a device whose vault never verified the team, with a server serving a matching forged chain, is trusted until an owner's anchor is given | The vault has no other root there (D-54) | Owner fingerprints (D-11) |
 | TH-12, SP-23 | A7 or A9 with the session, with A2 | Keys made without the phrase (`createTeam`, `joinTeam`, an unproven `rekey`) while the recovery wrap names the attacker's key carry it: its re-keys stay proven there, and a colluding server can publish them after `secureAccount`, until an owner approves the user's re-key by hand | No phrase-free source of the current recovery key that an account-key holder can't rewrite (D-56) | A locally pinned recovery key, or key transparency |
 | TH-39 | A2 or A3 on the channel | A substituted transfer request receives the member's private keys, the owner key included | The two contexts share no secret; the channel is the integration's (D-29), as in TH-49 | A shared secret between contexts |
+| TH-04 | A2, or someone posing as an owner | An owner's repair anchor replaces every root: a relayed, stale or forged one roots the account's devices on the chain it names, a forged team or a version below a verified removal (review 013 C) | Nothing authenticates who sends it; the integration carries it outside the server, like invite links (hardening direction: server-controlled history) | Owner fingerprints (D-11) or key transparency |
+| TH-45 | A7 or A9 with the session | An open vault with the session deletes the recovery wrap, sets up its own phrase as a first setup, and rotates; or writes wraps with the account key | Seen (the user is locked out) and undone by a support restore (SP-26); refusing the API route wouldn't stop raw writes (hardening direction: combined attack) | Server-side credential checks |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
