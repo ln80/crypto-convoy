@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 1 of 2. Last review: 021 (`change`, plan 018) found nothing to fix; its four items are corrected. Open findings to fix: none. Still open, low: 011-A. Next: a fresh `adversarial` review; if it finds nothing to fix, 021 and it make the freeze candidate.
+**Now:** 0 of 2. Last review: 022 (`adversarial`) found nothing critical or high; one finding to fix by the action rule: 022-B (the documented repair after a deleted wrap leaves the member `state_unreadable`; availability, with a small fix that deletes a failure mode). 022-A, C, D are text. Accepting 022-B instead would make 021 and 022 the freeze candidate.
 
 ## Findings
 
@@ -125,6 +125,10 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 021-B | Stale text | Low | Fixed | §12, TH-04 index row (edit) |
 | 021-C | Stale text | Low | Fixed | §9 (edit) |
 | 021-D | Spec → code | Low | Fixed | `joinTeam` checks the held floor, with a test |
+| 022-A | Wrong premise | Medium | Open | |
+| 022-B | Spec → code | Medium | Open | |
+| 022-C | Overclaim | Medium | Open | |
+| 022-D | Overclaim | Low | Open | |
 
 ## Residuals
 
