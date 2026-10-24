@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last review: 016 (`adversarial`, fresh-context reviewer) found three one-actor findings to fix: 016-A (change reports appear once per account, never in a split layout; high), 016-B (a session's planted wrap blocks `secureAccount`, and no restore removes it; high), 016-C (one malformed `member-keys` record stops a team; low, a small fix). All three fixes are small (no new state). 016-D and E are text. Next: fix A–C through protocol-change, then a review in another mode, then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 016 (`adversarial`) and 017 (`design`); plan 017 fixed 016-A, B, C (D-57, D-58) and D, accepted E. Open findings to fix: none. Still open, low: 011-A. Next: a review in another mode (`change` on plan 017, or `residuals`), then a fresh `adversarial` review; two clean in a row make the freeze candidate.
 
 ## Findings
 
@@ -92,11 +92,19 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 014-D | Hardening | Low | Fixed | D-55 `TRUST_FAILURE` for another hash (plan 016) |
 | 014-E | Hardening | Low | Fixed | D-56 typed key (plan 016) |
 | 015-A | Simplification | Low | Fixed | Integration guide Duties table; the `delete` row follows scope rule 3 (edit) |
-| 016-A | Overclaim, spec → code | High | Open | |
-| 016-B | Missing threat, wrong claim | High | Open | |
-| 016-C | Missing threat | Low | Open | |
-| 016-D | Stale text | Low | Open | |
-| 016-E | Combined attack | Low | Open | |
+| 016-A | Overclaim, spec → code | High | Fixed | D-57 (plan 017) |
+| 016-B | Missing threat, wrong claim | High | Fixed | D-58 (plan 017) |
+| 016-C | Missing threat | Low | Fixed | D-58 (plan 017) |
+| 016-D | Stale text | Low | Fixed | TH-20, integration guide (plan 017) |
+| 016-E | Combined attack | Low | Accepted | §5.11 step 3, using guide (plan 017) |
+| 017-A | Forgeable input | High | Fixed | D-58: rotation re-wraps what opens (plan 017) |
+| 017-B | Forgeable input | Medium | Fixed | D-58 server rule; numbering from published records (plan 017) |
+| 017-C | Spec gap | Medium | Fixed | D-58: teams with a wrap that opens (plan 017) |
+| 017-D | Spec gap | Medium | Fixed | D-57: reports added on reload (plan 017) |
+| 017-E | Simplification | Medium | Fixed | D-57: the lowest root (plan 017) |
+| 017-F | Spec gap | Medium | Fixed | D-58 paths (plan 017) |
+| 017-G | Spec gap | Low | Fixed | Kit batch rule; `listDevices` (plan 017) |
+| 017-H | Hardening | Low | Accepted | D-58 consequence, TH-46 |
 
 ## Residuals
 
@@ -134,5 +142,6 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-39 | A2 or A3 on the channel | A substituted transfer request receives the member's private keys, the owner key included | The two contexts share no secret; the channel is the integration's (D-29), as in TH-49 | A shared secret between contexts |
 | TH-04 | A2, or someone posing as an owner | An owner's repair anchor replaces every root: a relayed, stale or forged one roots the account's devices on the chain it names, a forged team or a version below a verified removal (review 013 C) | Nothing authenticates who sends it; the integration carries it outside the server, like invite links (hardening direction: server-controlled history) | Owner fingerprints (D-11) or key transparency |
 | TH-45 | A7 or A9 with the session | An open vault with the session deletes the recovery wrap, sets up its own phrase as a first setup, and rotates; or writes wraps with the account key | Seen (the user is locked out) and undone by a support restore (SP-26); refusing the API route wouldn't stop raw writes (hardening direction: combined attack) | Server-side credential checks |
+| TH-20 | A7 or A9 (account key) with the session | A planted wrap that opens with keys its published record doesn't match fails that team for the account until it re-joins | Only the account key makes a wrap; telling a planted one from a server's forged record would need trusting the server (D-58) | Key transparency for member keys |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
