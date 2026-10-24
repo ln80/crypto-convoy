@@ -218,6 +218,8 @@ export class MemoryRecordStore {
           break;
         }
         case "delete": {
+          // Rule 3: only the caller's own private records; public key records stay, so nobody re-creates them.
+          if (!PRIVATE.has(op.key.type)) throw new Forbidden("public records are never deleted");
           ownOnly(op.key);
           archiveLive(live, archive, keyString(op.key));
           break;

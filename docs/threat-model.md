@@ -67,7 +67,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |
 | TH-08 | Online PIN guessing with a stolen session | A11, A9 | Mitigated: SP-08 (server rate limit) |
 | TH-09 | The server operator brute-forces a PIN | A2 | Accepted |
-| TH-10 | Lost or stolen device | A7 | Partly mitigated: SP-10 (revoke only); full remedy `secureAccount`: SP-11 + SP-23; the device can't take the remedy away: SP-25 |
+| TH-10 | Lost or stolen device | A7 | Partly mitigated: SP-10 (revoke only); full remedy `secureAccount`: SP-11 + SP-23; the open vault alone can't take the remedy away: SP-25; with the session too, a takeover is undone by a support restore: SP-26 |
 | TH-11 | Leaked PIN or recovery phrase | A8 | Partly mitigated: SP-09, SP-11, SP-19; a takeover is undone by a support restore: SP-26 |
 | TH-12 | Account key leaked | A9, A7 | Mitigated: SP-11 + SP-12 + SP-23; past access accepted |
 | TH-13 | Member keys of one team leaked | A9, A7 | Mitigated: SP-12 + SP-23; past access accepted |
@@ -95,13 +95,13 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-36 | Session thief destroys the account | A11 | Mitigated: SP-09, SP-26 (removed and replaced records archived for a restore window, server contract, D-39, D-42) |
 | TH-37 | Session thief injects member keys | A11 | Partly mitigated: SP-12 (pinned approvals), SP-22 (no automatic approval without proof), SP-23 (recovery proof); residual accepted |
 | TH-38 | Split view: two records for one version | A6 with A2 | Accepted (needs key transparency) |
-| TH-39 | A team's keys reach the wrong context | A9, A3 | Mitigated: SP-02 (sealed transfer); which context receives is the integration's decision |
+| TH-39 | A team's keys reach the wrong context | A9, A3, A2 | Mitigated: SP-02 (sealed transfer); which context receives, and a channel the server can't write, are the integration's |
 | TH-49 | A forged transfer opens a forged team | A2, A9 | Accepted: the integration's channel between contexts (SP-02 Limit, D-29) |
 | TH-50 | A key holder and the server rewrite or add items or inboxes | A4 or A5 with A2 | Accepted: the server's write-once rule (SP-03 Limit, D-09 deferred) |
 | TH-51 | A server front end forges PIN evaluations | A2 then A1 | Mitigated: SP-08 (D-53) |
 | TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
-| TH-45 | An unlocked vault replaces the account's credentials | A7, A9 | Mitigated: SP-25 (D-41) |
+| TH-45 | An unlocked vault replaces the account's credentials | A7, A9 | Partly mitigated: SP-25 (D-41) for the open vault alone; with the session too, accepted and undone by a support restore: SP-26 |
 | TH-46 | Session thief corrupts private team records | A11 | Mitigated: SP-26 (D-42); unavailability until restored accepted |
 | TH-47 | Session thief takes a member's key version numbers | A11 | Partly mitigated: SP-12 (D-43); approvals wait until the thief's sessions end; bait keys need a human |
 | TH-44 | Session thief spends the PIN budget | A11 with A7, A8 or A9 | Mitigated: SP-11 (phrase-only rotation and securing, D-40); the integration may reset the budget |
@@ -380,7 +380,7 @@ Attack: uses a device where the account was unlocked. Same-device unlocks don't 
 
 Impact: everything the account can reach, for as long as the device keeps working.
 
-Disposition: partly mitigated by SP-10: a revoked device can't unlock again, which stops a thief who hasn't used it yet, and an inactivity period limits forgotten devices (§5.5). A thief who used the unlocked device may have copied the account key and member keys (D-21); the full remedy is `secureAccount` from a clean device (D-36, SP-11, SP-23), which the device alone can't prevent (SP-25, TH-45). Accepted: anything already decrypted, and what a team writes before its owners reconcile.
+Disposition: partly mitigated by SP-10: a revoked device can't unlock again, which stops a thief who hasn't used it yet, and an inactivity period limits forgotten devices (§5.5). A thief who used the unlocked device may have copied the account key and member keys (D-21); the full remedy is `secureAccount` from a clean device (D-36, SP-11, SP-23), which the open vault alone can't prevent (SP-25); a thief who also holds the session can, and a support restore undoes it (SP-26, TH-45). Accepted: anything already decrypted, and what a team writes before its owners reconcile.
 
 ### TH-12: Account key leaked
 
@@ -424,13 +424,13 @@ Disposition: accepted; it's the integration's job to keep the vault and the cred
 
 ### TH-39: A team's keys reach the wrong context
 
-Actor: injected script (A9) in another page or context, or anyone on the channel between contexts (A3).
+Actor: injected script (A9) in another page or context, anyone on the channel between contexts (A3), or the server (A2) when the integration relays the channel through it.
 
-Attack: when the vault and team sessions run in separate contexts, the attacker reads one team's member keys in transit, replays a transfer captured earlier, or asks the vault for the keys of a team it shouldn't reach.
+Attack: when the vault and team sessions run in separate contexts, the attacker reads one team's member keys in transit, replays a transfer captured earlier, asks the vault for the keys of a team it shouldn't reach, or replaces a receiver's transfer request with its own public key, so the vault seals the keys to it.
 
-Impact: that team's keys, in a context the integration didn't intend.
+Impact: that team's member private keys (the signing key, the encryption key and the `teamStateKey`), in a context the integration didn't intend: the team, and the owner signing key when the member is an owner.
 
-Disposition: mitigated by SP-02. A transfer is sealed to an ephemeral receiver created in the receiving context, names its account and team inside the box, and opens once: reading or replaying it gives nothing (§3.8). Which context may ask for which team is the integration's decision, as is the channel (D-29); a vault that exports to any requester gives away what it exports. A transfer forged for the receiver is TH-49.
+Disposition: mitigated by SP-02. A transfer is sealed to an ephemeral receiver created in the receiving context, names its account and team inside the box, and opens once: reading or replaying it gives nothing (§3.8). Which context may ask for which team is the integration's decision, as is the channel (D-29); a vault that exports to any requester gives away what it exports, and nothing binds a request to the context that made it, so a substituted request receives the keys. Accepted as the integration's duty, as in TH-49: carry the request on a channel the server can't write. A transfer forged for the receiver is TH-49.
 
 ### TH-49: A forged transfer opens a forged team
 
@@ -450,7 +450,7 @@ Attack: replaces the recovery phrase, changes the PIN, or rotates the account ke
 
 Impact: account takeover: the user loses the account and every team only it could open.
 
-Disposition: mitigated by SP-25 (D-41): each of these needs a current credential besides the open vault. Residual, accepted: the thief can still revoke the user's other devices, which register again with the PIN or the phrase; publish unproven re-keys, which only a human approves (TH-37); or leave teams, which support undoes from the archive (TH-46).
+Disposition: partly mitigated by SP-25 (D-41): through the vault, each of these needs a current credential besides the open vault. Accepted: a thief who also holds the session, as a script in the vault normally does through the vault's own store, deletes the recovery wrap and sets up a phrase of its own as a first setup, which needs no credential, or writes wraps directly with the account key it can read; the user is locked out, so it is seen, and a support restore undoes it (SP-26, D-42). Residual, accepted too: the thief can still revoke the user's other devices, which register again with the PIN or the phrase; publish unproven re-keys, which only a human approves (TH-37); or leave teams, which support undoes from the archive (TH-46).
 
 ## Sessions
 

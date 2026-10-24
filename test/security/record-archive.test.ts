@@ -1,6 +1,6 @@
 /**
  * SP-26: A session can't destroy an account's private records.
- * Threats: TH-11, TH-36, TH-46, TH-48.
+ * Threats: TH-10, TH-11, TH-36, TH-45, TH-46, TH-48.
  */
 import { describe, expect, it } from "vitest";
 import { replacePhrase } from "../support/fixtures.js";
@@ -68,6 +68,27 @@ describe("SP-26: a session can't destroy an account's private records", () => {
     expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "2222" })).toEqual({ rekeyed: ["team-1"], failed: [] });
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("TH-45: an open vault with the session deletes the recovery wrap, sets up its own phrase and rotates; a restore undoes it (review 013 D)", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    // A thief with bob's stolen device: an open vault and the session, no credential.
+    const stolen = bob.vault;
+    await bob.store.commit([{ op: "delete", key: { type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" } }]);
+    const { recoveryPhrase: thiefPhrase } = await replacePhrase(stolen);
+    await stolen.rotate({ phrase: thiefPhrase });
+
+    // Bob is locked out, which he sees.
+    await expect((await w.device("bob")).vault.unlockWithPin(bob.pin)).rejects.toEqual(code("PIN_NOT_SET_UP"));
+    await expect((await w.device("bob")).vault.recover(bob.recoveryPhrase, "1")).rejects.toEqual(code("WRONG_CREDENTIAL"));
+
+    // Support restores version 1, and the recovery wrap generation from before the takeover.
+    w.server.restoreVersion("bob", 1);
+    w.server.restore({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" }, 0);
+    const phone = await w.device("bob");
+    await phone.vault.recover(bob.recoveryPhrase, "2222");
+    expect((await phone.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "3333" })).failed).toEqual([]);
   });
 
   it("TH-11: a phrase thief's takeover is restored; securing with a new phrase leaves the leaked one opening nothing (D-45)", async () => {

@@ -87,3 +87,12 @@ E, F, G, and D's corrected claim.
 - The vault's export, open and leave check verify from every root, and a re-key with conflicting roots writes nothing (D-54).
 - `team-state` and the local anchor can't choose the chain: a forged one gives `state_conflict` or `rollback`, never a root, when a floor exists.
 - Proven re-keys are checked against the held keys pinned by the roster (009 A holds).
+
+## Applied
+
+- **A, B:** plan 016 (D-55, D-56), design-reviewed by review 014.
+- **D (claim):** TH-45 is partly mitigated: SP-25 holds for the open vault alone; with the session too, the takeover is accepted, seen, and undone by a support restore (SP-26), in TH-45, TH-10, SP-25's Limit and SP-26's related threats, with a test in `record-archive.test.ts`. The optional hardening (refusing a credential-free setup while the account has teams) waits for a decision.
+- **E:** TH-39 names the server on the channel and the substituted request; accepted as the integration's duty, like TH-49.
+- **F:** scope rule 3 and §11: a client's `delete` applies only to its own private records, and an identity once written is never written again; §12's `commit` says so; the kit refuses public deletes (`memory-store.test.ts`).
+- **G:** §5.11: the same-PIN check draws on the `enroll` share, the one the new PIN wrap uses, so a spent share fails the whole call instead of skipping the check (`account-rotation.test.ts`); 012-C's wording folded in.
+

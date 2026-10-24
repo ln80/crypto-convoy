@@ -390,13 +390,14 @@ export class Vault {
 
   /**
    * A new PIN that opens the current PIN wrap would leave the retired version opening with it
-   * (SP-19): `MALFORMED_RECORD`. One evaluation; skipped when the budget is spent (D-40, TH-44).
+   * (SP-19): `MALFORMED_RECORD`. One evaluation, from the `enroll` share the new PIN wrap draws on too:
+   * when it is spent the check is skipped, and setting the new PIN fails as well (D-40, TH-44).
    */
   async #refuseCurrentPin(account: OpenAccount, newPin: string): Promise<void> {
     const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
     if (!wrap) return;
     try {
-      this.#ports.suite.wipe(await openWithPin(this.#ports, wrap, newPin, "unlock"));
+      this.#ports.suite.wipe(await openWithPin(this.#ports, wrap, newPin, "enroll"));
     } catch (error) {
       if (isConvoyError(error, "WRONG_CREDENTIAL") || isConvoyError(error, "PIN_RATE_LIMITED")) return;
       throw error;

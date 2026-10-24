@@ -229,7 +229,7 @@ Limit: rotation retires the account key only. Member keys don't change, so anyon
 Assumptions: AS-01.
 
 Verification:
-- `test/security/account-rotation.test.ts`: rotate, then check that the old key opens no new account record and that every team still opens with the new key. Check that a copied bundle still opens the team until a re-key, as specified.
+- `test/security/account-rotation.test.ts`: rotate, then check that the old key opens no new account record and that every team still opens with the new key. Check that a copied bundle still opens the team until a re-key, as specified. A `secureAccount` PIN that opens the current PIN wrap is refused, also when the server splits the budget by purpose: the check draws on the share the new PIN does (§5.11).
 - `test/security/secure-account.test.ts`: securing with a new phrase: the old phrase opens nothing, the new one unlocks, every team's re-key is proven and approved by `reconcile`; a new phrase that isn't the one shown is refused before anything is written.
 
 Related threats: TH-10, TH-11, TH-12, TH-20, TH-44, TH-48.
@@ -402,7 +402,7 @@ Property: changing the PIN, replacing the recovery phrase and rotating the accou
 
 Limits:
 - Whoever holds a current credential can use it (TH-11).
-- Setting up recovery the first time needs no credential: the account can't be in a team before (D-35).
+- Setting up recovery the first time needs no credential: the account can't be in a team before (D-35). Whoever also holds the session can delete the recovery wrap and make the vault see a first setup, or write wraps directly with the account key; that takeover is seen (the user is locked out) and undone by a support restore (SP-26, TH-45).
 - Revoking a device needs only an open vault.
 
 Assumptions: AS-01, AS-05.
@@ -426,6 +426,6 @@ Limits:
 Assumptions: the server honours rule 7 ([server contract](scope.md#server-contract)).
 
 Verification:
-- `test/security/record-archive.test.ts`: a garbage `team-state` stops the team (`state_unreadable`) and restoring the previous revision reopens it; a deleted `member-keys-wrap` is restored; a PIN thief replaces the phrase and rotates, and restoring the earlier account key version brings back the user's PIN, phrase, devices and teams; a device that accepted the thief's version reports `rollback`; a session commits a version switch with garbage wraps, and the version restore undoes it. A phrase thief's takeover is restored, and securing with a new phrase leaves the leaked one opening nothing. Limit: restoring a revoked device's wrap lets that device unlock again.
+- `test/security/record-archive.test.ts`: a garbage `team-state` stops the team (`state_unreadable`) and restoring the previous revision reopens it; a deleted `member-keys-wrap` is restored; a PIN thief replaces the phrase and rotates, and restoring the earlier account key version brings back the user's PIN, phrase, devices and teams; a device that accepted the thief's version reports `rollback`; a session commits a version switch with garbage wraps, and the version restore undoes it. A phrase thief's takeover is restored, and securing with a new phrase leaves the leaked one opening nothing. An open vault with the session deletes the recovery wrap, sets up its own phrase and rotates; restoring the version and the recovery wrap from before brings back the user's phrase (TH-45). Limit: restoring a revoked device's wrap lets that device unlock again.
 
-Related threats: TH-11, TH-36, TH-46, TH-48.
+Related threats: TH-10, TH-11, TH-36, TH-45, TH-46, TH-48.

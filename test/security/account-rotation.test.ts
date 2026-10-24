@@ -19,7 +19,8 @@ import { createTeamKeyReceiver } from "../../src/team/receiver.js";
 import { createTeamKeyVersion, parseTeamKeyVersion, recordHash, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
 import { keysHash } from "../../src/records/member-keys.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
-import type { RecordStore } from "../../src/ports.js";
+import type { OprfPurpose, OprfService, RecordStore } from "../../src/ports.js";
+import { RateLimitedError } from "../../src/errors.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { versionRecord } from "../support/forge.js";
 
@@ -231,6 +232,23 @@ describe("SP-11: teams survive an account key rotation", () => {
     const { members } = await team("bob");
     const bob = members.bob!;
     await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin })).rejects.toEqual(code("MALFORMED_RECORD"));
+    expect(await bob.store.getAccountKeyVersion("bob")).toBe(1);
+  });
+
+  it("with a budget split by purpose, the check draws on the share the new PIN does: the old PIN is never set unchecked (review 013 G)", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    // A server that splits the total budget by purpose (§5.1); `refused` is the spent share.
+    let refused: OprfPurpose | null = null;
+    const split: OprfService = { evaluate: (request) => (request.purpose === refused ? Promise.reject(new RateLimitedError()) : w.oprf.evaluate(request)) };
+    const device = await w.device("bob", { oprf: split });
+    await device.vault.unlockWithPin(bob.pin);
+    // The unlock share spent, the enroll share open: the check still runs, and refuses.
+    refused = "unlock";
+    await expect(device.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin })).rejects.toEqual(code("MALFORMED_RECORD"));
+    // The enroll share spent: the check is skipped, and setting the PIN fails too; nothing is written.
+    refused = "enroll";
+    await expect(device.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: bob.pin })).rejects.toEqual(code("PIN_RATE_LIMITED"));
     expect(await bob.store.getAccountKeyVersion("bob")).toBe(1);
   });
 });

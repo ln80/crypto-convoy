@@ -65,6 +65,16 @@ describe("server contract (§11)", () => {
     await expect(alice.commit([create({ ...r.inbox, inboxId: "inbox-2", teamKeyVersion: 2 })])).rejects.toEqual(conflict);
   });
 
+  it("never deletes a public key record, so nobody re-creates one (rule 3, review 013 F)", async () => {
+    const { server, alice } = teamStore();
+    await alice.commit([create(r["team-key-version"]), create(r["member-keys"])]);
+    await alice.commit([create(r.item), create(r.inbox)]);
+    for (const record of [r["team-key-version"], r["member-keys"], r.item, r.inbox]) {
+      for (const caller of [alice, server.as("eve")]) await expect(caller.commit([{ op: "delete", key: keyOf(record) }])).rejects.toThrow("public records are never deleted");
+      expect(await alice.get(keyOf(record))).toEqual(record);
+    }
+  });
+
   it("stores a record only under its own identity", async () => {
     const { alice } = teamStore();
     await expect(alice.commit([{ op: "create", key: { type: "member-keys", teamId: "team-2", accountId: "alice", memberKeysVersion: 1 }, record: r["member-keys"] }])).rejects.toEqual(conflict);

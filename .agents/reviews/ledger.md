@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last reviews: 013 (`adversarial`) found 013-A to 013-F; plan 016 fixed 013-A and 013-B (D-55, D-56), design-reviewed by 014. Open findings medium or above: 013-C to 013-F. Next: fix them through protocol-change, then a review in another mode, then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 013 (`adversarial`) found 013-A to 013-F; plan 016 fixed 013-A and 013-B (D-55, D-56, design review 014); the edit-only findings followed (013-E accepted, 013-F and 013-G fixed, 013-D's claim corrected). Open findings medium or above: 013-C, and 013-D's optional hardening. Next: decide those, then a review in another mode, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -75,17 +75,17 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 011-C | Stale text, simplification | Low | Fixed | D-54 restates the rules; D-48, D-50, D-52 point to it (with review 012) |
 | 012-A | Stale text | Low | Open | — |
 | 012-B | Stale text | Low | Open | — |
-| 012-C | Spec → code | Low | Open | — |
+| 012-C | Spec → code | Low | Fixed | §5.11, with 013-G (edit) |
 | 012-D | Spec → code | Low | Open | — |
 | 012-E | Stale text | Low | Open | — |
 | 012-F | Stale text | Low | Open | — |
 | 013-A | Forgeable input, overclaim | High | Fixed | D-55 (plan 016) |
 | 013-B | Forgeable input, combined attack | High | Fixed | D-56 (plan 016) |
 | 013-C | Combined attack, missing threat | Medium | Open | |
-| 013-D | Overclaim, combined attack | Medium | Open | |
-| 013-E | Missing threat | Medium | Open | |
-| 013-F | Spec → code, spec gap | Medium | Open | |
-| 013-G | Hardening | Low | Open | |
+| 013-D | Overclaim, combined attack | Medium | Open | Claim corrected: TH-45, TH-10, SP-25, SP-26 (edit); the optional hardening needs a decision |
+| 013-E | Missing threat | Medium | Accepted | TH-39 (integration duty, edit) |
+| 013-F | Spec → code, spec gap | Medium | Fixed | Scope rule 3, §11, §12; kit refuses public deletes (edit) |
+| 013-G | Hardening | Low | Fixed | §5.11: the check draws on the `enroll` share (edit) |
 | 014-A | Forgeable input | High | Fixed | D-55 duplicate refusal (plan 016) |
 | 014-B | Hardening | Medium | Fixed | D-56 reports, never refuses (plan 016) |
 | 014-C | Wrong claim | Medium | Accepted | TH-12 Limit, D-56 consequence (plan 016) |
@@ -125,5 +125,6 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-46 | A9, A7 (`teamStateKey`) | A readable `team-state` with a forged anchor stops the account's devices (`state_conflict`, `rollback`) until support restores | Overwriting it would discard evidence of a split view (D-52) | — |
 | TH-20 | A9, A7 (account key), A2 | A planted floor on a device whose vault never verified the team, with a server serving a matching forged chain, is trusted until an owner's anchor is given | The vault has no other root there (D-54) | Owner fingerprints (D-11) |
 | TH-12, SP-23 | A7 or A9 with the session, with A2 | Keys made without the phrase (`createTeam`, `joinTeam`, an unproven `rekey`) while the recovery wrap names the attacker's key carry it: its re-keys stay proven there, and a colluding server can publish them after `secureAccount`, until an owner approves the user's re-key by hand | No phrase-free source of the current recovery key that an account-key holder can't rewrite (D-56) | A locally pinned recovery key, or key transparency |
+| TH-39 | A2 or A3 on the channel | A substituted transfer request receives the member's private keys, the owner key included | The two contexts share no secret; the channel is the integration's (D-29), as in TH-49 | A shared secret between contexts |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
