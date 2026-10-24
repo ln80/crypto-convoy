@@ -124,12 +124,12 @@ export class TeamSession {
     return this.#current?.version ?? 0;
   }
 
-  /** Owner list changes since this account's last verified state (SP-15). */
+  /** Owner list changes since this device or context last verified the team (SP-15, D-57). */
   get ownerChanges(): readonly OwnerChange[] {
     return this.#ownerChanges;
   }
 
-  /** Roster changes since this account's last verified state: who was added, removed or re-keyed, and by whom (SP-15, D-44). */
+  /** Roster changes since this device or context last verified the team: who was added, removed or re-keyed, and by whom (SP-15, D-44, D-57). */
   get memberChanges(): readonly MemberChange[] {
     return this.#memberChanges;
   }

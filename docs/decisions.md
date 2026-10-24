@@ -765,7 +765,7 @@ Problem: one record could stop everything around it. A session created a garbage
 Decision:
 - A `member-keys-wrap` that doesn't parse, or doesn't open under the account key, was never the account's: the vault treats it as absent, as if withheld, wherever it lists wraps. An account's teams are those with at least one wrap that opens. A device `account-key-wrap` that doesn't parse is left out of the device list. A wrap that opens but doesn't match its published keys stays `TRUST_FAILURE` (`key_mismatch`) when its team is opened.
 - A rotation re-wraps every wrap that opens, without fetching its published record.
-- A `member-keys` record that fails its checks is left out of every list used to verify the chain, build an overview, reconcile or approve, before D-55's duplicate check. Numbering new keys and `foreign-member-keys` still read every published version.
+- A `member-keys` record that fails its checks, an unknown version or suite included, is left out of every list used to verify the chain, build an overview, reconcile or approve, before D-55's duplicate check. Numbering new keys and `foreign-member-keys` still read every published version.
 - Server rule: a `member-keys-wrap` is created only in the batch that creates its `member-keys` record, or in a rotation's batch at the version it switches to; an `account-key-wrap` only at the current version or in that batch. New member keys are numbered from published records only.
 
 Rejected:

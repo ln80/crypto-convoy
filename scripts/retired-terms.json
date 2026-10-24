@@ -196,6 +196,18 @@
       "decision": "D-58",
       "use": "numbered from published records only",
       "allow": {}
+    },
+    {
+      "pattern": "this account's last verified state",
+      "decision": "D-57",
+      "use": "since this device or context last verified the team",
+      "allow": {}
+    },
+    {
+      "pattern": "otherwise it counts as an anchor",
+      "decision": "D-57",
+      "use": "otherwise it is consistent with the chain",
+      "allow": {}
     }
   ]
 }

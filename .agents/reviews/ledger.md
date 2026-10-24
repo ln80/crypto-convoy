@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 016 (`adversarial`) and 017 (`design`); plan 017 fixed 016-A, B, C (D-57, D-58) and D, accepted E. Open findings to fix: none. Still open, low: 011-A. Next: a review in another mode (`change` on plan 017, or `residuals`), then a fresh `adversarial` review; two clean in a row make the freeze candidate.
+**Now:** 1 of 2. Last review: 018 (`change`, plan 017) found nothing to fix; its four text items are corrected. Open findings to fix: none. Still open, low: 011-A. Next: a fresh `adversarial` review; if it finds nothing to fix, 018 and it make the freeze candidate.
 
 ## Findings
 
@@ -105,6 +105,10 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 017-F | Spec gap | Medium | Fixed | D-58 paths (plan 017) |
 | 017-G | Spec gap | Low | Fixed | Kit batch rule; `listDevices` (plan 017) |
 | 017-H | Hardening | Low | Accepted | D-58 consequence, TH-46 |
+| 018-A | Stale text | Low | Fixed | §12, `session.ts` comments (edit) |
+| 018-B | Stale text | Low | Fixed | §6.1 step 2 (edit) |
+| 018-C | Spec → code | Low | Fixed | §11, scope rule 5 (edit) |
+| 018-D | Spec → code | Low | Fixed | §4.2, D-58; residual recorded (edit) |
 
 ## Residuals
 
@@ -143,5 +147,6 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-04 | A2, or someone posing as an owner | An owner's repair anchor replaces every root: a relayed, stale or forged one roots the account's devices on the chain it names, a forged team or a version below a verified removal (review 013 C) | Nothing authenticates who sends it; the integration carries it outside the server, like invite links (hardening direction: server-controlled history) | Owner fingerprints (D-11) or key transparency |
 | TH-45 | A7 or A9 with the session | An open vault with the session deletes the recovery wrap, sets up its own phrase as a first setup, and rotates; or writes wraps with the account key | Seen (the user is locked out) and undone by a support restore (SP-26); refusing the API route wouldn't stop raw writes (hardening direction: combined attack) | Server-side credential checks |
 | TH-20 | A7 or A9 (account key) with the session | A planted wrap that opens with keys its published record doesn't match fails that team for the account until it re-joins | Only the account key makes a wrap; telling a planted one from a server's forged record would need trusting the server (D-58) | Key transparency for member keys |
+| SP-18, §10 | — (a reader that hasn't updated) | A roster entry naming a `member-keys` record of a newer format reads as `key_mismatch`, not `UNSUPPORTED_VERSION`, because a team's list leaves out records it can't read (D-58) | Otherwise a joiner stops the team by declaring an unknown version; readers ship before writers (§10) | A version check on roster entries |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
