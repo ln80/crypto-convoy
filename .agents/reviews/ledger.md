@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 1 of 2. Last review: 018 (`change`, plan 017) found nothing to fix; its four text items are corrected. Open findings to fix: none. Still open, low: 011-A. Next: a fresh `adversarial` review; if it finds nothing to fix, 018 and it make the freeze candidate.
+**Now:** 0 of 2. Last review: 019 (`adversarial`) found three one-actor findings to fix: 019-A (`joinTeam` re-roots an existing member on a forged chain), 019-B (`secureAccount` skips a team whose wrap was deleted), 019-D (a deleted recovery wrap leads to unprovable re-keys); 019-C and E are text. Next: fix them through protocol-change, then a review in another mode, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -109,6 +109,11 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 018-B | Stale text | Low | Fixed | §6.1 step 2 (edit) |
 | 018-C | Spec → code | Low | Fixed | §11, scope rule 5 (edit) |
 | 018-D | Spec → code | Low | Fixed | §4.2, D-58; residual recorded (edit) |
+| 019-A | Forgeable input, wrong claim | High | Open | |
+| 019-B | Missing threat | High | Open | |
+| 019-C | Overclaim | Medium | Open | |
+| 019-D | Combined attack, wrong premise | Medium | Open | |
+| 019-E | Stale text | Low | Open | |
 
 ## Residuals
 
