@@ -208,6 +208,18 @@
       "decision": "D-57",
       "use": "otherwise it is consistent with the chain",
       "allow": {}
+    },
+    {
+      "pattern": "A first recovery setup \\(§5\\.10\\) takes none",
+      "decision": "D-61",
+      "use": "a first setup takes the current PIN",
+      "allow": {}
+    },
+    {
+      "pattern": "a first setup none",
+      "decision": "D-61",
+      "use": "a first setup the PIN",
+      "allow": {}
     }
   ]
 }

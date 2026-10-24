@@ -162,7 +162,7 @@ Assumptions: the device's local storage keeps its state (`LocalKeyStore`), and t
 
 Verification:
 - `test/security/rollback.test.ts`: serve an older chain, a diverging chain, an older `team-state` revision, a corrupted `team-state`, a chain that doesn't contain the invite anchor (refused at join, also when the account already has keys), a forged chain to a new device while `team-state` is withheld or deleted (refused from the floor, in the vault's context and through a receiver, for a joiner without an invite anchor too), an archived `team-state` below the floor, a local anchor or a `team-state` above the floor naming a forged version (refused; `state_conflict` for a `team-state` the chain contradicts), and an older team key version after a newer one was seen; Limit: a forged chain served at a join without an invite anchor is trusted.
-- `test/security/account-rotation.test.ts`: the floor moves along a chain containing every root when the vault opens or exports the team and at a re-key, and is kept by an account rotation; a re-key whose roots conflict or whose chain fails writes nothing; a local anchor or a forged `team-state` doesn't reach it; a floor planted with the account key fails `secureAccount` in either layout, export refuses it, and an owner's anchor repairs it.
+- `test/security/account-rotation.test.ts`: the floor moves along a chain containing every root when the vault opens or exports the team and at a re-key, and is kept by an account rotation; a re-key whose roots conflict or whose chain fails writes nothing; a local anchor or a forged `team-state` doesn't reach it; a floor planted with the account key fails `secureAccount` in either layout, export refuses it, and an owner's anchor repairs it. An existing member's join without an anchor refuses a forged chain when the server withholds its wraps, and an owner's anchor re-keys a team with no bundle (D-59).
 
 Related threats: TH-04, TH-05.
 
@@ -216,7 +216,7 @@ Assumptions: AS-01. The server stops serving the wrap ([server contract](scope.m
 
 Verification:
 - `test/security/device-revocation.test.ts`: revoke a device, then try to unlock with its device key (refused). Then run the full remedy and check that keys copied from the device open nothing written afterwards.
-- `test/security/secure-account.test.ts`: a misused device; after `secureAccount` and an owner's `reconcile`, keys copied from it open nothing written afterwards; a team that failed to re-key is retried. With the PIN budget spent, `secureAccount` with the phrase alone cuts the thief's PIN and devices, and a PIN is set later (D-40, TH-44). In a single-owner team, the owner's own `reconcile` approves its re-key, and the copied owner key can't sign a later version (D-47).
+- `test/security/secure-account.test.ts`: a misused device; after `secureAccount` and an owner's `reconcile`, keys copied from it open nothing written afterwards; a team that failed to re-key is retried. With the PIN budget spent, `secureAccount` with the phrase alone cuts the thief's PIN and devices, and a PIN is set later (D-40, TH-44). In a single-owner team, the owner's own `reconcile` approves its re-key, and the copied owner key can't sign a later version (D-47). A team whose wrap a thief deleted is reported failed when the product lists it, and a proven re-key with an owner's anchor ends the stolen keys (D-60).
 
 Related threats: TH-10.
 
@@ -403,13 +403,13 @@ Property: changing the PIN, replacing the recovery phrase and rotating the accou
 
 Limits:
 - Whoever holds a current credential can use it (TH-11).
-- Setting up recovery the first time needs no credential: the account can't be in a team before (D-35). Whoever also holds the session can delete the recovery wrap and make the vault see a first setup, or write wraps directly with the account key; that takeover is seen (the user is locked out) and undone by a support restore (SP-26, TH-45).
+- Whoever also holds the session and can read the account key writes wraps directly, outside the vault; that takeover is seen (the user is locked out) and undone by a support restore (SP-26, TH-45). Through the vault, even a first recovery setup needs the current PIN (D-61).
 - Revoking a device needs only an open vault.
 
 Assumptions: AS-01, AS-05.
 
 Verification:
-- `test/security/credential-rotation.test.ts`: with only an open vault, changing the PIN, replacing the phrase and rotating are refused and write nothing; each succeeds with the current credential; a PIN check spends one evaluation; with no PIN set, a PIN change needs the phrase.
+- `test/security/credential-rotation.test.ts`: with only an open vault, changing the PIN, replacing the phrase and rotating are refused and write nothing; each succeeds with the current credential; a PIN check spends one evaluation; with no PIN set, a PIN change needs the phrase. A first recovery setup takes the current PIN (D-61).
 - `test/security/account-rotation.test.ts`: a rotation without the phrase is refused; one with it keeps recovery set up.
 
 Related threats: TH-10, TH-45.

@@ -36,7 +36,7 @@ const vault = await createVault({ store: keyStore.as("alice"), oprf, deviceKeys:
 
 await vault.setup("1234");
 const { recoveryPhrase } = vault.beginRecoverySetup(); // show it, then ask the user to type it back
-await vault.confirmRecoveryPhrase(typedBack);           // teams need recovery set up (D-35)
+await vault.confirmRecoveryPhrase(typedBack, { currentPin: pin }); // teams need recovery set up (D-35); the PIN confirms it (D-61)
 await vault.createTeam("team-1");
 const team = await vault.openTeam("team-1");
 ```
@@ -114,14 +114,14 @@ It rotates out holders no longer active (never owners), approves re-keys proven 
 
 | Situation | Calls |
 | --- | --- |
-| **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack)` |
+| **New user** | `vault.setup(pin)`, `beginRecoverySetup()`, `confirmRecoveryPhrase(typedBack, { currentPin: pin })` |
 | **Invite someone** | Put `team.inviteAnchor()` in the invite link's fragment; the joiner calls `vault.joinTeam(teamId, { anchor })`, which refuses a chain without it; every later open, in any context, starts from the floor it sets (D-48, D-50). It protects the joiner when the link reaches them outside your server (TH-04) |
 | **Approve someone** | Check the request out of band, then `owner.approve([account.keys])` with the handles from `overview` (they carry the reviewed keys' hash, D-55): one rotation for all of them, joiners and re-keys alike. It refuses (`STALE_VERSION`) if newer keys appeared since the review, and with `TRUST_FAILURE` if the server serves other keys than those reviewed |
 | **Set up a team with many members** | Invite everyone, let them join, then approve every `awaiting-approval` account from `overview` in one `owner.approve(...)` call: one version instead of one per member (integration guide) |
 | **Name devices** | After a registration, send your server `status().deviceId` with a label; show `listDevices()` joined with those labels, `current` marking this device |
 | **Someone leaves** | Drop them from `activeIds`; the next `reconcile` rotates. Or `owner.remove([accountId])` now |
 | **Device lost, never used by anyone** | `vault.revokeDevice(deviceId)` from another device |
-| **Device possibly misused, or PIN leaked** | End the account's other sign-in sessions, `beginRecoverySetup()`, then `vault.secureAccount({ phrase, newPhrase: typedBack, newPin })` from a clean device, with a new phrase and a PIN different from the old one (both recommended: the retired version still opens with the old ones, SP-19): new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Retry any `failed` team, before your next `reconcile` as an owner, with `vault.rekey(teamId, { phrase: newPhrase, oldPhrase: phrase })` (with no new phrase, `{ phrase }`); one whose floor didn't check out also needs `anchor`, from an owner, outside your server (it replaces every root, TH-04) with an anchor an owner sends you out of band (`team.inviteAnchor()`, D-54). Then reset the account on your other devices |
+| **Device possibly misused, or PIN leaked** | End the account's other sign-in sessions, `beginRecoverySetup()`, then `vault.secureAccount({ phrase, newPhrase: typedBack, newPin })` from a clean device, with a new phrase and a PIN different from the old one (both recommended: the retired version still opens with the old ones, SP-19): new account key, other devices cut, every team re-keyed with a recovery proof that owners' `reconcile` approves. Pass `teamIds` (your product's teams for the user) so a team whose keys were deleted is reported too (D-60). Retry any `failed` team, before your next `reconcile` as an owner, with `vault.rekey(teamId, { phrase: newPhrase, oldPhrase: phrase })` (with no new phrase, `{ phrase }`); one whose floor didn't check out also needs `anchor`, from an owner, outside your server (it replaces every root, TH-04) with an anchor an owner sends you out of band (`team.inviteAnchor()`, D-54). Then reset the account on your other devices |
 | **Recovery phrase leaked, or after a support restore** | End the account's other sign-in sessions, `beginRecoverySetup()`, then `vault.secureAccount({ phrase, newPhrase: typedBack, newPin? })`: new account key and phrase, other devices cut, every team re-keyed with a proof by the old phrase (D-45). Retry a `failed` team with `vault.rekey(teamId, { phrase: newPhrase, oldPhrase: phrase })`, still proven (D-49, D-56); one whose floor didn't check out also needs an anchor from an owner (D-54) |
 | **Replace the recovery phrase** | `beginRecoverySetup()`, then `confirmRecoveryPhrase(typedBack, { currentPhrase })`: teams re-key with proof. With `{ currentPin }` instead (phrase lost), each team needs an owner's approval (D-41) |
 | **Change the PIN** | `vault.changePin(newPin, { currentPin })`, or `{ phrase }` when the PIN is forgotten or not set |

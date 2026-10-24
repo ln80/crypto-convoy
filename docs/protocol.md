@@ -540,7 +540,7 @@ The account key opens only through one of these three paths (SP-19).
 ### 5.5 Registering and revoking a device
 
 - **Register.** With the `accountKey` open: generate `deviceKey` and `deviceId`, keep both in `LocalKeyStore`, and store a device wrap at the current version. The wrap is fetched from the server at each unlock and never cached on the device.
-- **List.** `listDevices()` returns, for every device wrap at the current version that parses (D-58), its `deviceId` and whether it is this device; `status()` also gives this device's `deviceId`. Human-readable names and dates belong to the integration's own data, keyed by `deviceId`: they are for display only, never for a security decision, since the server controls which wraps it lists.
+- **List.** `listDevices()` returns, for every device wrap at the current version that parses (D-58; a session can still create well-formed ones, so the list is for display only), its `deviceId` and whether it is this device; `status()` also gives this device's `deviceId`. Human-readable names and dates belong to the integration's own data, keyed by `deviceId`: they are for display only, never for a security decision, since the server controls which wraps it lists.
 - **Inactivity.** The server may stop serving a device wrap unused for a period set by the integration ([server contract](scope.md#server-contract), rule 7). The device then gets `DEVICE_NOT_REGISTERED` and registers again with the PIN or the recovery phrase, which limits how long a forgotten device stays able to unlock.
 - **Revoke.** Ask the server to remove the device's wrap, which it stops serving and archives (rule 7, D-39). From then on, the device can't unlock the account again (SP-10). That's the whole guarantee of revocation (D-21). The integration also ends that device's sign-in sessions, so it can't fetch other private records.
 
@@ -552,7 +552,7 @@ If the device may have been used by an attacker while unlocked, revocation isn't
 - the current PIN: fetch the live PIN wrap and open it (§5.1, purpose `unlock`; one evaluation). The opened key must equal the open `accountKey`, else `WRONG_CREDENTIAL`; no PIN wrap is `PIN_NOT_SET_UP`;
 - the current phrase: derive the `recoveryKey` (§5.2) and open the recovery wrap's `wrappedAccountKey` with it, else `WRONG_CREDENTIAL`. This is the only check of a phrase; the vault then uses the recovery public key derived from it (D-56).
 
-A PIN change takes the current PIN or the phrase (only the phrase when the current version has no PIN wrap, D-40). A phrase replacement takes the current phrase or the current PIN. A first recovery setup (§5.10) takes none. A change given no credential is `MALFORMED_RECORD`.
+A PIN change takes the current PIN or the phrase (only the phrase when the current version has no PIN wrap, D-40). A phrase replacement takes the current phrase or the current PIN. A first recovery setup (§5.10), with no recovery wrap at the current version, takes the current PIN (D-61). A change given no credential is `MALFORMED_RECORD`.
 
 **PIN.** With the `accountKey` open and a current credential checked, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12), or as a new wrap when the current version has none (D-40). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
 
@@ -592,7 +592,7 @@ Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so i
 ### 5.10 Setting up recovery (D-35)
 
 1. **Begin.** With the `accountKey` open, the vault generates a recovery phrase (§3.6) and keeps it in memory. It returns the phrase for the integration to show. Beginning again replaces the phrase held.
-2. **Confirm.** The user enters the phrase. It must equal the one held, compared after Unicode NFKD normalisation with case and whitespace ignored, else `WRONG_CREDENTIAL`. Derive the `recoveryKey` and the recovery signing key (§5.2), create the recovery `account-key-wrap` with `wrappedRecoveryPublicKey`, and store it; the vault then forgets the phrase.
+2. **Confirm.** With a current credential (§5.6: the current PIN when there is no recovery wrap, D-61), the user enters the phrase. It must equal the one held, compared after Unicode NFKD normalisation with case and whitespace ignored, else `WRONG_CREDENTIAL`. Derive the `recoveryKey` and the recovery signing key (§5.2), create the recovery `account-key-wrap` with `wrappedRecoveryPublicKey`, and store it; the vault then forgets the phrase.
 
 Recovery is set up when a recovery wrap exists at the current account key version. Replacing a phrase (§5.6) runs the same two steps.
 
@@ -602,7 +602,7 @@ For a device that may have been used while unlocked, a leaked PIN or a leaked ph
 
 1. Rotate the account key (§5.7) with the phrase, the new phrase if given, and the new PIN if given. This cuts every other device: their wraps belong to the retired version (D-10). With a new phrase, the recovery wrap of the new version is for it, so the replaced phrase opens nothing of that version (SP-11).
 2. For every team the account has member keys for, in its own write: create new member keys (§5.9) with the `recoveryPublicKey` derived from the new phrase, if given, else from the current one, never read back from the server (D-56), whose record carries a `recoverySignature` by the **current** phrase's recovery signing key (§4.2): proven against the keys each team holds (SP-23). Each new floor comes from a chain containing every root the vault holds, so a floor planted with the stolen account key fails the team instead of being carried; an anchor an owner gave for the team (`anchors`) replaces the roots (§5.9, D-54).
-3. Report the teams re-keyed and those that failed. Retry a failed team before the account's next `reconcile` as an owner: until then, that team's held keys include any bundle the vault re-wrapped, which an owner's own `reconcile` approves (D-47). A failed team is retried with the re-key of §6.8: with a new phrase, that phrase as `phrase` and the one given here as `oldPhrase`, which the team's held keys still carry (D-49, D-56); without one, this phrase as `phrase`. One that failed on its roots is retried with an anchor from an owner.
+3. Report the teams re-keyed and those that failed: a team whose re-key failed, and a team in `teamIds` (the teams the integration's product says the user belongs to) with no wrap that opens, which is repaired with a proven `rekey` and an owner's anchor (D-60). Retry a failed team before the account's next `reconcile` as an owner: until then, that team's held keys include any bundle the vault re-wrapped, which an owner's own `reconcile` approves (D-47). A failed team is retried with the re-key of §6.8: with a new phrase, that phrase as `phrase` and the one given here as `oldPhrase`, which the team's held keys still carry (D-49, D-56); without one, this phrase as `phrase`. One that failed on its roots is retried with an anchor from an owner.
 
 A new PIN that opens the current PIN wrap is refused with `MALFORMED_RECORD` before anything is written: a retired version stays served to a stateless device, and the old PIN would open it (SP-19). The check is one evaluation with purpose `enroll`, the share the new PIN wrap draws on (§5.1). It is skipped when the current version has no PIN wrap, or when that share is spent: setting the new PIN then fails too (`PIN_RATE_LIMITED`), so the old PIN is never set again unchecked.
 4. Wipe the phrases and the keys derived from them; the vault forgets the new phrase it held.
@@ -646,7 +646,7 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 ### 6.4 Inviting and joining a team
 
 1. **Invite (owner).** Put the team's anchor (`team.inviteAnchor()`, §3.5) in the invite link, for the integration to deliver.
-2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5), fetches the chain from the anchor's version and verifies it with that anchor (§4.5, §6.1 step 2), else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. Without an anchor, it verifies the chain from version 1: the join is this member's first contact (TH-04). It then creates the member's keys for the team (§5.9) with the verified chain's tip as their floor and as the vault's own anchor (D-48, D-50, D-54), so every device of the member, in any context, starts from it. When the link reached the joiner outside the server, a server can't present a forged team. If the account already has keys for the team, the vault only checks the anchor, if given, writes nothing, and leaves the floor as it is.
+2. **Join.** The anchor from the link is passed to `joinTeam(teamId, { anchor })`. The vault decodes it (§3.5) and verifies the chain from it and from the vault's own anchor for the team, if it has one (§4.5, §6.1 step 2, D-59): the chain must contain both, else `TRUST_FAILURE` (`rollback`, `chain_conflict`), before writing anything. With neither, it verifies the chain from version 1: the join is a first contact (TH-04), also for an existing member whose wraps the server withholds on a device with no vault anchor; re-join a member only with an owner's anchor. It then creates the member's keys for the team (§5.9) with the verified chain's tip as their floor and as the vault's own anchor (D-48, D-50, D-54), so every device of the member, in any context, starts from it. When the link reached the joiner outside the server, a server can't present a forged team. If the account already has keys for the team, the vault only checks the anchor, if given, writes nothing, and leaves the floor as it is.
 3. The member is `pending` until an owner approves their keys (§6.5).
 
 ### 6.5 Approving members (owner)
@@ -685,7 +685,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 ### 6.8 Re-keying a member
 
-1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain containing every root, or from an anchor an owner gave (`rekey(teamId, { anchor })`, the repair for a device with no anchor or a planted floor; it replaces every root and is trusted as given, so it must reach the user from an owner outside the server, TH-04) (§5.9, D-54), and, if the user entered the current recovery phrase (`phrase`, checked as in §5.6), its `recoveryPublicKey` and a `recoverySignature`: by `phrase`, or by `oldPhrase` when given, a phrase whose recovery key a bundle the vault holds for the team carries (D-49, D-56). Without a phrase, the keys carry the recovery wrap's key and no proof. The member stays able to read with the old keys until the rotation.
+1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain containing every root, or from an anchor an owner gave (`rekey(teamId, { anchor })`, the repair for a device with no anchor, a planted floor, or a team whose wraps are gone, since with an owner's anchor it runs when the vault holds no bundle, D-59; it replaces every root and is trusted as given, so it must reach the user from an owner outside the server, TH-04) (§5.9, D-54), and, if the user entered the current recovery phrase (`phrase`, checked as in §5.6), its `recoveryPublicKey` and a `recoverySignature`: by `phrase`, or by `oldPhrase` when given, a phrase whose recovery key a bundle the vault holds for the team carries (D-49, D-56). Without a phrase, the keys carry the recovery wrap's key and no proof. The member stays able to read with the old keys until the rotation.
 2. An owner approves the new keys by rotating the team key (§6.6), naming the keys reviewed (§6.5). The library classifies the request:
    - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23): then only its own `reconcile` does, holding the keys (D-47);
    - **unproven**: anything else. The owner verifies out of band (AS-06, TH-37). The old keys can't vouch for the new ones, since an attacker may hold them (D-38).
@@ -888,7 +888,7 @@ vault.warnings()                          → recovery not set up; no PIN (D-40)
 vault.setup(pin)                          // then set up recovery before any team work
 vault.beginRecoverySetup()                → { recoveryPhrase }   // held in memory until confirmed (§5.10)
 vault.confirmRecoveryPhrase(phrase, { currentPhrase } | { currentPin }) → { rekeyed, failed }
-                                          // a replacement needs one and re-keys teams (§5.6, D-41); a first setup none
+                                          // a replacement needs one and re-keys teams (§5.6, D-41); a first setup the PIN (D-61)
 vault.unlock()                            // device; throws DEVICE_NOT_REGISTERED
 vault.unlockWithPin(pin)                  // upgrades an outdated PIN wrap (§5.4); throws PIN_NOT_SET_UP
 vault.recover(phrase, newPin)             // unlocked even if setting the PIN is refused (§5.4)
@@ -896,7 +896,7 @@ vault.changePin(newPin, { currentPin } | { phrase })   // D-41; creates the PIN 
 vault.listDevices()                       → { deviceId, current }[]   // current: this device (§5.5)
 vault.revokeDevice(deviceId)              // the device can't unlock again; see §5.5
 vault.rotate({ phrase, newPin? })         // keeps the phrase; without newPin, no PIN until changePin (D-40, D-41)
-vault.secureAccount({ phrase, newPhrase?, newPin?, anchors? }) → { rekeyed: teamId[], failed: teamId[] }
+vault.secureAccount({ phrase, newPhrase?, newPin?, anchors?, teamIds? }) → { rekeyed: teamId[], failed: teamId[] }
                                           // §5.11, D-40; newPhrase: from beginRecoverySetup, typed back (D-45)
 vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
 vault.joinTeam(teamId, { anchor? })       // the invite link's anchor, checked first (§6.4, D-48); "pending" until approved

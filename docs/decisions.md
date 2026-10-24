@@ -491,7 +491,7 @@ Problem: same-device unlocks need no PIN, so a stolen device, or a script runnin
 
 Decision: an operation that changes how the account is opened needs a current credential besides the open vault:
 - `changePin` needs the current PIN, checked by opening the live PIN wrap (one server evaluation), or the recovery phrase. With no PIN set (D-40), only the phrase.
-- Replacing the recovery phrase needs the current phrase or the current PIN. Setting up recovery the first time needs neither: an account without recovery can't be in a team (D-35).
+- Replacing the recovery phrase needs the current phrase or the current PIN. Setting up recovery the first time needs neither: an account without recovery can't be in a team (D-35). (Amended by D-61: every setup needs a current credential.)
 - Rotating the account key needs the current phrase, and keeps it; a new PIN is optional (D-40). A rotation never drops recovery.
 
 A user who lost the phrase replaces it with the PIN, then secures the account with the new phrase if the old one may have leaked.
@@ -774,3 +774,39 @@ Rejected:
 - Requiring servers to verify `member-keys` signatures: defence in depth only (rule 8).
 
 Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account (TH-20); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46).
+
+## D-59: The vault's own anchor roots every vault verification
+
+Status: Accepted; amends D-54's list of operations.
+
+Problem: a join verified the served chain from the invite anchor, or from version 1, without the vault's own anchor. The server withheld an existing member's wraps, so the vault saw no keys, and a join without an anchor, which §6.4 called harmless for a member, rooted new keys on a forged chain and moved the vault's anchor up to its tip (review 019 A). A vault whose anchor a forged join had moved then refused the real invite anchor, and `rekey` couldn't repair a team with no bundle (review 020).
+
+Decision: every chain the vault verifies (opening, exporting, the leave check, a re-key, a join) contains the vault's own anchor for the team, when it has one, and the newest bundle's floor, when it holds one; a join adds the invite anchor. Only an owner's anchor given to `rekey` or `secureAccount` replaces them (D-54), and `rekey` with one runs when the vault holds no bundle for the team.
+
+Rejected: letting an invite anchor replace the vault's anchor: the server can deliver the link (TH-04), and would roll the vault back.
+
+Consequence: a server withholding an existing member's wraps can't re-root a device that verified the team. On a device with no vault anchor, a join is a first contact (TH-04): the integration re-joins an existing member only with an owner's anchor.
+
+## D-60: `secureAccount` reports the product's teams it can't re-key
+
+Status: Accepted.
+
+Problem: `secureAccount` worked on the teams with a wrap that opens (D-58). A device thief with the session copied a team's bundle, then deleted its wrap: the team was neither re-keyed nor reported, and the stolen keys stayed in its roster (review 019 B).
+
+Decision: `secureAccount` takes an optional `teamIds`, the teams the integration's product says the user belongs to. A listed team with no wrap that opens is reported failed. It is repaired with `rekey(teamId, { phrase, anchor })` and an owner's anchor (D-59): a proven re-key that owners' `reconcile` approves, which ends the old keys. With no bundle, `oldPhrase` isn't checked against carried keys.
+
+Rejected: a `DeviceKeyStore` method listing the vault's anchors (a port duty, and only for teams this device verified); an account-wide team index on the server (a new record).
+
+Consequence: the integration passes the list it already has. It comes through the server, which can add a report but not hide one more than it already could by withholding wraps. `warnings()` still reads the wraps: a deleted wrap hides `foreign-member-keys` for that team until `secureAccount` with `teamIds` (accepted).
+
+## D-61: Every recovery setup needs a current credential
+
+Status: Accepted; amends D-35 and D-41.
+
+Problem: a first recovery setup needed no credential, on the premise that an account without recovery can't be in a team. A session deleting the recovery wrap made that premise false: the vault saw a first setup, the user following `recovery-not-set-up` set a phrase with no credential, and every team was re-keyed without proof; whoever held the session with an open vault could set a phrase of its own the same way (review 019 D, review 013 D, review 020).
+
+Decision: with no recovery wrap, a recovery setup needs the current PIN (one server evaluation); with one, the current phrase or PIN, as before. `recover` with no recovery wrap answers `RECOVERY_NOT_SET_UP`.
+
+Rejected: a credential only when the account holds team wraps (review 020): whoever deletes or withholds the wraps decides whether a credential is asked.
+
+Consequence: onboarding asks for the PIN once more (one evaluation). An account with neither a PIN nor a recovery wrap, which only tampering reaches, needs a support restore. A setup with the PIN re-keys without proof; a user who kept the old phrase proves the re-keys with `rekey(teamId, { phrase, oldPhrase })`. A script holding the account key still writes wraps directly (TH-45).

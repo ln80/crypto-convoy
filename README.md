@@ -52,7 +52,7 @@ const vault = await createVault(
 
 await vault.setup("1234");
 const { recoveryPhrase } = vault.beginRecoverySetup(); // show it, then ask the user to type it back
-await vault.confirmRecoveryPhrase(typedBack);
+await vault.confirmRecoveryPhrase(typedBack, { currentPin: "1234" });
 await vault.createTeam("team-1");
 const team = await vault.openTeam("team-1");
 ```
