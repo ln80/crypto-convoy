@@ -268,14 +268,14 @@ Related threats: TH-11, TH-18.
 
 ### SP-15: Owner and membership changes are visible
 
-Property: every change to the owner list or to the roster (accounts added, removed or re-keyed) in the records a client verifies since its last verified state is reported by the library to the integration, with the signer and what changed, on every member's client (D-44). Who received each version created by a rotation is its signed roster, which the server can't edit or trim. Owners also get an overview of each member's access, its proof, and what needs their action (members awaiting approval, unproven re-keys, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Every roster entry and every owner's key must match that account's published member keys (D-46), so a report names the account the keys belong to, unless the server also forges that account's member keys record.
+Property: every change to the owner list or to the roster (accounts added, removed or re-keyed) in the records a client verifies since its last verified state is reported by the library to the integration, with the signer and what changed, on every member's client: each device or context reports every record above its lowest root, so what one device saw doesn't hide it from another (D-44, D-57). Who received each version created by a rotation is its signed roster, which the server can't edit or trim. Owners also get an overview of each member's access, its proof, and what needs their action (members awaiting approval, unproven re-keys, a single owner). Reports come from the chain the library verifies, not from server notifications, so the server can't fake or skip one in the chain a client accepts. Every roster entry and every owner's key must match that account's published member keys (D-46), so a report names the account the keys belong to, unless the server also forges that account's member keys record.
 
 Limit: this is detection, not prevention. Someone holding a stolen owner key can admit a member, rotate, and remove the other owners before anyone reads the report. The "given by a removed owner" list shown during an owner removal is a warning, not a control: a later rotation by another owner hides the origin (TH-17).
 
-Assumptions: the integration displays these changes.
+Assumptions: the integration displays these changes, in every context that opens a team; a context with no stored anchor of its own (a fresh device, a receiver whose anchor store doesn't persist) reports nothing older than the account's floor.
 
 Verification:
-- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; every member sees every admission in the roster; a member admitted and removed again between two opens is reported to a member whose anchor predates both; a rotation that seals to keys an existing member never published, to pass an admission off as a re-key, is refused (`key_mismatch`).
+- `test/security/change-visibility.test.ts`: each kind of change produces exactly one report, with the right signer; the owner overview follows each step; every member sees every admission in the roster; a member admitted and removed again between two opens is reported to a member whose anchor predates both; a rotation that seals to keys an existing member never published, to pass an admission off as a re-key, is refused (`key_mismatch`). A second device reports a change another device already showed; a split layout reports from its second open; a reload keeps the reports a session held (D-57).
 
 Related threats: TH-17, TH-41.
 
@@ -319,13 +319,14 @@ Related threats: TH-24.
 
 ### SP-18: Invalid input fails before crypto, and decryption never returns partial data
 
-Property: every record is checked (types, lengths, bounds, encodings, trailing data) before any cryptographic operation. The default decryption API is buffered: it either returns the full plaintext or fails with a typed error, never partial, empty or unauthenticated data, and it refuses parts larger than the integration's `maxBufferedSize` before downloading them. The streaming API is opt-in: it delivers only authenticated chunks, and an incomplete stream ends with an error so the consumer can discard what it received.
+Property: every record is checked (types, lengths, bounds, encodings, trailing data) before any cryptographic operation. In a list, a record that fails its checks is left out and never stops the others: a `member-keys` record of the team, a member keys wrap or a device wrap of the account (D-58). The default decryption API is buffered: it either returns the full plaintext or fails with a typed error, never partial, empty or unauthenticated data, and it refuses parts larger than the integration's `maxBufferedSize` before downloading them. The streaming API is opt-in: it delivers only authenticated chunks, and an incomplete stream ends with an error so the consumer can discard what it received.
 
 Assumptions: none.
 
 Verification:
 - `test/fuzz/records.fuzz.test.ts`: generated malformed records for every parser.
 - `test/security/partial-decrypt.test.ts`: truncated streams, missing final chunks, and a part above `maxBufferedSize` (refused before download).
+- `test/security/key-substitution.test.ts`: a joiner's `member-keys` record with a bad signature is left out; every member and owner still works (D-58).
 
 Related threats: TH-25.
 
@@ -426,6 +427,6 @@ Limits:
 Assumptions: the server honours rule 7 ([server contract](scope.md#server-contract)).
 
 Verification:
-- `test/security/record-archive.test.ts`: a garbage `team-state` stops the team (`state_unreadable`) and restoring the previous revision reopens it; a deleted `member-keys-wrap` is restored; a PIN thief replaces the phrase and rotates, and restoring the earlier account key version brings back the user's PIN, phrase, devices and teams; a device that accepted the thief's version reports `rollback`; a session commits a version switch with garbage wraps, and the version restore undoes it. A phrase thief's takeover is restored, and securing with a new phrase leaves the leaked one opening nothing. An open vault with the session deletes the recovery wrap, sets up its own phrase and rotates; restoring the version and the recovery wrap from before brings back the user's phrase (TH-45). Limit: restoring a revoked device's wrap lets that device unlock again.
+- `test/security/record-archive.test.ts`: a garbage `team-state` stops the team (`state_unreadable`) and restoring the previous revision reopens it; a deleted `member-keys-wrap` is restored; a PIN thief replaces the phrase and rotates, and restoring the earlier account key version brings back the user's PIN, phrase, devices and teams; a device that accepted the thief's version reports `rollback`; a session commits a version switch with garbage wraps, and the version restore undoes it. A phrase thief's takeover is restored, and securing with a new phrase leaves the leaked one opening nothing. An open vault with the session deletes the recovery wrap, sets up its own phrase and rotates; restoring the version and the recovery wrap from before brings back the user's phrase (TH-45). Limit: restoring a revoked device's wrap lets that device unlock again. A session's garbage wraps, for a team and outside it, are absent and stop neither the team nor `secureAccount`; the server refuses a wrap without its keys or at another account key version; a wrap that opens with mismatched keys fails its team, and securing still runs (D-58).
 
 Related threats: TH-10, TH-11, TH-36, TH-45, TH-46, TH-48.

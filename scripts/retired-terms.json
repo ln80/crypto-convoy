@@ -179,6 +179,23 @@
       "decision": "D-56",
       "use": "a stored recovery key that differs from the typed phrase's is reported, never refused",
       "allow": {}
+    },
+    {
+      "pattern": "newer than the (client's )?highest anchor",
+      "decision": "D-57",
+      "use": "every record above the lowest root",
+      "allow": {
+        "decisions.md": [
+          "D-44",
+          "D-57"
+        ]
+      }
+    },
+    {
+      "pattern": "and the bundles the vault holds, or 1 for none",
+      "decision": "D-58",
+      "use": "numbered from published records only",
+      "allow": {}
     }
   ]
 }

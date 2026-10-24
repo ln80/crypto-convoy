@@ -82,7 +82,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-22 | Inbox sender reads other submissions | A10 | Mitigated: SP-14 |
 | TH-23 | Leaked share link | A10 | Accepted (the link is the capability) |
 | TH-24 | Downgrade to an old version or weak algorithm | A2 | Mitigated: SP-17 |
-| TH-25 | Malformed records exploit the parser | A2 | Mitigated: SP-18 |
+| TH-25 | Malformed records exploit the parser | A2, A5, A11 | Mitigated: SP-18 |
 | TH-26 | Server delivers malicious code | A2 | Accepted (out of scope) |
 | TH-27 | Metadata exposure | A1, A2 | Accepted (out of scope) |
 | TH-28 | Server deletes or withholds data | A2 | Accepted (availability) |
@@ -198,13 +198,13 @@ Disposition: mitigated by SP-17. Unknown or unsupported versions and algorithms 
 
 ### TH-25: Malformed records exploit the parser
 
-Actor: malicious server (A2).
+Actor: malicious server (A2); a member or joiner (A5), or a session (A11), for the records they can publish.
 
-Attack: sends truncated, oversized or inconsistent records, aiming for a crash, a logic error or partial decryption. A sender or member can also declare a huge part to exhaust a reader's memory.
+Attack: sends truncated, oversized or inconsistent records, aiming for a crash, a logic error or partial decryption. A sender or member can also declare a huge part to exhaust a reader's memory. A joiner publishes a `member-keys` record that fails its checks, aiming to stop the team for everyone.
 
 Impact: wrong data accepted, a client tricked into a weaker path, or a client that runs out of memory.
 
-Disposition: mitigated by SP-18. Records are validated before any cryptographic operation, decryption never returns partial data, and the buffered API refuses parts above the integration's `maxBufferedSize` before downloading them.
+Disposition: mitigated by SP-18. Records are validated before any cryptographic operation, decryption never returns partial data, and the buffered API refuses parts above the integration's `maxBufferedSize` before downloading them. A record in a list that fails its checks is left out, so it stops nothing else (D-58).
 
 ### TH-26: Server delivers malicious code
 
@@ -422,7 +422,7 @@ Attack: reads the account key, or captures the PIN or phrase as it is typed.
 
 Impact: every team of the user.
 
-Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them. It could also plant an anchor floor; `secureAccount` writes floors only where the floor and the vault's own anchor agree, so a vault that has opened or exported the team refuses it, and an anchor from an owner repairs it (D-54).
+Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them. It could also plant an anchor floor; `secureAccount` writes floors only where the floor and the vault's own anchor agree, so a vault that has opened or exported the team refuses it, and an anchor from an owner repairs it (D-54). The vault's anchor is per device: resetting the account's other devices after `secureAccount` leaves only the securing device's, so open or re-key each team there first.
 
 ### TH-39: A team's keys reach the wrong context
 
@@ -482,11 +482,11 @@ Disposition: partly mitigated: only a re-key signed by the member's recovery key
 
 Actor: session thief (A11); for a readable `team-state`, a holder of a `teamStateKey` (A9 in a context that holds the team, A7).
 
-Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), or deletes the account's `member-keys-wrap` records; with a `teamStateKey`, writes a readable `team-state` whose anchor isn't on the team's chain.
+Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), deletes the account's `member-keys-wrap` records or replaces them with garbage, or creates garbage wraps under new identities; with a `teamStateKey`, writes a readable `team-state` whose anchor isn't on the team's chain.
 
 Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`; `state_conflict` or `rollback` for a readable one, D-52) for that team, or loses its keys for it. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48, D-50).
 
-Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
+Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. A wrap that doesn't open is absent (D-58), so a created one stops nothing, and the server creates wraps only with their published keys or in a rotation; a replaced one looks like a deletion. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
 
 ### TH-47: Session thief takes a member's key version numbers
 

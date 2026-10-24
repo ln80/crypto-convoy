@@ -530,7 +530,7 @@ Consequence: a session thief can publish bait keys but can't block a member's wr
 
 ## D-44: Membership changes are reported like owner changes
 
-Status: Accepted.
+Status: Accepted; which records a report covers amended by D-57.
 
 Problem: SP-15 promised that every newly approved member key is reported on every member's client. The library reported owner list changes only, and `team.members()` showed the current roster. A member admitted by a stolen owner key and removed again between two opens was never seen (TH-17).
 
@@ -743,3 +743,34 @@ Rejected:
 - Pinning the recovery public key in local storage: one more local value, which any script in the origin can write.
 
 Consequence: a replaced field can't make the user's phrase vouch for someone else's keys, and `secureAccount` repairs it. Operations given no phrase (`createTeam`, `joinTeam`, `rekey` without one) still read the stored key: keys they make while an account-key holder controls it carry its recovery key, so in those teams its re-keys stay proven; after `secureAccount`, a server colluding with it can publish proven keys above the user's (D-43's server rule is defence in depth), until an owner approves the user's re-key by hand (TH-12).
+
+## D-57: Change reports cover every record above the lowest root
+
+Status: Accepted; amends D-44.
+
+Problem: reports covered the records newer than the highest anchor, and the anchors included the floor and the `team-state` anchor, which belong to the account, not to a device. Only the first device or context of an account to open after a change reported it: another device reported nothing afterwards, and a split layout never did, since the export moves the floor to the tip before sealing it. A stolen owner key could admit and remove a member unseen, when detection is the mitigation (TH-17). Anyone holding a `teamStateKey` could also hide reports on every device by writing `team-state` at the tip (review 016 A, review 017).
+
+Decision: reports (`ownerChanges`, `memberChanges`) cover every record of the verified chain above the lowest root, the version the chain is fetched from (§6.1). A session adds the reports of each reload to those it holds.
+
+Rejected: bounding reports by this device's local anchor, with a fallback to the highest root: a fallback, and a context without its own anchor still reported nothing (review 017 E).
+
+Consequence: a device or context reports every change since it last verified the team, whatever another device did; a fresh one reports nothing older than its roots, and a first contact the whole history, as before. Hiding reports on a device takes raising every root, the floor included. While the floor lags behind the local anchor, a change can be reported twice; floor upkeep on open and export makes that rare. Every context that opens a team must show its reports.
+
+## D-58: A record that fails its own checks is absent
+
+Status: Accepted.
+
+Problem: one record could stop everything around it. A session created a garbage `member-keys-wrap` under a new identity: every account-wide operation failed (`secureAccount`, `rotate`, the warnings), and no restore removed a record with no archived generation. An account-key holder could do the same with a wrap that opens but whose published keys don't match. A joiner published a `member-keys` record with a bad signature, and every member's team became `unverified`, with no way to delete it (review 016 B, C; review 017 A–C, F, G).
+
+Decision:
+- A `member-keys-wrap` that doesn't parse, or doesn't open under the account key, was never the account's: the vault treats it as absent, as if withheld, wherever it lists wraps. An account's teams are those with at least one wrap that opens. A device `account-key-wrap` that doesn't parse is left out of the device list. A wrap that opens but doesn't match its published keys stays `TRUST_FAILURE` (`key_mismatch`) when its team is opened.
+- A rotation re-wraps every wrap that opens, without fetching its published record.
+- A `member-keys` record that fails its checks is left out of every list used to verify the chain, build an overview, reconcile or approve, before D-55's duplicate check. Numbering new keys and `foreign-member-keys` still read every published version.
+- Server rule: a `member-keys-wrap` is created only in the batch that creates its `member-keys` record, or in a rotation's batch at the version it switches to; an `account-key-wrap` only at the current version or in that batch. New member keys are numbered from published records only.
+
+Rejected:
+- A support action archiving a live record with no generation: every device fails until support acts.
+- Leaving a mismatched wrap behind in a rotation: a server forging or withholding `member-keys` records could make a rotation drop real bundles.
+- Requiring servers to verify `member-keys` signatures: defence in depth only (rule 8).
+
+Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account (TH-20); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46).
