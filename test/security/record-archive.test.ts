@@ -16,7 +16,7 @@ const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as c
 const b64 = (n: number) => Buffer.alloc(n, 7).toString("base64url");
 
 describe("SP-26: a session can't destroy an account's private records", () => {
-  it("TH-46: a garbage team-state stops the team; restoring the previous revision reopens it (D-42)", async () => {
+  it("TH-46: a garbage team-state is absent where the keys hold a floor; the next open replaces it (D-62)", async () => {
     const { members, w } = await team("bob");
     const bob = members.bob!;
     (await bob.vault.openTeam("team-1")).close();
@@ -25,10 +25,11 @@ describe("SP-26: a session can't destroy an account's private records", () => {
     await bob.store.commit([
       { op: "compare-and-set", key: stateKey, expectedRevision: state.revision, record: { ...state, revision: state.revision + 1, wrappedState: { nonce: b64(24), ciphertext: b64(56) } } },
     ]);
-    expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("state_unreadable"));
-    expect(w.server.archived(stateKey)).toHaveLength(state.revision);
-
-    w.server.restore(stateKey);
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    // Replaced under bob's current keys, the garbage revision archived (D-42).
+    const replaced = (await bob.store.get(stateKey)) as { revision: number };
+    expect(replaced.revision).toBe(state.revision + 2);
+    expect(w.server.archived(stateKey)).toHaveLength(state.revision + 1);
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
   });
 

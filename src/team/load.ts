@@ -27,9 +27,11 @@ export async function loadChain(
   // The roots: the floor, which only the vault writes from a verified chain, and this device's anchor.
   // The team-state, which others can write, counts only on their chain; it is a root only for keys with no floor (D-52).
   const floor = bundles[0]?.floor;
+  // A root only for keys with no floor: there an unreadable one stops here; with a floor it is absent (D-52, D-62).
+  if (!floor && server && !server.anchor) throw trustFailure("state_unreadable");
   // In the vault's context, its own anchor is a root too (D-54).
   const roots = [floor, local, ...extraRoots, floor ? undefined : server?.anchor].filter((a): a is Anchor => a !== null && a !== undefined);
-  const state = floor ? server?.anchor : undefined;
+  const state = floor ? (server?.anchor ?? undefined) : undefined;
   return { chain: await verifiedChain(ports, teamId, roots, state), server };
 }
 

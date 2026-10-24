@@ -75,6 +75,15 @@ export class MemoryRecordStore {
   }
 
   /**
+   * Archives a live private record, as the integration's support process may (D-58, TH-20): for a
+   * wrap planted with a stolen account key, which no restore removes since it has no earlier generation.
+   */
+  archive(key: RecordKey): void {
+    if (!PRIVATE.has(key.type)) throw new Error("only private records are archived by support");
+    archiveLive(this.#live, this.#archive, keyString(key));
+  }
+
+  /**
    * Makes an archived account key version current again, as the integration's support process
    * would after a takeover with a rotation (D-42): the account's live records of later versions are
    * archived, and the newest archived generation of each record of `version` is served again. Pick

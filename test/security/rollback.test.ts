@@ -13,6 +13,7 @@ import { StoreConflictError } from "../../src/errors.js";
 import { createTeamKeyVersion, parseTeamKeyVersion, recordHash, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
 import { keysHash } from "../../src/records/member-keys.js";
 import { createTeamState, teamStateToJson } from "../../src/records/team-state.js";
+import { createMemberKeysWrap, memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
 import type { TamperingStore } from "../support/fake-store.js";
 import { bundleOf, forgeFirstVersion, forgeVersion, versionRecord } from "../support/forge.js";
 import { team } from "../support/teams.js";
@@ -102,11 +103,18 @@ describe("SP-07: a client never goes back", () => {
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
   });
 
-  it("refuses a corrupted team-state as state_unreadable, never ignoring it", async () => {
+  it("a corrupted team-state stops keys with no floor, where it is a root (state_unreadable); with a floor it is absent (D-62)", async () => {
     const { bob } = await threeVersions();
     const state = (await bob.store.get(stateKey)) as Record<string, unknown>;
     const b64 = (n: number) => Buffer.from(cc1.randomBytes(n)).toString("base64url");
     bob.store.replace(stateKey, { ...state, wrappedState: { nonce: b64(24), ciphertext: b64(56) } });
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    // Keys with no floor (written before D-48): the team state is a root, so an unreadable one stops the team.
+    const held = await bundleOf(bob.vault);
+    const { ports, account } = vaultInternals(bob.vault);
+    const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: held.memberKeysVersion, accountKeyVersion: account().version };
+    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey };
+    await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("state_unreadable"));
   });
 

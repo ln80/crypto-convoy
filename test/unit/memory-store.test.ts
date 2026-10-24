@@ -67,6 +67,17 @@ describe("server contract (§11)", () => {
     await expect(alice.commit([create({ ...r.inbox, inboxId: "inbox-2", teamKeyVersion: 2 })])).rejects.toEqual(conflict);
   });
 
+  it("support archives a live private record with no earlier generation (TH-20, review 022 A)", async () => {
+    const { server, alice } = teamStore();
+    const wrap = r["account-key-wrap"];
+    await alice.commit([create(wrap), firstVersion("alice")]);
+    server.archive(keyOf(wrap));
+    expect(await alice.get(keyOf(wrap))).toBeNull();
+    server.restore(keyOf(wrap));
+    expect(await alice.get(keyOf(wrap))).toEqual(wrap);
+    expect(() => server.archive(keyOf(r["team-key-version"]))).toThrow();
+  });
+
   it("never deletes a public key record, so nobody re-creates one (rule 3, review 013 F)", async () => {
     const { server, alice } = teamStore();
     await alice.commit([create(r["team-key-version"]), create(r["member-keys"])]);

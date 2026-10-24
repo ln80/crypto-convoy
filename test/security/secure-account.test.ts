@@ -12,6 +12,10 @@ import { cc1 } from "../../src/suites/cc1/index.js";
 import { world } from "../support/fixtures.js";
 import { accessOf, bundleOf, forgeMemberKeys, forgeVersion, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
+import { createTeamKeyReceiver } from "../../src/team/receiver.js";
+import { MemoryLocalKeyStore } from "../../src/testing/index.js";
+
+const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as const;
 
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -182,6 +186,24 @@ describe("SP-11 / SP-23: secureAccount reports the product's teams whose keys we
     expect(await accessOf(members.alice!.store, "bob", rotatedTo!)).not.toBeNull();
     const access = (await accessOf(members.alice!.store, "bob", rotatedTo!))!;
     expect(() => access.open(stolen.pairs.encryption)).toThrow();
+    // And bob opens the team again, though the team state was under the deleted keys (D-62, review 022 B).
+    expect((await clean.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("a context holding older keys doesn't overwrite a team state it can't read (D-62)", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    const receiver = await createTeamKeyReceiver("bob", "team-1");
+    const transfer = await bob.vault.exportTeamKeys("team-1", receiver.request);
+    // bob re-keys; the owner approves; the vault cleans up and writes the team state under the new keys.
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    await aliceTeam.owner().reconcile(["alice", "bob"]);
+    (await bob.vault.openTeam("team-1")).close();
+    const before = (await bob.store.get(stateKey)) as { revision: number };
+    // The context that kept the old keys opens the team: it can't read the state, and its keys left the roster.
+    await receiver.openTeam({ store: bob.store, anchors: new MemoryLocalKeyStore() }, transfer);
+    expect(((await bob.store.get(stateKey)) as { revision: number }).revision).toBe(before.revision);
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
   });
 
   it("refuses teamIds that aren't ids, before anything is written", async () => {

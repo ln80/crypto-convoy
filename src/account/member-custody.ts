@@ -298,7 +298,8 @@ async function maintainBundles(
     if (cleanUp) {
       const server = await readServerState(ports, accountId, teamId, bundles);
       // The same anchor, under the newest keys: advancing it here would hide owner changes the session reports (§6.1 step 3).
-      if (server) {
+      // Only a readable one keeps its anchor; an unreadable one the next advance replaces (D-62).
+      if (server?.anchor) {
         ops.push({
           op: "compare-and-set",
           key: { type: "team-state", accountId, teamId },

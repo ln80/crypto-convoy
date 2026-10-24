@@ -39,7 +39,8 @@ export function parseTeamState(json: unknown, expected: TeamStateContext): TeamS
     ...header,
     accountId: fields.id("accountId"),
     teamId: fields.id("teamId"),
-    revision: fields.int("revision", 1),
+    // Below the largest safe integer, so the next write's revision stays exact.
+    revision: fields.int("revision", 1, Number.MAX_SAFE_INTEGER - 1),
     wrappedState: readWrapped(fields, "wrappedState", header.suite, STATE_MAX + header.suite.sizes.tag),
   };
   expectContext({ ...expected }, { ...record });
