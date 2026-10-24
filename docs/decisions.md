@@ -504,7 +504,7 @@ Consequence: a device alone uses the account but can't change how it is opened; 
 
 ## D-42: The server never destroys an account's private records; a version can be restored
 
-Status: Accepted.
+Status: Accepted; its rejected repair of an unreadable team state revisited by D-62.
 
 Problem: D-39 archived removed account key wraps, so support could undo a session thief's changes within one account key version. Three cases weren't covered: a rotation by someone holding a credential (TH-11, TH-41) left the user's previous version with its member keys wraps "deleted"; a session thief could delete member keys wraps, or write a garbage team state that the server stored in place of the previous one (TH-46); and nothing let support make an older account key version current again.
 
@@ -773,7 +773,7 @@ Rejected:
 - Leaving a mismatched wrap behind in a rotation: a server forging or withholding `member-keys` records could make a rotation drop real bundles.
 - Requiring servers to verify `member-keys` signatures: defence in depth only (rule 8).
 
-Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account (TH-20); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46).
+Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account, its repairs included, until support archives that wrap (TH-20, review 022 A); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46).
 
 ## D-59: The vault's own anchor roots every vault verification
 
@@ -810,3 +810,17 @@ Decision: with no recovery wrap, a recovery setup needs the current PIN (one ser
 Rejected: a credential only when the account holds team wraps (review 020): whoever deletes or withholds the wraps decides whether a credential is asked.
 
 Consequence: onboarding asks for the PIN once more (one evaluation). An account with neither a PIN nor a recovery wrap, which only tampering reaches, needs a support restore. A setup with the PIN re-keys without proof; a user who kept the old phrase proves the re-keys with `rekey(teamId, { phrase, oldPhrase })`. A script holding the account key still writes wraps directly (TH-45).
+
+## D-62: With a floor, a team state that doesn't open is absent
+
+Status: Accepted; revisits D-42's rejected repair.
+
+Problem: a `team-state` that doesn't open stopped every device at `state_unreadable`. After a session deleted a team's wrap, the repair D-59 and D-60 document (a proven `rekey` with an owner's anchor, approved) left the member there for good: the server's `team-state` was under the deleted bundle's key, and only support could replace it. A session writing garbage did the same (TH-46) (review 022 B).
+
+Decision: when the newest bundle holds an anchor floor, a `team-state` that no `teamStateKey` the session holds opens is absent, as a wrap that doesn't open is (D-58). The anchor advance (§6.1 step 7) replaces it, by compare-and-set on its revision, under the newest bundle's key, if that bundle is in the tip's roster; keys the roster no longer holds never overwrite it. For keys with no floor, `team-state` is a root, and an unreadable one stays `state_unreadable`. A revision is below the largest safe integer.
+
+Rejected:
+- Replacing `team-state` only in the repair with an owner's anchor (review 023 D): garbage from any other cause would still stop every device until a user acts.
+- Replacing it from any context: a context holding older keys and one holding the current keys would overwrite each other on every open (review 023 C).
+
+Consequence: D-42 rejected this repair because a device holding an older bundle could overwrite a newer `team-state` and move the anchor back. With a floor, `team-state` chooses nothing (D-52) and bounds no report (D-57); it still bounds rollback above the floor for a context with no local anchor, and only when it opens. Only keys the roster holds replace it, which a stale context's aren't. A garbage `team-state` now stops only keys with no floor (TH-46).

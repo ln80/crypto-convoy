@@ -102,7 +102,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-40 | The server confirms a stored file from its reference | A2, A1 | Mitigated: SP-21; plain hashes sent by the integration stay its responsibility |
 | TH-41 | A leaked recovery phrase replaces a member's keys | A8 | Partly mitigated: owners excluded from auto-approval (SP-23), changes reported (SP-15); race accepted |
 | TH-45 | An unlocked vault replaces the account's credentials | A7, A9 | Partly mitigated: SP-25 (D-41) for the open vault alone; with the session too, accepted and undone by a support restore: SP-26 |
-| TH-46 | Session thief corrupts private team records | A11 | Mitigated: SP-26 (D-42); unavailability until restored accepted |
+| TH-46 | Session thief corrupts private team records | A11 | Mitigated: SP-26 (D-42, D-62); unavailability until restored accepted |
 | TH-47 | Session thief takes a member's key version numbers | A11 | Partly mitigated: SP-12 (D-43); approvals wait until the thief's sessions end; bait keys need a human |
 | TH-44 | Session thief spends the PIN budget | A11 with A7, A8 or A9 | Mitigated: SP-11 (phrase-only rotation and securing, D-40); the integration may reset the budget |
 | TH-48 | A support restore brings back what an attacker can open | A8, A7, A2 | Accepted: restores are the integration's to authenticate (SP-26 Limit); securing with a new phrase follows (SP-11, D-45) |
@@ -348,7 +348,7 @@ Attack: publishes new member keys signed with the recovery key in every team of 
 
 Impact: the thief reads what the teams write next, and the real member is cut out until a human intervenes. The phrase also opens the account key, so the thief already read everything the account could (TH-11).
 
-Disposition: partly mitigated: owners' re-keys are approved automatically only by the owner's own `reconcile`, for keys its vault holds (SP-23, D-47); a thief who places such keys with the account key the phrase opens already holds the owner key (TH-11), so the phrase gives no new way to change the owner list; each approved re-key is reported (SP-15), and the cut-out member sees `pending` and the `foreign-member-keys` warning (D-43). Accepted: the race itself, which ends when an owner removes the account or approves one set of keys by hand, after the user has secured the account with a new phrase (D-45).
+Disposition: partly mitigated: owners' re-keys are approved automatically only by the owner's own `reconcile`, for keys its vault holds (SP-23, D-47); a thief who places such keys with the account key the phrase opens already holds the owner key (TH-11), so the phrase gives no new way to change the owner list; each approved re-key is reported (SP-15), and the cut-out member sees `pending` and the `foreign-member-keys` warning (D-43). Accepted: the race itself, which ends when an owner removes the account or approves one set of keys by hand, after the user has secured the account with a new phrase (D-45). A server publishing for the thief isn't bound by rule 8: it can publish a newer proven re-key after each of the user's, or newer keys after an owner's review (`STALE_VERSION`), so against it the race ends only when it stops, as for a session (TH-47).
 
 ### TH-44: Session thief spends the PIN budget
 
@@ -422,7 +422,7 @@ Attack: reads the account key, or captures the PIN or phrase as it is typed.
 
 Impact: every team of the user.
 
-Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them. It could also plant an anchor floor; `secureAccount` writes floors only where the floor and the vault's own anchor agree, so a vault that has opened or exported the team refuses it, and an anchor from an owner repairs it (D-54). The vault's anchor is per device: resetting the account's other devices after `secureAccount` leaves only the securing device's, so open or re-key each team there first.
+Disposition: accepted; it's the integration's job to keep the vault and the credential prompts in the most isolated context it has. Once detected, the remedy is SP-09 (replace the credentials), SP-11 (rotate the account key) and SP-12 (re-key in each team): with the account key, the script could open every member keys bundle, and rotating the account key doesn't change them. It could also plant an anchor floor; `secureAccount` writes floors only where the floor and the vault's own anchor agree, so a vault that has opened or exported the team refuses it, and an anchor from an owner repairs it (D-54). The vault's anchor is per device: resetting the account's other devices after `secureAccount` leaves only the securing device's, so open or re-key each team there first. With the account key, it can also plant a wrap that opens with keys its published record doesn't match: that team then fails for the account, its repairs included, until support archives the wrap (D-58).
 
 ### TH-39: A team's keys reach the wrong context
 
@@ -484,7 +484,7 @@ Actor: session thief (A11); for a readable `team-state`, a holder of a `teamStat
 
 Attack: writes a well-formed `team-state` whose content is garbage (the server can't check it), deletes the account's `member-keys-wrap` records or replaces them with garbage, or creates garbage wraps under new identities; with a `teamStateKey`, writes a readable `team-state` whose anchor isn't on the team's chain.
 
-Impact: every device of the account stops at `TRUST_FAILURE` (`state_unreadable`; `state_conflict` or `rollback` for a readable one, D-52) for that team, or loses its keys for it. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48, D-50).
+Impact: for keys with no floor, every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team; with a floor, an unreadable `team-state` is absent and replaced at the next open (D-62). A readable one off the chain gives `state_conflict` or `rollback` (D-52). Deleted wraps lose the account its keys for the team. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48, D-50).
 
 Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. A wrap that doesn't open is absent (D-58), so a created one stops nothing, and the server creates wraps only with their published keys or in a rotation; a replaced one looks like a deletion. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
 

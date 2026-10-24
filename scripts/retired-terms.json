@@ -220,6 +220,12 @@
       "decision": "D-61",
       "use": "a first setup the PIN",
       "allow": {}
+    },
+    {
+      "pattern": "never silently ignored, since ignoring it",
+      "decision": "D-62",
+      "use": "with a floor, an unreadable team-state is absent and replaced",
+      "allow": {}
     }
   ]
 }
