@@ -295,7 +295,7 @@ Each scenario lists what changes and what old key material can still open afterw
 1. Generate `accountKey` version 1.
 2. The user chooses a PIN: derive `pinKey` (one server evaluation) and store the PIN wrap.
 3. Register this device: generate `deviceKey`, keep it locally, store the device wrap.
-4. Set up recovery (D-35): the vault generates a phrase and keeps it in memory; the user enters it back; only then derive `recoveryKey` and the recovery signing key, and store the recovery wrap with the recovery public key. Until this is done, the account can't create or join a team.
+4. Set up recovery (D-35): the vault generates a phrase and keeps it in memory; the user enters it back, with the current PIN (D-61); only then derive `recoveryKey` and the recovery signing key, and store the recovery wrap with the recovery public key. Until this is done, the account can't create or join a team.
 
 ### Adding a device
 

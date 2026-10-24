@@ -61,7 +61,7 @@ Not protected (see [Non-goals](scope.md#non-goals)): metadata such as team membe
 | TH-01 | Server reads stored items or keys | A1, A2 | Mitigated: SP-01 |
 | TH-02 | Server swaps a member key or adds a fake member | A2 | Mitigated: SP-04 |
 | TH-03 | Server forges the owner list | A2 | Mitigated: SP-05 |
-| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); limited to the join, and to an owner's repair anchor, by the anchor floor in the member keys: SP-07 (D-48, D-50, D-54) |
+| TH-04 | Server impersonates a team or a member at first contact | A2 | Accepted (D-11 deferred); limited by the anchor floor and the vault's anchor to a join, a re-join on a device with no vault anchor, an owner's repair anchor and an unproven re-key: SP-07 (D-48, D-50, D-54, D-59) |
 | TH-05 | Server rolls back or hides team state | A2 | Partly mitigated: SP-07 (anchors, anchor floor in the member keys, D-48, D-52); residual accepted |
 | TH-06 | Server modifies or moves encrypted items | A2 | Mitigated: SP-03 |
 | TH-07 | Offline PIN guessing from a stolen backup | A1 | Mitigated: SP-08 |

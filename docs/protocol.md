@@ -829,7 +829,7 @@ What a team session reports to the integration after loading (§6.1):
 | `STALE_VERSION` | A write used a version that is no longer current. | After reloading team state |
 | `LAST_OWNER` | The account is the only owner: it can't leave the team until another owner is added. | After adding an owner |
 | `NOT_AN_OWNER` | The caller isn't an owner of the current version, so it can't run an owner operation (a caller without current access gets `NOT_GRANTED`). | No |
-| `RECOVERY_NOT_SET_UP` | Recovery must be set up before creating or joining a team (§5.10, D-35). | After setting up recovery |
+| `RECOVERY_NOT_SET_UP` | No recovery wrap at the current version: needed to create or join a team, and by every operation that takes the phrase (§5.4, §5.7, §5.10, D-35). | After setting up recovery, or a support restore |
 | `STORE_ERROR` | `RecordStore` or `OprfService` failed (network, server). | Yes, except PIN evaluations |
 
 Error messages never contain keys, plaintext or record contents.
@@ -901,7 +901,7 @@ vault.secureAccount({ phrase, newPhrase?, newPin?, anchors?, teamIds? }) → { r
 vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
 vault.joinTeam(teamId, { anchor? })       // the invite link's anchor, checked first (§6.4, D-48); "pending" until approved
 vault.rekey(teamId, { phrase?, oldPhrase?, anchor? }) // new member keys; `phrase`: the current one, proven (§6.8); `oldPhrase`: signs instead (D-49, D-56);
-                                          //   `anchor`: from an owner, the root for the new floor (D-54)
+                                          //   `anchor`: from an owner, the root for the new floor (D-54), also with no bundle (D-59)
 vault.leaveTeam(teamId)                   // throws LAST_OWNER for the only owner
 vault.openTeam(teamId)                    → TeamSession   // same context
 vault.exportTeamKeys(teamId, request)     → transfer      // another context (§3.8)

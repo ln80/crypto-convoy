@@ -314,6 +314,23 @@ describe("SP-07: a local anchor changed on the device never reaches the floor (D
 });
 
 describe("SP-07: a join verifies from the vault's own anchor too (D-59, review 019 A)", () => {
+  it("a join that finds keys checks the floor they carry too, and writes nothing (review 021 D)", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    // A device with no vault anchor, holding a floor planted with the account key.
+    const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+    await phone.vault.unlockWithPin(bob.pin);
+    const held = await bundleOf(phone.vault);
+    const { ports, account } = vaultInternals(phone.vault);
+    const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: held.memberKeysVersion, accountKeyVersion: account().version };
+    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey, floor: { version: 50, hash: cc1.randomBytes(32) } };
+    await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
+    await expect(phone.vault.joinTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "TRUST_FAILURE" }));
+    // With an honest floor, the same join only checks and returns.
+    const { members: others } = await team("carol");
+    await others.carol!.vault.joinTeam("team-1");
+  });
+
   it("an existing member's join without an anchor refuses a forged chain when the server withholds its wraps; an owner's anchor repairs a team with no bundle", async () => {
     const { w, members, aliceTeam } = await team("bob");
     await aliceTeam.owner().rotate({ keep: ["bob"] }); // the real chain at v3

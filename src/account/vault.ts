@@ -483,8 +483,11 @@ export class Vault {
     // The invite anchor and the vault's own anchor: a chain without both is refused (D-59).
     const vault = await vaultAnchorOf(this.#ports, this.accountId, teamId);
     const anchors = [...(options.anchor !== undefined ? [decodeAnchor(options.anchor)] : []), ...(vault ? [vault] : [])];
-    if ((await openBundles(this.#ports, account, teamId)).length > 0) {
-      if (anchors.length > 0) await verifiedChain(this.#ports, teamId, anchors);
+    const [held] = await openBundles(this.#ports, account, teamId);
+    if (held) {
+      // With keys already, only check, against every root the vault holds: the floor too (D-59).
+      const roots = [...anchors, ...(held.floor ? [held.floor] : [])];
+      if (roots.length > 0) await verifiedChain(this.#ports, teamId, roots);
       return;
     }
     const recovery = await recoveryPublicKey(this.#ports, account);

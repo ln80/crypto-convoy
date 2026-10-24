@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 1 of 2. Last review: 021 (`change`, plan 018) found nothing to fix: three text items and a one-line code alignment (021-A to D). Open findings to fix: none. Still open, low: 011-A, 021-A to D. Next: a fresh `adversarial` review; if it finds nothing to fix, 021 and it make the freeze candidate.
+**Now:** 1 of 2. Last review: 021 (`change`, plan 018) found nothing to fix; its four items are corrected. Open findings to fix: none. Still open, low: 011-A. Next: a fresh `adversarial` review; if it finds nothing to fix, 021 and it make the freeze candidate.
 
 ## Findings
 
@@ -121,10 +121,10 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 020-5 | Hardening | Medium | Fixed | D-60: the proven repair |
 | 020-6 | Forgeable input | High | Fixed | D-61: every setup needs a credential |
 | 020-7 | Wrong claim | Low | Fixed | D-61; `recover` |
-| 021-A | Stale text | Low | Open | |
-| 021-B | Stale text | Low | Open | |
-| 021-C | Stale text | Low | Open | |
-| 021-D | Spec → code | Low | Open | |
+| 021-A | Stale text | Low | Fixed | Key hierarchy (edit) |
+| 021-B | Stale text | Low | Fixed | §12, TH-04 index row (edit) |
+| 021-C | Stale text | Low | Fixed | §9 (edit) |
+| 021-D | Spec → code | Low | Fixed | `joinTeam` checks the held floor, with a test |
 
 ## Residuals
 

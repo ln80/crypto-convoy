@@ -52,3 +52,7 @@ A, B, C (text) and D (one line of code, with a test).
 ## Stop rule
 
 Nothing here is for the action rule to fix: **1 of 2**. A fresh `adversarial` review that finds nothing to fix makes the freeze candidate.
+
+## Applied
+
+A, B, C (text) and D (`joinTeam` adds the held floor to its roots, with a test in `account-rotation.test.ts` and its guard).
