@@ -1,5 +1,6 @@
 // Owner operations (§6.5–§6.9): one object per admin intent, plain data in and out (D-31).
 // Every access change is a rotation whose roster lists the recipients (D-37).
+import { toBase64url } from "../encoding/base64url.js";
 import { ConvoyError, isConvoyError, trustFailure } from "../errors.js";
 import { callPort } from "../ports.js";
 import { keysHash, parseMemberKeys, type MemberKeys } from "../records/member-keys.js";
@@ -159,24 +160,33 @@ export class TeamOwner {
       const keys = parseMemberKeys(json, { teamId, accountId: (json as { accountId: string }).accountId });
       byAccount.set(keys.accountId, [...(byAccount.get(keys.accountId) ?? []), keys]);
     }
-    for (const list of byAccount.values()) list.sort((a, b) => a.memberKeysVersion - b.memberKeysVersion);
+    for (const list of byAccount.values()) this.#ascending(list);
     return byAccount;
   }
 
   async #publishedKeys(accountId: string): Promise<MemberKeys[]> {
     const { ports, teamId } = this.#core;
     const jsons = await callPort(() => ports.store.list({ type: "member-keys", teamId, accountId }));
-    return jsons.map((json) => parseMemberKeys(json, { teamId, accountId })).sort((a, b) => a.memberKeysVersion - b.memberKeysVersion);
+    return this.#ascending(jsons.map((json) => parseMemberKeys(json, { teamId, accountId })));
+  }
+
+  /** Sorts by version; two records for one version are the server's equivocation (D-55). Throws `TRUST_FAILURE`. */
+  #ascending(list: MemberKeys[]): MemberKeys[] {
+    list.sort((a, b) => a.memberKeysVersion - b.memberKeysVersion);
+    if (list.some((k, i) => i > 0 && k.memberKeysVersion === list[i - 1]!.memberKeysVersion)) throw this.#core.markUnverified(trustFailure("key_mismatch"));
+    return list;
   }
 
   /**
-   * The keys an owner reviewed, if they are still the account's newest: keys published after the
-   * review, or replaced ones, are never approved (§6.5, §6.8). Throws `NOT_GRANTED`, `STALE_VERSION`.
+   * The keys an owner reviewed, if they are still the account's newest with the reviewed keys hash:
+   * keys published after the review, or replaced ones, are never approved (§6.5, §6.8, D-55).
+   * Throws `NOT_GRANTED`, `STALE_VERSION`, `TRUST_FAILURE` (another record for the reviewed version).
    */
   async #reviewedKeys(handle: KeysHandle): Promise<MemberKeys> {
     const newest = (await this.#publishedKeys(handle.accountId)).at(-1);
     if (!newest) throw new ConvoyError("NOT_GRANTED");
     if (newest.memberKeysVersion !== handle.memberKeysVersion) throw new ConvoyError("STALE_VERSION");
+    if (toBase64url(keysHash(newest.suite, newest)) !== handle.keysHash) throw this.#core.markUnverified(trustFailure("key_mismatch"));
     return newest;
   }
 

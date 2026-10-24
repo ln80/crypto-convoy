@@ -3,9 +3,9 @@
 import type { RecordKey, RecordQuery, RecordStore, WriteOp } from "../../src/ports.js";
 
 type Match = { type: string } & Record<string, unknown>;
-const matches = (key: object, match: Match) =>
+const matches = (key: object, match: Record<string, unknown>) =>
   Object.entries(match).every(([field, value]) => (key as Record<string, unknown>)[field] === value);
-const recordMatches = (record: unknown, match: Match) =>
+const recordMatches = (record: unknown, match: Record<string, unknown>) =>
   typeof record === "object" && record !== null && matches(record, match);
 
 export class TamperingStore implements RecordStore {
@@ -13,6 +13,8 @@ export class TamperingStore implements RecordStore {
   #dropped: Match[] = [];
   #chainCuts = new Map<string, number>();
   #forks: { teamId: string; version: number; record: unknown }[] = [];
+  #listSwaps: { query: Match; match: Record<string, unknown>; value: () => unknown }[] = [];
+  #listExtras: { query: Match; value: () => unknown }[] = [];
   #commitFilter: ((ops: readonly WriteOp[]) => void) | undefined;
   #accountVersion: number | null | undefined;
   readonly commits: WriteOp[][] = [];
@@ -35,6 +37,18 @@ export class TamperingStore implements RecordStore {
   /** Serves the team key chain only up to `version` (rollback). */
   rollback(teamId: string, version: number): this {
     this.#chainCuts.set(teamId, version);
+    return this;
+  }
+
+  /** Serves `value` for records matching `match`, only in lists whose query matches `query` (a different answer per query). */
+  replaceInList(query: Match, match: Record<string, unknown>, value: unknown): this {
+    this.#listSwaps.push({ query, match, value: () => structuredClone(value) });
+    return this;
+  }
+
+  /** Adds `value` to every list whose query matches `query` (a second record for one identity). */
+  addToList(query: Match, value: unknown): this {
+    this.#listExtras.push({ query, value: () => structuredClone(value) });
     return this;
   }
 
@@ -61,6 +75,8 @@ export class TamperingStore implements RecordStore {
     this.#dropped = [];
     this.#chainCuts.clear();
     this.#forks = [];
+    this.#listSwaps = [];
+    this.#listExtras = [];
     this.#commitFilter = undefined;
     this.#accountVersion = undefined;
     return this;
@@ -88,7 +104,9 @@ export class TamperingStore implements RecordStore {
     const records = await this.inner.list(query);
     const out = records
       .map((record) => this.#tamper(record, { ...(record as object), type: query.type }))
+      .map((record) => this.#listSwaps.find((s) => matches(query, s.query) && recordMatches(record, s.match))?.value() ?? record)
       .filter((record) => record !== null);
+    for (const extra of this.#listExtras) if (matches(query, extra.query)) out.push(extra.value() as object);
     if (query.type === "team-key-version") {
       for (const fork of this.#forks) {
         const present = out.some((r) => (r as { version: number }).version === fork.version);

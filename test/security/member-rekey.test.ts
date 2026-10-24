@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { isConvoyError } from "../../src/errors.js";
 import { hasValidRecoveryProof } from "../../src/records/member-keys.js";
 import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
-import { requestOf, team } from "../support/teams.js";
+import { requestOf, team, keysHandle } from "../support/teams.js";
 
 describe("SP-12: compromised member keys can be replaced", () => {
   it("a re-key without the phrase is unproven, and receives nothing until an owner rotates", async () => {
@@ -41,7 +41,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     const bob = members.bob!;
     const old = await bundleOf(bob.vault);
     await bob.vault.rekey("team-1");
-    const { version } = await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    const { version } = await aliceTeam.owner().rotate({ keep: ["bob"], approve: [await keysHandle(aliceTeam, "bob", 2)] });
 
     const access = (await accessOf(bob.store, "bob", version))!;
     expect(access.memberKeysVersion).toBe(2);
@@ -62,7 +62,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     (await bob.vault.openTeam("team-1")).close();
     expect(await wraps()).toEqual([1, 2]); // not approved yet: the old keys still read
 
-    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [await keysHandle(aliceTeam, "bob", 2)] });
     const session = await bob.vault.openTeam("team-1");
     expect(session.state).toBe("ready");
     expect(await wraps()).toEqual([2]);
@@ -86,7 +86,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob"] });
     const bob = members.bob!;
     await bob.vault.rekey("team-1");
-    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [await keysHandle(aliceTeam, "bob", 2)] });
     const session = await bob.vault.openTeam("team-1");
     expect(session.ownerChanges.at(-1)).toEqual({ version: 4, signer: "alice", added: [], removed: [], rekeyed: ["bob"] });
     await session.owner().rotate({ keep: ["alice"] });
@@ -98,7 +98,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     const bob = members.bob!;
     await bob.vault.rekey("team-1");
     const reviewed = (await requestOf(aliceTeam.owner(), "bob")).keys!;
-    expect(reviewed).toEqual({ accountId: "bob", memberKeysVersion: 2 });
+    expect(reviewed).toMatchObject({ accountId: "bob", memberKeysVersion: 2 });
     // A session thief publishes newer keys after the owner's review.
     await bob.store.commit([
       { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 3 }, record: forgeMemberKeys("bob", 3, strangerKeys()) },
@@ -114,7 +114,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     await alice.store.commit([
       { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "alice", memberKeysVersion: 3 }, record: forgeMemberKeys("alice", 3, strangerKeys()) },
     ]);
-    await expect(aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "alice", memberKeysVersion: 2 }] })).rejects.toSatisfy((e) =>
+    await expect(aliceTeam.owner().rotate({ keep: ["bob"], approve: [await keysHandle(aliceTeam, "alice", 2)] })).rejects.toSatisfy((e) =>
       isConvoyError(e, "STALE_VERSION"),
     );
     expect(aliceTeam.currentVersion).toBe(2);
@@ -153,7 +153,7 @@ describe("SP-12: keys published under the account by someone else never block th
     await carol.vault.joinTeam("team-1");
     expect((await bundleOf(carol.vault)).memberKeysVersion).toBe(2);
     expect(await carol.vault.warnings()).toEqual([]);
-    await aliceTeam.owner().approve([{ accountId: "carol", memberKeysVersion: 2 }]);
+    await aliceTeam.owner().approve([await keysHandle(aliceTeam, "carol", 2)]);
     expect((await carol.vault.openTeam("team-1")).state).toBe("ready");
   });
 
@@ -166,7 +166,7 @@ describe("SP-12: keys published under the account by someone else never block th
         { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: bait }, record: forgeMemberKeys("bob", bait, strangerKeys()) },
       ]);
       expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven" }] });
-      await expect(aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: real }])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+      await expect(aliceTeam.owner().approve([await keysHandle(aliceTeam, "bob", real)])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
     }
     expect(await bob.vault.warnings()).toContainEqual({ code: "foreign-member-keys", teamIds: ["team-1"], action: "secureAccount" });
   });

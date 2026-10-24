@@ -9,7 +9,7 @@ import { decodeLinkKey } from "../../src/encoding/link.js";
 import { bundleOf } from "../support/forge.js";
 import { outsider } from "../support/link-client.js";
 import { ContentStore } from "../support/content-store.js";
-import { team } from "../support/teams.js";
+import { team, keysHandle } from "../support/teams.js";
 import { replacePhrase } from "../support/fixtures.js";
 
 const text = (s: string) => new TextEncoder().encode(s);
@@ -36,7 +36,7 @@ describe("SP-01: no key that opens items, and no plaintext, in the key store or 
     content.putRecord("sub-1", await sender.seal("sub-1"));
     await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob"] });
     await members.bob!.vault.rekey("team-1");
-    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    await aliceTeam.owner().rotate({ keep: ["bob"], approve: [await keysHandle(aliceTeam, "bob", 2)] });
     await alice.vault.changePin("2222", { currentPin: "1234" });
     const { recoveryPhrase } = await replacePhrase(alice.vault, { currentPhrase: alice.recoveryPhrase });
     await alice.vault.rotate({ phrase: recoveryPhrase, newPin: "2222" });

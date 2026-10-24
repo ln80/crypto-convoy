@@ -24,7 +24,7 @@ describe("SP-22: reconcile only narrows access by itself", () => {
     await aliceTeam.owner().reconcile(["alice"]);
     const report = await aliceTeam.owner().reconcile(["alice", "bob"]);
     expect(report.rotatedTo).toBeUndefined();
-    expect(report.needsHuman).toEqual([{ accountId: "bob", reason: "outdated", keys: { accountId: "bob", memberKeysVersion: 1 }, proof: "none" }]);
+    expect(report.needsHuman).toEqual([{ accountId: "bob", reason: "outdated", keys: expect.objectContaining({ accountId: "bob", memberKeysVersion: 1 }), proof: "none" }]);
     expect((await members.bob!.vault.openTeam("team-1")).state).toBe("pending");
   });
 

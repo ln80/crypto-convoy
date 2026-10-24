@@ -1,5 +1,7 @@
 // Team scenarios on top of fixtures: owners, members, grants.
-import type { AccountOverview } from "../../src/team/membership.js";
+import { handleOf, type AccountOverview, type KeysHandle } from "../../src/team/membership.js";
+import { parseMemberKeys } from "../../src/records/member-keys.js";
+import { sessionInternals, type TeamSession } from "../../src/team/session.js";
 import type { TeamOwner } from "../../src/team/owner.js";
 import { world } from "./fixtures.js";
 
@@ -30,4 +32,11 @@ export async function team(...others: string[]) {
 /** One account as an owner's overview shows it (§6.9). */
 export async function requestOf(owner: TeamOwner, accountId: string): Promise<AccountOverview> {
   return (await owner.overview([accountId])).accounts.find((a) => a.accountId === accountId)!;
+}
+
+/** The handle naming an account's published keys at `memberKeysVersion`, as an overview would give it (D-55). */
+export async function keysHandle(session: TeamSession, accountId: string, memberKeysVersion: number): Promise<KeysHandle> {
+  const { store } = sessionInternals(session).ports;
+  const key = { type: "member-keys", teamId: session.teamId, accountId, memberKeysVersion } as const;
+  return handleOf(parseMemberKeys(await store.get(key), { teamId: session.teamId, accountId, memberKeysVersion }));
 }

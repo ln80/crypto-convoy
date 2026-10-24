@@ -1,11 +1,19 @@
 // What an owner sees and what `reconcile` may do on its own (§6.9, D-31, SP-22). Pure: no I/O, no keys.
-import { hasValidRecoveryProof, type MemberKeys } from "../records/member-keys.js";
+import { toBase64url } from "../encoding/base64url.js";
+import { hasValidRecoveryProof, keysHash, type MemberKeys } from "../records/member-keys.js";
 import type { Holder } from "./access.js";
 
-/** Keys an owner reviewed: an approval holds for exactly this version (§6.8). */
+/** Keys an owner reviewed: an approval holds for exactly these keys, named by version and keys hash (§6.5, D-55). */
 export interface KeysHandle {
   readonly accountId: string;
   readonly memberKeysVersion: number;
+  /** The keys hash (§4.2) of the record whose proof or custody was checked, in base64url. */
+  readonly keysHash: string;
+}
+
+/** The handle naming exactly `keys` (D-55). */
+export function handleOf(keys: MemberKeys): KeysHandle {
+  return { accountId: keys.accountId, memberKeysVersion: keys.memberKeysVersion, keysHash: toBase64url(keysHash(keys.suite, keys)) };
 }
 
 /** What vouches for an account's newest keys (§6.8, §6.9): only a recovery proof acts without a human (D-38). */
@@ -102,7 +110,7 @@ export function overviewOf(snapshot: MembershipSnapshot): TeamOverview {
     const status = statusOf(snapshot, accountId, newest);
     const base = { accountId, status, isOwner: snapshot.owners.includes(accountId), active: snapshot.active.has(accountId) };
     if (!newest) return base;
-    return { ...base, keys: { accountId, memberKeysVersion: newest.memberKeysVersion }, proof: proofOf(snapshot, newest) };
+    return { ...base, keys: handleOf(newest), proof: proofOf(snapshot, newest) };
   });
 
   const warnings: OwnerWarning[] = [];

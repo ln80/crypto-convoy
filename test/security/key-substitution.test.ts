@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { isConvoyError } from "../../src/errors.js";
 import { bundleOf, forgeMemberKeys, forgeVersion, strangerKeys } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
-import { requestOf, team } from "../support/teams.js";
+import { requestOf, team, keysHandle } from "../support/teams.js";
 
 const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
 
@@ -55,7 +55,8 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
     const bob = members.bob!;
     await members.alice!.vault.createTeam("team-2");
     await bob.vault.joinTeam("team-2");
-    await (await members.alice!.vault.openTeam("team-2")).owner().approve([{ accountId: "bob", memberKeysVersion: 1 }]);
+    const team2 = await members.alice!.vault.openTeam("team-2");
+    await team2.owner().approve([await keysHandle(team2, "bob", 1)]);
     const other = await bob.store.get({ type: "team-key-version", teamId: "team-2", version: 2 });
     bob.store.fork("team-1", aliceTeam.currentVersion + 1, other);
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("context_mismatch"));
@@ -91,9 +92,61 @@ describe("SP-04: team keys go only to owner-approved member keys", () => {
     const carol = await w.account("carol");
     await carol.vault.joinTeam("team-1");
     await carol.vault.rekey("team-1");
-    await expect(aliceTeam.owner().approve([{ accountId: "carol", memberKeysVersion: 1 }])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    await expect(aliceTeam.owner().approve([await keysHandle(aliceTeam, "carol", 1)])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
     expect(await accessOf(members.alice!.store, "carol", aliceTeam.currentVersion)).toBeNull();
-    await aliceTeam.owner().approve([{ accountId: "carol", memberKeysVersion: 2 }]);
+    await aliceTeam.owner().approve([await keysHandle(aliceTeam, "carol", 2)]);
     expect((await carol.vault.openTeam("team-1")).state).toBe("ready");
+  });
+});
+
+describe("SP-12: an approval holds for exactly the keys reviewed, by keys hash (D-55, review 013 A)", () => {
+  const perAccount = (accountId: string) => ({ type: "member-keys", accountId });
+  const noVersion3 = async (store: { get: (k: never) => Promise<unknown> }) =>
+    expect(await store.get({ type: "team-key-version", teamId: "team-1", version: 3 } as never)).toBeNull();
+
+  it("a member's proven re-key: another record served at rotation is refused, nothing written", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    // A2 answers the rotation's per-account fetch with its own keys for bob's reviewed version.
+    members.alice!.store.replaceInList(perAccount("bob"), { memberKeysVersion: 2 }, forgeMemberKeys("bob", 2, strangerKeys()));
+    await expect(aliceTeam.owner().reconcile(["alice", "bob"])).rejects.toEqual(trust("key_mismatch"));
+    expect(aliceTeam.state).toBe("unverified");
+    await noVersion3(bob.store);
+  });
+
+  it("an owner's own re-key (D-47): another record served at rotation never reaches the owner list", async () => {
+    const { members } = await team("bob");
+    const alice = members.alice!;
+    await alice.vault.rekey("team-1");
+    const session = await alice.vault.openTeam("team-1");
+    alice.store.replaceInList(perAccount("alice"), { memberKeysVersion: 2 }, forgeMemberKeys("alice", 2, strangerKeys()));
+    await expect(session.owner().reconcile(["alice", "bob"])).rejects.toEqual(trust("key_mismatch"));
+    await noVersion3(members.bob!.store);
+  });
+
+  it("a manual approval: the handle's keys hash pins the record the overview showed", async () => {
+    const { members, aliceTeam } = await team("bob");
+    await members.bob!.vault.rekey("team-1");
+    const handle = (await requestOf(aliceTeam.owner(), "bob")).keys!;
+    members.alice!.store.replaceInList(perAccount("bob"), { memberKeysVersion: 2 }, forgeMemberKeys("bob", 2, strangerKeys()));
+    await expect(aliceTeam.owner().approve([handle])).rejects.toEqual(trust("key_mismatch"));
+    await noVersion3(members.bob!.store);
+    // A hand-built handle with a wrong hash is refused the same way.
+    members.alice!.store.reset();
+    const fresh = await members.alice!.vault.openTeam("team-1");
+    await expect(fresh.owner().approve([{ ...handle, keysHash: "A".repeat(43) }])).rejects.toEqual(trust("key_mismatch"));
+  });
+
+  it("two records for one version, in the list the overview reads, are refused (review 014 A)", async () => {
+    const { members } = await team("bob");
+    const alice = members.alice!;
+    await alice.vault.rekey("team-1");
+    const session = await alice.vault.openTeam("team-1");
+    // The genuine record passes the custody check; the forged one would be the list's last.
+    alice.store.addToList({ type: "member-keys", teamId: "team-1" }, forgeMemberKeys("alice", 2, strangerKeys()));
+    await expect(session.owner().reconcile(["alice", "bob"])).rejects.toEqual(trust("key_mismatch"));
+    await expect((await alice.vault.openTeam("team-1")).owner().overview(["alice", "bob"])).rejects.toEqual(trust("key_mismatch"));
+    await noVersion3(members.bob!.store);
   });
 });

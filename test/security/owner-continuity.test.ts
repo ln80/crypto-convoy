@@ -3,7 +3,7 @@
  * Threats: TH-18.
  */
 import { describe, expect, it } from "vitest";
-import { requestOf, team } from "../support/teams.js";
+import { requestOf, team, keysHandle } from "../support/teams.js";
 
 describe("SP-16: another owner keeps the team running", () => {
   it("bob removes an unreachable alice, admits a member, rotates, and re-adds her with new keys", async () => {
@@ -15,7 +15,7 @@ describe("SP-16: another owner keeps the team running", () => {
     await bob.owner().setOwners(["bob"], { keep: [] });
     const dave = await w.account("dave");
     await dave.vault.joinTeam("team-1");
-    await bob.owner().approve([{ accountId: "dave", memberKeysVersion: 1 }]);
+    await bob.owner().approve([await keysHandle(bob, "dave", 1)]);
     await bob.owner().rotate({ keep: ["dave"] });
     expect(bob.currentVersion).toBe(6);
 

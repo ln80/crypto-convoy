@@ -9,7 +9,7 @@ import { openItemKey, parseItem } from "../../src/records/item.js";
 import { ContentStore, addParts, read } from "../support/content-store.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
-import { team } from "../support/teams.js";
+import { team, keysHandle } from "../support/teams.js";
 
 
 describe("SP-06: a removed member can't open what comes after the rotation", () => {
@@ -56,7 +56,7 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     await aliceTeam.owner().rotate({ keep: [] });
     const content = new ContentStore();
     await addParts(aliceTeam.beginItem(), content, "while-away", ["gap"]).seal("while-away");
-    await aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: 1 }]);
+    await aliceTeam.owner().approve([await keysHandle(aliceTeam, "bob", 1)]);
     const bob = await members.bob!.vault.openTeam("team-1");
     expect(bob.state).toBe("ready");
     expect(read(await (await bob.openItem("while-away")).part(0, content.get("while-away", 0)))).toBe("gap");

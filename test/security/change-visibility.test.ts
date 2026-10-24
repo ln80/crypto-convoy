@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bundleOf, forgeVersion, strangerKeys } from "../support/forge.js";
-import { team } from "../support/teams.js";
+import { team, keysHandle } from "../support/teams.js";
 
 describe("SP-15: owner and membership changes are visible", () => {
   it("each owner change is reported once, with its signer, on every member's client", async () => {
@@ -37,7 +37,7 @@ describe("SP-15: owner and membership changes are visible", () => {
     const dave = await w.account("dave");
     await dave.vault.joinTeam("team-1");
     const bobTeam = await members.bob!.vault.openTeam("team-1");
-    await bobTeam.owner().approve([{ accountId: "dave", memberKeysVersion: 1 }]);
+    await bobTeam.owner().approve([await keysHandle(bobTeam, "dave", 1)]);
     const view = await members.alice!.vault.openTeam("team-1");
     expect(await view.members()).toContainEqual({ accountId: "dave", memberKeysVersion: 1, grantedBy: "bob" });
   });
@@ -62,12 +62,12 @@ describe("SP-15: owners see each member's access and what needs their action", (
     expect(await view("carol")).toEqual([{ accountId: "carol", status: "no-keys", proof: undefined }]);
     await carol.vault.joinTeam("team-1");
     expect(await view("carol")).toEqual([{ accountId: "carol", status: "awaiting-approval", proof: "none" }]);
-    await owner.approve([{ accountId: "carol", memberKeysVersion: 1 }]);
+    await owner.approve([await keysHandle(aliceTeam, "carol", 1)]);
     expect(await view("carol")).toEqual([{ accountId: "carol", status: "approved", proof: "none" }]);
 
     await members.bob!.vault.rekey("team-1");
     expect(await view("bob")).toEqual([{ accountId: "bob", status: "rekey-awaiting-approval", proof: "none" }]);
-    expect(await owner.approve([{ accountId: "bob", memberKeysVersion: 2 }])).toEqual({ rotatedTo: 4, approved: ["bob"] });
+    expect(await owner.approve([await keysHandle(aliceTeam, "bob", 2)])).toEqual({ rotatedTo: 4, approved: ["bob"] });
     expect(await view("bob", "carol")).toEqual([
       { accountId: "bob", status: "approved", proof: "none" },
       // approve() kept every holder: carol holds version 4 too.
@@ -106,7 +106,7 @@ describe("SP-15: owners see each member's access and what needs their action", (
     (await bob.vault.openTeam("team-1")).close();
     const mallory = await w.account("mallory");
     await mallory.vault.joinTeam("team-1");
-    await aliceTeam.owner().approve([{ accountId: "mallory", memberKeysVersion: 1 }]);
+    await aliceTeam.owner().approve([await keysHandle(aliceTeam, "mallory", 1)]);
     await aliceTeam.owner().remove(["mallory"]);
 
     const seen = await bob.vault.openTeam("team-1");
@@ -126,7 +126,7 @@ describe("SP-15: owners see each member's access and what needs their action", (
     await aliceTeam.owner().rotate({ keep: ["bob"] });
     expect((await bob.vault.openTeam("team-1")).memberChanges).toEqual([]);
     await bob.vault.rekey("team-1");
-    await aliceTeam.owner().approve([{ accountId: "bob", memberKeysVersion: 2 }]);
+    await aliceTeam.owner().approve([await keysHandle(aliceTeam, "bob", 2)]);
     const seen = await bob.vault.openTeam("team-1");
     expect(seen.memberChanges).toEqual([{ version: seen.currentVersion, signer: "alice", added: [], removed: [], rekeyed: ["bob"] }]);
   });

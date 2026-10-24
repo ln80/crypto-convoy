@@ -5,6 +5,7 @@
  * contexts; approvals as rotations, writes retried across them, the owner's reconcile and securing
  * an account. Doubles as executable documentation. Covers SP-02, SP-06, SP-12, SP-14, SP-15, SP-22, SP-23 end to end.
  */
+import { keysHandle } from "../support/teams.js";
 import { describe, expect, it } from "vitest";
 import { createLinkClient, createTeamKeyReceiver, createVault, isConvoyError, type Settings } from "../../src/index.js";
 import { FakeOprfServer, MemoryLocalKeyStore, MemoryRecordStore, fixedClock } from "../../src/testing/index.js";
@@ -131,7 +132,7 @@ describe("scenario", () => {
     await alice.rekey("team-1");
     const aliceView2 = (await bobOwner.owner().overview(["alice", "bob"])).accounts.find((a) => a.accountId === "alice")!;
     expect(aliceView2).toMatchObject({ status: "outdated", proof: "none", keys: { accountId: "alice", memberKeysVersion: 2 } });
-    await expect(bobOwner.owner().approve([{ accountId: "alice", memberKeysVersion: 1 }])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
+    await expect(bobOwner.owner().approve([await keysHandle(bobOwner, "alice", 1)])).rejects.toSatisfy((e) => isConvoyError(e, "STALE_VERSION"));
     await bobOwner.owner().approve([aliceView2.keys!]);
     expect((await alice.openTeam("team-1")).state).toBe("ready");
 

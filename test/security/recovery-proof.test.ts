@@ -7,8 +7,15 @@ import { deriveRecoveryKeys } from "../../src/account/recovery-key.js";
 import type { WireRecord, WriteOp } from "../../src/ports.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { replacePhrase } from "../support/fixtures.js";
+import { vaultInternals, type Vault } from "../../src/account/vault.js";
+import { openRecoveryPublicKey, parseAccountKeyWrap } from "../../src/records/account-key-wrap.js";
+import { b64 } from "../../src/encoding/json.js";
+import { wrap } from "../../src/blocks/wrap.js";
+import { string, u32 } from "../../src/encoding/canonical.js";
 import { accessOf, bundleOf, forgeMemberKeys, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
+
+const phraseKey = (accountId: string, phrase: string) => deriveRecoveryKeys(cc1, accountId, phrase).signing.publicKey;
 
 const create = (accountId: string, memberKeysVersion: number, record: WireRecord): WriteOp => ({
   op: "create",
@@ -45,7 +52,7 @@ describe("SP-23: recovery-proven re-keys", () => {
     const own = cc1.signingKeyPair(cc1.randomBytes(32));
     await members.bob!.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys(), { recoverySigner: own }))]);
     expect((await aliceTeam.owner().reconcile(["alice", "bob"])).needsHuman).toEqual([
-      { accountId: "bob", reason: "rekey-unproven", keys: { accountId: "bob", memberKeysVersion: 2 }, proof: "none" },
+      { accountId: "bob", reason: "rekey-unproven", keys: expect.objectContaining({ accountId: "bob", memberKeysVersion: 2 }), proof: "none" },
     ]);
   });
 
@@ -83,15 +90,19 @@ describe("SP-23: recovery-proven re-keys", () => {
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"], needsHuman: [] });
   });
 
-  it("D-49: a team re-keyed without proof is retried proven with the old phrase; an unrelated phrase is refused", async () => {
+  it("D-49, D-56: a team re-keyed without proof is retried proven with the new phrase and the old one; the keys carry the new one's key", async () => {
     const { members, aliceTeam } = await team("bob");
     const bob = members.bob!;
-    await replacePhrase(bob.vault, { currentPin: bob.pin });
+    const { recoveryPhrase: newPhrase } = await replacePhrase(bob.vault, { currentPin: bob.pin });
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven" }] });
-    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
-    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+    // The old phrase alone is no longer current; `oldPhrase` needs `phrase`.
+    await expect(bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase })).rejects.toMatchObject({ code: "WRONG_CREDENTIAL" });
+    await expect(bob.vault.rekey("team-1", { oldPhrase: bob.recoveryPhrase })).rejects.toMatchObject({ code: "MALFORMED_RECORD" });
     const other = (await team("x")).members.x!.recoveryPhrase;
-    await expect(bob.vault.rekey("team-1", { phrase: other })).rejects.toMatchObject({ code: "WRONG_CREDENTIAL" });
+    await expect(bob.vault.rekey("team-1", { phrase: newPhrase, oldPhrase: other })).rejects.toMatchObject({ code: "WRONG_CREDENTIAL" });
+    await bob.vault.rekey("team-1", { phrase: newPhrase, oldPhrase: bob.recoveryPhrase });
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+    expect((await bundleOf(bob.vault)).published.recoveryPublicKey).toEqual(phraseKey("bob", newPhrase));
   });
 });
 
@@ -120,3 +131,88 @@ describe("SP-23: the server can't choose the recovery key a proof is checked aga
   });
 });
 
+
+describe("SP-23: the vault signs only for the phrase typed, never the recovery key the wrap names (D-56, review 013 B)", () => {
+  /** A7 or A9 in the vault, with the session: keeps `wrappedAccountKey`, rewrites the public key it names. */
+  async function splice(vault: Vault, accountId: string) {
+    const { ports, account } = vaultInternals(vault);
+    const { version, key } = account();
+    const attacker = cc1.signingKeyPair(cc1.randomBytes(32));
+    const id = { type: "account-key-wrap", accountId, accountKeyVersion: version, method: "recovery" } as const;
+    const current = (await ports.store.get(id)) as Record<string, unknown>;
+    const w = wrap(cc1, key, "recovery-public-key", [string(accountId), u32(version)], attacker.publicKey);
+    await ports.store.commit([{ op: "replace", key: id, record: { ...current, wrappedRecoveryPublicKey: { nonce: b64(w.nonce), ciphertext: b64(w.ciphertext) } } }]);
+    return attacker;
+  }
+  const storedKey = async (vault: Vault, accountId: string) => {
+    const { ports, account } = vaultInternals(vault);
+    const json = await ports.store.get({ type: "account-key-wrap", accountId, accountKeyVersion: account().version, method: "recovery" });
+    return openRecoveryPublicKey(parseAccountKeyWrap(json, { accountId, accountKeyVersion: account().version, method: "recovery" }), account().key);
+  };
+  const mismatch = { code: "recovery-key-mismatch", teamIds: [], action: "secureAccount" };
+
+  it("rekey with the real phrase signs keys carrying its key, reports the splice, and the attacker's proofs prove nothing", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    const attacker = await splice(bob.vault, "bob");
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    expect((await bundleOf(bob.vault)).published.recoveryPublicKey).toEqual(phraseKey("bob", bob.recoveryPhrase));
+    expect(await bob.vault.warnings()).toContainEqual(mismatch);
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+    // The attacker's own re-key, signed by the recovery key it spliced in, stays unproven.
+    await bob.store.commit([create("bob", 3, forgeMemberKeys("bob", 3, strangerKeys(), { recoverySigner: attacker }))]);
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven" }] });
+  });
+
+  it("secureAccount accepts the real phrase, rewrites the wrap from it, and its re-keys are proven", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await splice(bob.vault, "bob");
+    const report = await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
+    expect(report).toEqual({ rekeyed: ["team-1"], failed: [] });
+    expect(await storedKey(bob.vault, "bob")).toEqual(phraseKey("bob", bob.recoveryPhrase));
+    expect((await bundleOf(bob.vault)).published.recoveryPublicKey).toEqual(phraseKey("bob", bob.recoveryPhrase));
+    expect(await bob.vault.warnings()).not.toContainEqual(mismatch);
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+  });
+
+  it("with a new phrase, the re-keys carry the typed new phrase's key, proven by the current one", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await splice(bob.vault, "bob");
+    const { recoveryPhrase: newPhrase } = bob.vault.beginRecoverySetup();
+    await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPhrase, newPin: "5678" });
+    expect((await bundleOf(bob.vault)).published.recoveryPublicKey).toEqual(phraseKey("bob", newPhrase));
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+  });
+
+  it("confirmRecoveryPhrase with the current phrase still works and proves the re-keys", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await splice(bob.vault, "bob");
+    const { recoveryPhrase: newPhrase, report } = await replacePhrase(bob.vault, { currentPhrase: bob.recoveryPhrase });
+    expect(report.failed).toEqual([]);
+    expect((await bundleOf(bob.vault)).published.recoveryPublicKey).toEqual(phraseKey("bob", newPhrase));
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+  });
+
+  it("recover opens the account with the real phrase and reports the splice", async () => {
+    const { members, w } = await team("bob");
+    const bob = members.bob!;
+    await splice(bob.vault, "bob");
+    const phone = await w.device("bob");
+    await phone.vault.recover(bob.recoveryPhrase, "5678");
+    expect(phone.vault.isUnlocked).toBe(true);
+    expect(await phone.vault.warnings()).toContainEqual(mismatch);
+  });
+
+  it("a phrase that doesn't open the recovery wrap is refused before anything is written", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    const other = (await team("x")).members.x!.recoveryPhrase;
+    const before = await bundleOf(bob.vault);
+    await expect(bob.vault.rekey("team-1", { phrase: other })).rejects.toMatchObject({ code: "WRONG_CREDENTIAL" });
+    await expect(bob.vault.secureAccount({ phrase: other })).rejects.toMatchObject({ code: "WRONG_CREDENTIAL" });
+    expect((await bundleOf(bob.vault)).memberKeysVersion).toBe(before.memberKeysVersion);
+  });
+});

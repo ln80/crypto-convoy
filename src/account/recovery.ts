@@ -3,7 +3,7 @@ import type { Anchor } from "../encoding/link.js";
 import { ConvoyError } from "../errors.js";
 import { verifiedChain } from "../team/load.js";
 import { callPort } from "../ports.js";
-import { openRecoveryPublicKey } from "../records/account-key-wrap.js";
+import { openAccountKeyWrap, openRecoveryPublicKey } from "../records/account-key-wrap.js";
 import { parseMemberKeysWrap } from "../records/member-keys-wrap.js";
 import type { KeyPair } from "../suites/suite.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
@@ -30,15 +30,51 @@ export async function currentRecoveryKey(ports: AccountPorts, account: OpenAccou
 }
 
 /**
- * The recovery signing key of `phrase`, checked against `expected` (one key, or any of several:
- * the current one and those a team's keys carry, D-49): another phrase is `WRONG_CREDENTIAL`.
+ * The current phrase, checked by opening the recovery wrap's account key, never against the public
+ * key the wrap names, which an account-key holder can rewrite (D-56): its recovery signing key, and
+ * whether the wrap names another public key. Throws `RECOVERY_NOT_SET_UP`, `WRONG_CREDENTIAL`.
  * The caller wipes the secret key.
  */
-export function recoverySigner(ports: AccountPorts, accountId: string, phrase: string, expected: Uint8Array | readonly Uint8Array[]): KeyPair {
+export async function typedPhrase(ports: AccountPorts, account: OpenAccount, phrase: string): Promise<{ signing: KeyPair; mismatch: boolean }> {
+  const { suite } = ports;
+  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
+  if (!wrap) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+  const { recoveryKey, signing } = deriveRecoveryKeys(suite, account.accountId, phrase);
+  try {
+    let key: Uint8Array;
+    try {
+      key = openAccountKeyWrap(wrap, recoveryKey);
+    } finally {
+      suite.wipe(recoveryKey);
+    }
+    try {
+      if (!suite.equal(key, account.key)) throw new ConvoyError("WRONG_CREDENTIAL");
+    } finally {
+      suite.wipe(key);
+    }
+    return { signing, mismatch: !suite.equal(openRecoveryPublicKey(wrap, account.key), signing.publicKey) };
+  } catch (error) {
+    suite.wipe(signing.secretKey);
+    throw error;
+  }
+}
+
+/** The recovery public key of a phrase the user typed, for keys a new phrase will prove (D-56). */
+export function phrasePublicKey(ports: AccountPorts, accountId: string, phrase: string): Uint8Array {
+  const { recoveryKey, signing } = deriveRecoveryKeys(ports.suite, accountId, phrase);
+  ports.suite.wipe(recoveryKey, signing.secretKey);
+  return signing.publicKey;
+}
+
+/**
+ * The recovery signing key of an old phrase a retry signs with, checked against the recovery keys
+ * the team's bundles carry, against a typing mistake (D-49): another phrase is `WRONG_CREDENTIAL`.
+ * The caller wipes the secret key.
+ */
+export function oldPhraseSigner(ports: AccountPorts, accountId: string, phrase: string, carried: readonly Uint8Array[]): KeyPair {
   const { recoveryKey, signing } = deriveRecoveryKeys(ports.suite, accountId, phrase);
   ports.suite.wipe(recoveryKey);
-  const keys = expected instanceof Uint8Array ? [expected] : expected;
-  if (!keys.some((key) => ports.suite.equal(signing.publicKey, key))) {
+  if (!carried.some((key) => ports.suite.equal(signing.publicKey, key))) {
     ports.suite.wipe(signing.secretKey);
     throw new ConvoyError("WRONG_CREDENTIAL");
   }

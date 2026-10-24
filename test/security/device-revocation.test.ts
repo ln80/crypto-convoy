@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { world } from "../support/fixtures.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
-import { team } from "../support/teams.js";
+import { team, keysHandle } from "../support/teams.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -69,7 +69,7 @@ describe("SP-10 Limit: revocation alone doesn't evict copied keys; the full reme
     // The full remedy (D-21).
     await bob.vault.rotate({ phrase: bob.recoveryPhrase, newPin: bob.pin });
     await bob.vault.rekey("team-1");
-    const { version } = await aliceTeam.owner().rotate({ keep: ["bob"], approve: [{ accountId: "bob", memberKeysVersion: 2 }] });
+    const { version } = await aliceTeam.owner().rotate({ keep: ["bob"], approve: [await keysHandle(aliceTeam, "bob", 2)] });
 
     const after = (await accessOf(bob.store, "bob", version))!;
     expect(after.memberKeysVersion).toBe(2);
