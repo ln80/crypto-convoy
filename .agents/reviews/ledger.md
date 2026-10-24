@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last review: 022 (`adversarial`) found nothing critical or high; one finding to fix by the action rule: 022-B (the documented repair after a deleted wrap leaves the member `state_unreadable`; availability, with a small fix that deletes a failure mode). 022-A, C, D are text. Accepting 022-B instead would make 021 and 022 the freeze candidate.
+**Now:** 0 of 2. Last reviews: 022 (`adversarial`, no critical or high) and 023 (`design`); plan 019 fixed 022-B (D-62) and the text of A, C, D. Open findings to fix: none. Still open, low: 011-A. Next: a review in another mode (`change` on plan 019), then a fresh `adversarial` review.
 
 ## Findings
 
@@ -125,10 +125,16 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 021-B | Stale text | Low | Fixed | §12, TH-04 index row (edit) |
 | 021-C | Stale text | Low | Fixed | §9 (edit) |
 | 021-D | Spec → code | Low | Fixed | `joinTeam` checks the held floor, with a test |
-| 022-A | Wrong premise | Medium | Open | |
-| 022-B | Spec → code | Medium | Open | |
-| 022-C | Overclaim | Medium | Open | |
-| 022-D | Overclaim | Low | Open | |
+| 022-A | Wrong premise | Medium | Accepted | TH-20, D-58, integration guide: support archives a planted wrap; kit `archive` (plan 019) |
+| 022-B | Spec → code | Medium | Fixed | D-62 (plan 019) |
+| 022-C | Overclaim | Medium | Accepted | TH-41 (plan 019) |
+| 022-D | Overclaim | Low | Fixed | §5.11 (plan 019) |
+| 023-A | Wrong premise | Low | Fixed | D-62 consequence |
+| 023-B | Spec gap | Medium | Fixed | D-62: the revision kept |
+| 023-C | Hardening | Medium | Fixed | D-62: roster-held writers only |
+| 023-D | Simplification | — | Dropped | Rejected in D-62 |
+| 023-E | Spec gap | Low | Fixed | §6.1 step 1, D-62 |
+| 023-F | Spec gap | Low | Fixed | Clean-up; revision cap |
 
 ## Residuals
 
@@ -166,7 +172,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-39 | A2 or A3 on the channel | A substituted transfer request receives the member's private keys, the owner key included | The two contexts share no secret; the channel is the integration's (D-29), as in TH-49 | A shared secret between contexts |
 | TH-04 | A2, or someone posing as an owner | An owner's repair anchor replaces every root: a relayed, stale or forged one roots the account's devices on the chain it names, a forged team or a version below a verified removal (review 013 C) | Nothing authenticates who sends it; the integration carries it outside the server, like invite links (hardening direction: server-controlled history) | Owner fingerprints (D-11) or key transparency |
 | TH-45 | A7 or A9 with the session | An open vault with the session deletes the recovery wrap, sets up its own phrase as a first setup, and rotates; or writes wraps with the account key | Seen (the user is locked out) and undone by a support restore (SP-26); refusing the API route wouldn't stop raw writes (hardening direction: combined attack) | Server-side credential checks |
-| TH-20 | A7 or A9 (account key) with the session | A planted wrap that opens with keys its published record doesn't match fails that team for the account until it re-joins | Only the account key makes a wrap; telling a planted one from a server's forged record would need trusting the server (D-58) | Key transparency for member keys |
+| TH-20 | A7 or A9 (account key) with the session | A planted wrap that opens with keys its published record doesn't match fails that team for the account, re-joins and repairs included, until support archives it (review 022 A) | Only the account key makes a wrap; telling a planted one from a server's forged record would need trusting the server (D-58) | Key transparency for member keys |
 | SP-18, §10 | — (a reader that hasn't updated) | A roster entry naming a `member-keys` record of a newer format reads as `key_mismatch`, not `UNSUPPORTED_VERSION`, because a team's list leaves out records it can't read (D-58) | Otherwise a joiner stops the team by declaring an unknown version; readers ship before writers (§10) | A version check on roster entries |
 | TH-04 | A2 | An existing member re-joining without an anchor, on a device with no vault anchor, while the server withholds its wraps, is a first contact (review 019 A, review 020) | The vault has no root there; the integration re-joins members only with an owner's anchor (D-59) | Owner fingerprints (D-11) or key transparency |
 
