@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last review: 019 (`adversarial`) found three one-actor findings to fix: 019-A (`joinTeam` re-roots an existing member on a forged chain), 019-B (`secureAccount` skips a team whose wrap was deleted), 019-D (a deleted recovery wrap leads to unprovable re-keys); 019-C and E are text. Next: fix them through protocol-change, then a review in another mode, then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 019 (`adversarial`) and 020 (`design`); plan 018 fixed 019-A, B, D (D-59 to D-61) and the text of C and E. Open findings to fix: none. Still open, low: 011-A. Next: a review in another mode (`change` on plan 018, or `residuals`), then a fresh `adversarial` review.
 
 ## Findings
 
@@ -109,11 +109,18 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 018-B | Stale text | Low | Fixed | §6.1 step 2 (edit) |
 | 018-C | Spec → code | Low | Fixed | §11, scope rule 5 (edit) |
 | 018-D | Spec → code | Low | Fixed | §4.2, D-58; residual recorded (edit) |
-| 019-A | Forgeable input, wrong claim | High | Open | |
-| 019-B | Missing threat | High | Open | |
-| 019-C | Overclaim | Medium | Open | |
-| 019-D | Combined attack, wrong premise | Medium | Open | |
-| 019-E | Stale text | Low | Open | |
+| 019-A | Forgeable input, wrong claim | High | Fixed | D-59 (plan 018) |
+| 019-B | Missing threat | High | Fixed | D-60 (plan 018) |
+| 019-C | Overclaim | Medium | Accepted | TH-04, AS-06 (plan 018; server-controlled history) |
+| 019-D | Combined attack, wrong premise | Medium | Fixed | D-61 (plan 018) |
+| 019-E | Stale text | Low | Fixed | §5.5, Duties, TH-05 (plan 018) |
+| 020-1 | Forgeable input | Medium | Accepted | TH-04: a re-join on a device with no vault anchor is a first contact; Duty (plan 018) |
+| 020-2 | Spec gap | Medium | Fixed | D-59: `rekey` with an owner's anchor and no bundle |
+| 020-3 | Forgeable input | Low | Accepted | D-60 consequence: `teamIds` only adds reports |
+| 020-4 | Missing path | Low | Accepted | D-60 consequence: warnings read the wraps |
+| 020-5 | Hardening | Medium | Fixed | D-60: the proven repair |
+| 020-6 | Forgeable input | High | Fixed | D-61: every setup needs a credential |
+| 020-7 | Wrong claim | Low | Fixed | D-61; `recover` |
 
 ## Residuals
 
@@ -153,5 +160,6 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-45 | A7 or A9 with the session | An open vault with the session deletes the recovery wrap, sets up its own phrase as a first setup, and rotates; or writes wraps with the account key | Seen (the user is locked out) and undone by a support restore (SP-26); refusing the API route wouldn't stop raw writes (hardening direction: combined attack) | Server-side credential checks |
 | TH-20 | A7 or A9 (account key) with the session | A planted wrap that opens with keys its published record doesn't match fails that team for the account until it re-joins | Only the account key makes a wrap; telling a planted one from a server's forged record would need trusting the server (D-58) | Key transparency for member keys |
 | SP-18, §10 | — (a reader that hasn't updated) | A roster entry naming a `member-keys` record of a newer format reads as `key_mismatch`, not `UNSUPPORTED_VERSION`, because a team's list leaves out records it can't read (D-58) | Otherwise a joiner stops the team by declaring an unknown version; readers ship before writers (§10) | A version check on roster entries |
+| TH-04 | A2 | An existing member re-joining without an anchor, on a device with no vault anchor, while the server withholds its wraps, is a first contact (review 019 A, review 020) | The vault has no root there; the integration re-joins members only with an owner's anchor (D-59) | Owner fingerprints (D-11) or key transparency |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
