@@ -12,6 +12,28 @@ The library calls the outside world only through `RecordStore`, `OprfService`, `
 
 Backend engineers implementing the server side; integrators writing the client adapters.
 
+## Duties
+
+What an integration must do for the library's guarantees to hold, in one list; the sections below say how. The server's own rules are the [server contract](scope.md#server-contract) (rules 1–8), applied record by record in protocol §11. Reviews count these rows to measure what a change costs integrators.
+
+| Duty | Why |
+| --- | --- |
+| Run the server contract: authenticate callers, rate-limit PIN evaluations with one total budget, keep write-once records, archive private ones, refuse public deletes | Server contract rules 1–8, §11 |
+| Ship the OPRF public keys in client code, never from an API response; replace a key in two releases; start POPRF key ids above old ones | AS-02, D-53, TH-51 |
+| Keep the vault and the credential prompts in the most isolated context you have | TH-20 |
+| In a split layout, carry transfer requests and transfers on a channel your server can't write, and decide which context may receive which team | D-29, TH-39, TH-49 |
+| Deliver invite anchors, and owners' repair anchors, outside your server | TH-04, D-54 |
+| Let members send share and inbox links themselves: a link your server sends gives it the key the link carries | SP-01 Limit, TH-21, TH-23 |
+| Run `reconcile` at every owner session with the accounts your product considers members | D-31, TH-14 |
+| Approve joins and unproven re-keys only after an out-of-band check; pass the overview's handles unchanged | AS-06, D-55 |
+| Ask for a current credential before a PIN change or a phrase replacement | D-41 |
+| End the account's other sign-in sessions before `secureAccount`, and reset its other devices afterwards | D-43, TH-47, SP-19 |
+| Keep a support restore process, authenticated by means other than the session or a credential it would bring back | D-42, TH-45, TH-48 |
+| Store the vault's own anchor per team in its `DeviceKeyStore` half; make unreadable local values errors, never empty | D-54, §3.7 |
+| Build an inbox link once, from the `linkKey` returned; never rebuild it from the stored record | TH-50 |
+| Send your server `partRef` values, never plain hashes of content | D-28, TH-40 |
+| When your product removes a member, archive its private records for the team; never remove the last owner in the newest version | §6.9, TH-18 |
+
 ## RecordStore: the key store
 
 `RecordStore` holds key records only (D-25). Content (item parts, submissions) is the integration's: see [Content](#content).
@@ -50,7 +72,7 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6). Enforce it, and write-once, in the server itself: they are the only barrier against a former member who kept an old team key (TH-50) |
 | `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4); archive the previous revision (rule 7, D-42) |
 | `replace` (`account-key-wrap`, `member-keys-wrap`) | A live record exists under the key; archive it, then store the new one as live (D-39, D-52) |
-| `delete` | Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
+| `delete` | Only the caller's own private records (`account-key-wrap`, `member-keys-wrap`, `team-state`); refuse it for any other record (rule 3). Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
 | `set-account-key-version` | The current version equals `expected`; then stop serving every record of the old version, keeping it archived (rule 7, D-42) |
 
 Each operation in a batch names a different key: a batch never touches one key twice.
@@ -76,9 +98,10 @@ What the expensive writes cost, to set product limits against (teams per account
 | Write | Size |
 | --- | --- |
 | Account key rotation (one atomic batch, §5.7) | one `member-keys-wrap` per team the account is in, plus 2–3 wraps and the version switch. The vault keeps one bundle per team once re-keys are approved (§6.8 step 4) |
-| `secureAccount` (§5.11) | that rotation, then one 2-record write per team |
+| `secureAccount` (§5.11) | that rotation, then, per team, the version records since its floor and a 2-record write (D-54) |
 | Team key version record (§4.5) | about 360 bytes per roster entry: 36 KB for 100 members, 384 KiB at most. One per join, re-key and removal (D-37) |
 | Opening a team | the version records since the lowest of its floor and its local anchor, and every published `member-keys` record of the team; in the vault, a `replace` of one member keys wrap when the chain moved past the floor (D-52) |
+| Exporting a team to another context (§3.8) | the same download as opening it, a possible `replace` of one member keys wrap, and one local write of the vault's anchor (D-54) |
 | Joining a team (§6.4) | the version records from the invite anchor, or from version 1 without one, and every published `member-keys` record of the team (D-50) |
 
 For DynamoDB, a rotation must fit `TransactWriteItems` (100 items): cap the teams per account well below that.
@@ -124,7 +147,7 @@ If the vault and team sessions run in different contexts (D-29), carry the trans
 
 The server side of PIN hardening (§5.1, SP-08):
 
-- **One key pair per key id:** RFC 9497 POPRF (ristretto255-SHA512, partially oblivious mode), `DeriveKeyPair` or `GenerateKeyPair` per `oprfKeyId`. Keep the secret keys outside the database that stores the wraps (TH-09), and never derive or export a per-account tweaked key: anyone who gets one recovers the key of every account.
+- **One key pair per key id:** RFC 9497 POPRF (ristretto255-SHA512, partially oblivious mode), `DeriveKeyPair` or `GenerateKeyPair` per `oprfKeyId`. Start POPRF key ids above any id your service used before: a wrap made under an older, non-verifiable key would otherwise be evaluated under the new one and answer `WRONG_CREDENTIAL`, spending budget, instead of `UNSUPPORTED_VERSION` (D-53). Keep the secret keys outside the database that stores the wraps (TH-09), and never derive or export a per-account tweaked key: anyone who gets one recovers the key of every account.
 - **Evaluate:** `BlindEvaluate(skS, blindedElement, info)` with `info = enc(string label("pin-oprf"), accountId)` (protocol §1 encoding), built from the account you charge, never from the request; return the 32-byte evaluated element and the 64-byte proof. Draw the proof nonce from a CSPRNG: a repeated or biased nonce reveals the key.
 - **One total budget per account,** across `unlock` and `enroll` (rule 2). A refused evaluation is reported with `RateLimitedError`; it should not consume budget. Every account's evaluations hit one key per key id, and anyone can open accounts: rotate key ids periodically, or cap evaluations per key id.
 - **Public keys in your client code:** pass `settings.oprf = { keys: { [oprfKeyId]: publicKey }, writeKeyId }` to `createVault`, from code your API servers don't serve (AS-02), never from an API response. Replace a key in two releases: first ship its public key in `keys`, so the clients that will see it can read its wraps, then make it `writeKeyId`. Keep evaluating a retired key while wraps made under it may remain; the library upgrades them on the next unlock (§5.4).

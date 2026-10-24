@@ -93,8 +93,8 @@ The library reaches the outside world only through these interfaces. An integrat
 | Interface | Job |
 | --- | --- |
 | `RecordStore` | Fetch and publish key records (D-25). The integration adds authentication and maps calls to its API. |
-| `OprfService` | Send a blinded PIN value to the server and return the server's evaluation. |
-| `LocalKeyStore` | Keep, on this device, the device key and highest account key version (used by the vault) and each team's anchor, the last team key version record verified (used by team sessions). In a split layout, each context keeps its own half. |
+| `OprfService` | Send a blinded PIN value to the server and return the server's evaluation and its proof, which the library checks against the public keys the integration pins in its client code (D-53). |
+| `LocalKeyStore` | Keep, on this device, the device key, the highest account key version and the vault's own anchor per team (used by the vault, D-54), and each team's anchor, the last team key version record verified (used by team sessions). In a split layout, each context keeps its own half. |
 | `Clock` | Current time, for record timestamps. |
 
 Randomness is not an interface: the library always uses the platform's cryptographically secure random generator (through libsodium).

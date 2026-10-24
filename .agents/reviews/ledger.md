@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 013 (`adversarial`) and 014 (`design`); every finding of 013 is fixed or accepted (013-C, 013-D under the [hardening direction](../guides/direction.md)). Open findings to fix in the protocol: none. Still open, low: 011-A (simplification) and 012-A, B, D, E, F (text to correct before the freeze). Next: a `complexity` review (counts against review 011), then a fresh `adversarial` review; two clean in a row make the freeze candidate.
+**Now:** 1 of 2. Last review: 015 (`complexity`) found nothing to fix; its 015-A and review 012's text items are corrected. Open: 011-A only (low, a simplification kept until another layout change). Next: a fresh `adversarial` review; if it finds nothing to fix, 015 and it make the freeze candidate.
 
 ## Findings
 
@@ -73,12 +73,12 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 011-A | Simplification | Low | Open | |
 | 011-B | Stale text | Low | Fixed | Forgeability rows (with review 012) |
 | 011-C | Stale text, simplification | Low | Fixed | D-54 restates the rules; D-48, D-50, D-52 point to it (with review 012) |
-| 012-A | Stale text | Low | Open | — |
-| 012-B | Stale text | Low | Open | — |
+| 012-A | Stale text | Low | Fixed | Scope interface table (edit, with review 015) |
+| 012-B | Stale text | Low | Fixed | Integration sizing table (edit, with review 015) |
 | 012-C | Spec → code | Low | Fixed | §5.11, with 013-G (edit) |
-| 012-D | Spec → code | Low | Open | — |
-| 012-E | Stale text | Low | Open | — |
-| 012-F | Stale text | Low | Open | — |
+| 012-D | Spec → code | Low | Fixed | §5.8 step 3 (edit, with review 015) |
+| 012-E | Stale text | Low | Fixed | Integration guide, OprfService (edit, with review 015) |
+| 012-F | Stale text | Low | Fixed | §5.4 (edit, with review 015) |
 | 013-A | Forgeable input, overclaim | High | Fixed | D-55 (plan 016) |
 | 013-B | Forgeable input, combined attack | High | Fixed | D-56 (plan 016) |
 | 013-C | Combined attack, missing threat | Medium | Accepted | TH-04, SP-07, §6.8, guides (hardening direction: integration duty) |
@@ -91,6 +91,7 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 014-C | Wrong claim | Medium | Accepted | TH-12 Limit, D-56 consequence (plan 016) |
 | 014-D | Hardening | Low | Fixed | D-55 `TRUST_FAILURE` for another hash (plan 016) |
 | 014-E | Hardening | Low | Fixed | D-56 typed key (plan 016) |
+| 015-A | Simplification | Low | Fixed | Integration guide Duties table; the `delete` row follows scope rule 3 (edit) |
 
 ## Residuals
 
