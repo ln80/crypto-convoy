@@ -26,6 +26,8 @@ import {
   currentRecoveryKey,
   oldPhraseSigner,
   phrasePublicKey,
+  productTeams,
+  recoverySigningKey,
   typedPhrase,
   rekeyTeam,
   rekeyTeams,
@@ -36,7 +38,7 @@ import {
 } from "./recovery.js";
 import { rotateAccount } from "./rotation.js";
 import { verifiedChain } from "../team/load.js";
-import { currentOwners, exportBundles, newMemberKeys, newTeamOps, nextMemberKeysVersion, openBundles, openSession, recordVaultAnchor } from "./member-custody.js";
+import { currentOwners, exportBundles, newMemberKeys, newTeamOps, nextMemberKeysVersion, openBundles, openSession, recordVaultAnchor, vaultAnchorOf } from "./member-custody.js";
 import {
   acceptVersion,
   commit,
@@ -196,8 +198,8 @@ export class Vault {
    * Stores the recovery wrap for the phrase the user typed back (§5.10). Replacing a phrase needs
    * the current phrase or the current PIN (§5.6, D-41), and re-keys every team with the new
    * recovery key: proven with `currentPhrase`, a human approval with `currentPin`. A first setup
-   * needs neither. Throws `WRONG_CREDENTIAL` (not the phrase shown, or not a current credential),
-   * `MALFORMED_RECORD` (a replacement with neither), `PIN_RATE_LIMITED`, `STALE_VERSION`.
+   * needs the current PIN (D-61). Throws `WRONG_CREDENTIAL` (not the phrase shown, or not a current
+   * credential), `MALFORMED_RECORD` (no credential), `PIN_NOT_SET_UP`, `PIN_RATE_LIMITED`, `STALE_VERSION`.
    */
   async confirmRecoveryPhrase(phrase: string, options: { currentPhrase?: string; currentPin?: string } = {}): Promise<RekeyReport> {
     const account = this.#requireAccount();
@@ -205,7 +207,8 @@ export class Vault {
     if (pending === null || !samePhrase(phrase, pending)) throw new ConvoyError("WRONG_CREDENTIAL");
     const old = await currentRecoveryKey(this.#ports, account);
     const { currentPhrase, currentPin } = options ?? {};
-    if (old && typeof currentPhrase !== "string") {
+    // Every setup needs a current credential: with no recovery wrap, the PIN; whoever deletes it chooses nothing (D-61).
+    if (!old || typeof currentPhrase !== "string") {
       if (typeof currentPin !== "string") throw new ConvoyError("MALFORMED_RECORD");
       await verifyPin(this.#ports, account, currentPin);
     }
@@ -275,7 +278,7 @@ export class Vault {
     const { suite } = this.#ports;
     const version = await this.#requireVersion();
     const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "recovery" });
-    if (!wrap) throw new ConvoyError("STORE_ERROR");
+    if (!wrap) throw new ConvoyError("RECOVERY_NOT_SET_UP");
     const { recoveryKey, signing } = deriveRecoveryKeys(suite, this.accountId, phrase);
     let key: Uint8Array;
     try {
@@ -367,10 +370,17 @@ export class Vault {
    * chain containing every root the vault holds, or from `anchors[teamId]`, an anchor an owner gave
    * (D-54). Run it on a device the attacker didn't control. Retry a failed team with
    * `rekey(teamId, { phrase, oldPhrase?, anchor? })`: with `newPhrase`, that one as `phrase` and this one as
-   * `oldPhrase`. Throws `WRONG_CREDENTIAL`, `RECOVERY_NOT_SET_UP`,
+   * `oldPhrase`. `teamIds`, the teams the product says the user is in, makes a team with no wrap that
+   * opens a failure too, repaired by `rekey` with an owner's anchor (D-60). Throws `WRONG_CREDENTIAL`, `RECOVERY_NOT_SET_UP`,
    * `PIN_RATE_LIMITED`, `STALE_VERSION`, `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`.
    */
-  async secureAccount(input: { phrase: string; newPhrase?: string; newPin?: string; anchors?: Readonly<Record<string, string>> }): Promise<RekeyReport> {
+  async secureAccount(input: {
+    phrase: string;
+    newPhrase?: string;
+    newPin?: string;
+    anchors?: Readonly<Record<string, string>>;
+    teamIds?: readonly string[];
+  }): Promise<RekeyReport> {
     const current = this.#requireAccount();
     // Checked by opening the recovery wrap, so a rewritten public key doesn't refuse the real phrase (D-56).
     const signer = (await typedPhrase(this.#ports, current, input.phrase)).signing;
@@ -378,6 +388,7 @@ export class Vault {
       const pending = this.#pendingPhrase;
       if (input.newPhrase !== undefined && (pending === null || !samePhrase(input.newPhrase, pending))) throw new ConvoyError("WRONG_CREDENTIAL");
       const anchors = new Map(Object.entries(input.anchors ?? {}).map(([teamId, anchor]) => [teamId, decodeAnchor(anchor)]));
+      const listed = productTeams(input.teamIds);
       if (input.newPin !== undefined) await this.#refuseCurrentPin(current, input.newPin);
       const pin = input.newPin !== undefined ? { newPin: input.newPin } : {};
       const phrases = input.newPhrase !== undefined ? { phrase: input.phrase, newPhrase: pending! } : { phrase: input.phrase };
@@ -388,7 +399,10 @@ export class Vault {
       // The new keys carry the typed phrase's key, the new one if given, never one read back; the proof is by the current one (D-45, D-56).
       const next = input.newPhrase !== undefined ? phrasePublicKey(this.#ports, this.accountId, pending!) : signer.publicKey;
       // Floors only where every root agrees, or from an owner's anchor: a planted floor fails its team (D-54).
-      return await rekeyTeams(this.#ports, account, await accountTeams(this.#ports, account), next, signer, anchors);
+      const teams = await accountTeams(this.#ports, account);
+      // Teams the product lists with no wrap that opens: their keys were removed; reported, never skipped (D-60).
+      const missing = listed.filter((teamId) => !teams.includes(teamId));
+      return await rekeyTeams(this.#ports, account, teams, next, signer, anchors, missing);
     } finally {
       this.#ports.suite.wipe(signer.secretKey);
     }
@@ -459,14 +473,16 @@ export class Vault {
   /**
    * Creates this account's member keys for a team, if it has none; it stays `pending` until an
    * owner approves them (§6.4). Verifies the served chain first, from the invite link's `anchor`
-   * if given, else from version 1 (the member's first contact); the keys carry its tip as their
+   * if given and the vault's own anchor if it has one (D-59), else from version 1 (a first contact); the keys carry its tip as their
    * floor, so every device and context starts from it (D-48, D-50). With keys already, only checks
    * the anchor. Open the team then, here or in another context. Throws `RECOVERY_NOT_SET_UP`,
    * `MALFORMED_RECORD`, `UNSUPPORTED_VERSION`, `TRUST_FAILURE`.
    */
   async joinTeam(teamId: string, options: { anchor?: string } = {}): Promise<void> {
     const account = this.#requireAccount();
-    const anchors = options.anchor !== undefined ? [decodeAnchor(options.anchor)] : [];
+    // The invite anchor and the vault's own anchor: a chain without both is refused (D-59).
+    const vault = await vaultAnchorOf(this.#ports, this.accountId, teamId);
+    const anchors = [...(options.anchor !== undefined ? [decodeAnchor(options.anchor)] : []), ...(vault ? [vault] : [])];
     if ((await openBundles(this.#ports, account, teamId)).length > 0) {
       if (anchors.length > 0) await verifiedChain(this.#ports, teamId, anchors);
       return;
@@ -499,7 +515,8 @@ export class Vault {
    * New member keys for a team (§6.8 step 1). With the current recovery `phrase` they carry its
    * key and are proven by it; after a replacement, `oldPhrase`, which the team's keys still carry,
    * proves them instead (D-49, D-56). Owners' `reconcile` then approves them (SP-23); otherwise an
-   * owner approves by hand. They receive nothing until an owner approves them by rotating. Throws
+   * owner approves by hand. They receive nothing until an owner approves them by rotating. With an
+   * owner's `anchor`, it runs even when no wrap opens for the team (D-59). Throws
    * `NOT_GRANTED`, `RECOVERY_NOT_SET_UP`, `WRONG_CREDENTIAL` (a `phrase` that isn't current, an
    * `oldPhrase` the team's keys don't carry), `MALFORMED_RECORD` (`oldPhrase` without `phrase`).
    */
@@ -520,7 +537,8 @@ export class Vault {
         // A retry after a replacement: the old phrase, which the team's held keys carry, signs (D-49).
         this.#ports.suite.wipe(typed.signing.secretKey);
         const carried = (await openBundles(this.#ports, account, teamId)).map((b) => b.published.recoveryPublicKey);
-        signer = oldPhraseSigner(this.#ports, this.accountId, oldPhrase, carried);
+        // With no bundle (a repair with an owner's anchor), nothing to check it against: owners check the proof (D-60).
+        signer = carried.length > 0 ? oldPhraseSigner(this.#ports, this.accountId, oldPhrase, carried) : recoverySigningKey(this.#ports, this.accountId, oldPhrase);
       }
     } else {
       recovery = await recoveryPublicKey(this.#ports, account);

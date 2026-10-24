@@ -22,7 +22,8 @@ import { cc1 } from "../../src/suites/cc1/index.js";
 import type { OprfPurpose, OprfService, RecordStore } from "../../src/ports.js";
 import { RateLimitedError } from "../../src/errors.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
-import { versionRecord } from "../support/forge.js";
+import { versionRecord, forgeFirstVersion, forgeVersion } from "../support/forge.js";
+import type { TamperingStore } from "../support/fake-store.js";
 
 const bundlesOf = (vault: Vault) => openBundles(vaultInternals(vault).ports, vaultInternals(vault).account(), "team-1");
 const anchorAt = async (store: RecordStore, version: number) => ({ version, hash: recordHash(await versionRecord(store, "team-1", version)) });
@@ -309,5 +310,38 @@ describe("SP-07: a local anchor changed on the device never reaches the floor (D
     phone.store.drop({ type: "team-state", accountId: "bob", teamId: "team-1" }).rollback("team-1", 1).fork("team-1", 9, forged);
     // Served from the floor, the forged version doesn't link to it.
     expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
+  });
+});
+
+describe("SP-07: a join verifies from the vault's own anchor too (D-59, review 019 A)", () => {
+  it("an existing member's join without an anchor refuses a forged chain when the server withholds its wraps; an owner's anchor repairs a team with no bundle", async () => {
+    const { w, members, aliceTeam } = await team("bob");
+    await aliceTeam.owner().rotate({ keep: ["bob"] }); // the real chain at v3
+    const bob = members.bob!;
+    (await bob.vault.openTeam("team-1")).close();
+    const real = await bob.localKeys.getVaultAnchor("bob", "team-1");
+    expect(real?.version).toBe(3);
+
+    // The server forges a chain owned by mallory, up to v4, and withholds bob's wraps (absent, D-58).
+    const mallory = await w.account("mallory");
+    await mallory.vault.joinTeam("team-1");
+    const m = await bundleOf(mallory.vault);
+    const owner = { accountId: "mallory", keys: m.pairs, published: m.published };
+    const forks: unknown[] = [];
+    const apply = (store: TamperingStore) => { store.rollback("team-1", 0); forks.forEach((f, i) => store.fork("team-1", i + 1, f)); };
+    forks.push(forgeFirstVersion({ owner, roster: [owner] }));
+    for (const v of [2, 3, 4]) { apply(bob.store.reset()); forks.push(await forgeVersion(bob.store, { version: v, owners: [owner], signer: owner })); }
+    bob.store.reset(); apply(bob.store);
+    bob.store.drop({ type: "member-keys-wrap", teamId: "team-1" });
+
+    await expect(bob.vault.joinTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "TRUST_FAILURE" }));
+    expect(await bob.localKeys.getVaultAnchor("bob", "team-1")).toEqual(real);
+
+    // An owner's anchor re-keys the team though no wrap opens (here, withheld by the server): the repair.
+    bob.store.reset();
+    bob.store.drop({ type: "member-keys-wrap", teamId: "team-1" });
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase, anchor: aliceTeam.inviteAnchor() });
+    bob.store.reset();
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
   });
 });

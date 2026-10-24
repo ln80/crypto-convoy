@@ -60,7 +60,7 @@ describe("scenario", () => {
     expect(await alice.status()).toEqual({ account: "unlocked", deviceRegistered: true, deviceId: expect.any(String), recovery: "not-set-up", pin: "set-up" });
     await expect(alice.createTeam("team-1")).rejects.toSatisfy((e) => isConvoyError(e, "RECOVERY_NOT_SET_UP"));
     const { recoveryPhrase } = alice.beginRecoverySetup(); // shown to the user, then typed back
-    await alice.confirmRecoveryPhrase(recoveryPhrase);
+    await alice.confirmRecoveryPhrase(recoveryPhrase, { currentPin: "1234" }); // the PIN confirms a first setup (D-61)
     expect((await alice.status()).recovery).toBe("set-up");
     await alice.createTeam("team-1");
     const team = await alice.openTeam("team-1");
@@ -70,7 +70,7 @@ describe("scenario", () => {
 
     const bob = await vault("bob");
     await bob.setup("5678");
-    await bob.confirmRecoveryPhrase(bob.beginRecoverySetup().recoveryPhrase);
+    await bob.confirmRecoveryPhrase(bob.beginRecoverySetup().recoveryPhrase, { currentPin: "5678" });
     expect((await owner.overview(["alice", "bob"])).accounts.find((a) => a.accountId === "bob")!.status).toBe("no-keys");
     await bob.joinTeam("team-1", { anchor });
     expect((await bob.openTeam("team-1")).state).toBe("pending");

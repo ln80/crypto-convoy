@@ -9,7 +9,7 @@ describe("vault results are structured-cloneable", () => {
     const alice = await w.device("alice");
     const results: unknown[] = [await alice.vault.status(), await alice.vault.setup("1234"), await alice.vault.status()];
     const begun = alice.vault.beginRecoverySetup();
-    results.push(begun, await alice.vault.confirmRecoveryPhrase(begun.recoveryPhrase), await alice.vault.warnings());
+    results.push(begun, await alice.vault.confirmRecoveryPhrase(begun.recoveryPhrase, { currentPin: "1234" }), await alice.vault.warnings());
     await alice.vault.createTeam("team-1");
     const receiver = await createTeamKeyReceiver("alice", "team-1");
     results.push(

@@ -38,7 +38,7 @@ export function world(options: { budget?: number } = {}) {
     const first = await device(accountId);
     await first.vault.setup(pin);
     const { recoveryPhrase } = first.vault.beginRecoverySetup();
-    await first.vault.confirmRecoveryPhrase(recoveryPhrase);
+    await first.vault.confirmRecoveryPhrase(recoveryPhrase, { currentPin: pin });
     return { ...first, recoveryPhrase, pin };
   }
 

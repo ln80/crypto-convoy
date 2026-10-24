@@ -151,3 +151,16 @@ describe("SP-25: an open vault alone can't change the account's credentials", ()
     await expect(stolen.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
   });
 });
+
+describe("SP-25: even a first recovery setup needs a current credential (D-61, review 019 D)", () => {
+  it("a new account's first setup takes the current PIN, and refuses none or a wrong one", async () => {
+    const w = world();
+    const device = await w.device("carol");
+    await device.vault.setup("2468");
+    const { recoveryPhrase } = device.vault.beginRecoverySetup();
+    await expect(device.vault.confirmRecoveryPhrase(recoveryPhrase)).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    await expect(device.vault.confirmRecoveryPhrase(recoveryPhrase, { currentPin: "0000" })).rejects.toEqual(expect.objectContaining({ code: "WRONG_CREDENTIAL" }));
+    await device.vault.confirmRecoveryPhrase(recoveryPhrase, { currentPin: "2468" });
+    expect((await device.vault.status()).recovery).toBe("set-up");
+  });
+});

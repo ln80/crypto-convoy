@@ -21,8 +21,8 @@ describe("SP-19: only authorized material opens the account key", () => {
   });
 
   it("the phrase works when the PIN budget is spent; only the new PIN waits", async () => {
-    const w = world({ budget: 1 });
-    const laptop = await w.account("alice");
+    const w = world({ budget: 2 });
+    const laptop = await w.account("alice"); // spends both: setup and the recovery setup's PIN check (D-61)
     const phone = await w.device("alice");
     await expect(phone.vault.recover(laptop.recoveryPhrase, "4321")).rejects.toEqual(code("PIN_RATE_LIMITED"));
     expect(phone.vault.isUnlocked).toBe(true);

@@ -1,6 +1,7 @@
 // The recovery phrase as the account's root: setting it up, proving re-keys, securing the account (§5.6, §5.10, §5.11).
 import type { Anchor } from "../encoding/link.js";
 import { ConvoyError } from "../errors.js";
+import { checkId } from "../encoding/json.js";
 import { verifiedChain } from "../team/load.js";
 import { callPort } from "../ports.js";
 import { openAccountKeyWrap, openRecoveryPublicKey } from "../records/account-key-wrap.js";
@@ -66,6 +67,20 @@ export function phrasePublicKey(ports: AccountPorts, accountId: string, phrase: 
   return signing.publicKey;
 }
 
+/** The recovery signing key of a phrase, unchecked: for a repair with no bundle to check it against (D-60). The caller wipes it. */
+export function recoverySigningKey(ports: AccountPorts, accountId: string, phrase: string): KeyPair {
+  const { recoveryKey, signing } = deriveRecoveryKeys(ports.suite, accountId, phrase);
+  ports.suite.wipe(recoveryKey);
+  return signing;
+}
+
+/** The teams the integration's product lists for the user, checked as ids, once each (D-60). Throws `MALFORMED_RECORD`. */
+export function productTeams(teamIds: readonly string[] | undefined): string[] {
+  if (teamIds === undefined) return [];
+  if (!Array.isArray(teamIds)) throw new ConvoyError("MALFORMED_RECORD");
+  return [...new Set(teamIds.map((teamId) => checkId(teamId)))];
+}
+
 /**
  * The recovery signing key of an old phrase a retry signs with, checked against the recovery keys
  * the team's bundles carry, against a typing mistake (D-49): another phrase is `WRONG_CREDENTIAL`.
@@ -105,9 +120,10 @@ export async function rekeyTeam(
 ): Promise<void> {
   const bundles = await openBundles(ports, account, teamId);
   const [newest] = bundles;
-  if (!newest) throw new ConvoyError("NOT_GRANTED");
+  // With an owner's anchor, a team whose wraps are gone is re-keyed too: that anchor is the only root (D-59).
+  if (!newest && !ownerAnchor) throw new ConvoyError("NOT_GRANTED");
   const vault = ownerAnchor ? null : await vaultAnchorOf(ports, account.accountId, teamId);
-  const roots = ownerAnchor ? [ownerAnchor] : [newest.floor, vault].filter((a): a is Anchor => a !== null && a !== undefined);
+  const roots = ownerAnchor ? [ownerAnchor] : [newest!.floor, vault].filter((a): a is Anchor => a !== null && a !== undefined);
   const chain = await verifiedChain(ports, teamId, roots);
   const tip = chain.records.at(-1)!;
   const floor = { version: tip.version, hash: chain.hashes.get(tip.version)! };
@@ -116,7 +132,10 @@ export async function rekeyTeam(
   await recordVaultAnchor(ports, account.accountId, teamId, floor, ownerAnchor !== undefined);
 }
 
-/** Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11); `anchors` from owners, by team (D-54). */
+/**
+ * Re-keys every team in its own write, reporting failures instead of stopping (§5.6, §5.11); `anchors`
+ * from owners, by team (D-54). `missing` are teams the product lists with no wrap that opens: reported failed (D-60).
+ */
 export async function rekeyTeams(
   ports: AccountPorts,
   account: OpenAccount,
@@ -124,9 +143,10 @@ export async function rekeyTeams(
   recoveryPublicKey: Uint8Array,
   signer?: KeyPair,
   anchors: ReadonlyMap<string, Anchor> = new Map(),
+  missing: readonly string[] = [],
 ): Promise<RekeyReport> {
   const rekeyed: string[] = [];
-  const failed: string[] = [];
+  const failed: string[] = [...missing];
   for (const teamId of teamIds) {
     try {
       await rekeyTeam(ports, account, teamId, recoveryPublicKey, signer, anchors.get(teamId));

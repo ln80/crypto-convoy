@@ -74,22 +74,20 @@ describe("SP-26: a session can't destroy an account's private records", () => {
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
   });
 
-  it("TH-45: an open vault with the session deletes the recovery wrap, sets up its own phrase and rotates; a restore undoes it (review 013 D)", async () => {
+  it("TH-45: a deleted recovery wrap opens no setup without a credential (D-61); a restore brings the phrase back", async () => {
     const { members, w } = await team("bob");
     const bob = members.bob!;
     // A thief with bob's stolen device: an open vault and the session, no credential.
     const stolen = bob.vault;
     await bob.store.commit([{ op: "delete", key: { type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" } }]);
-    const { recoveryPhrase: thiefPhrase } = await replacePhrase(stolen);
-    await stolen.rotate({ phrase: thiefPhrase });
+    const { recoveryPhrase: thiefPhrase } = stolen.beginRecoverySetup();
+    await expect(stolen.confirmRecoveryPhrase(thiefPhrase)).rejects.toEqual(code("MALFORMED_RECORD"));
+    await expect(stolen.confirmRecoveryPhrase(thiefPhrase, { currentPin: "0000" })).rejects.toEqual(code("WRONG_CREDENTIAL"));
+    await expect(stolen.rotate({ phrase: thiefPhrase })).rejects.toEqual(code("RECOVERY_NOT_SET_UP"));
 
-    // Bob is locked out, which he sees.
-    await expect((await w.device("bob")).vault.unlockWithPin(bob.pin)).rejects.toEqual(code("PIN_NOT_SET_UP"));
-    await expect((await w.device("bob")).vault.recover(bob.recoveryPhrase, "1")).rejects.toEqual(code("WRONG_CREDENTIAL"));
-
-    // Support restores version 1, and the recovery wrap generation from before the takeover.
-    w.server.restoreVersion("bob", 1);
-    w.server.restore({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" }, 0);
+    // Bob sees recovery missing; the phrase can't open anything until support restores the wrap.
+    await expect((await w.device("bob")).vault.recover(bob.recoveryPhrase, "1")).rejects.toEqual(code("RECOVERY_NOT_SET_UP"));
+    w.server.restore({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" });
     const phone = await w.device("bob");
     await phone.vault.recover(bob.recoveryPhrase, "2222");
     expect((await phone.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "3333" })).failed).toEqual([]);

@@ -64,12 +64,12 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
   });
 
   it("TH-44: with the PIN budget spent, the phrase alone cuts the thief's PIN and devices (D-40)", async () => {
-    const w = world({ budget: 4 });
-    const alice = await w.account("alice"); // 1 evaluation
+    const w = world({ budget: 5 });
+    const alice = await w.account("alice"); // 2 evaluations: setup and the recovery setup's PIN check (D-61)
     // A thief holding the session and the PIN sets their own PIN, then spends the rest of the budget.
-    await alice.vault.changePin("6666", { currentPin: "1234" }); // 2 (the check), 3 (the new wrap)
+    await alice.vault.changePin("6666", { currentPin: "1234" }); // 3 (the check), 4 (the new wrap)
     const guesses = await w.device("alice");
-    await expect(guesses.vault.unlockWithPin("0000")).rejects.toEqual(code("WRONG_CREDENTIAL")); // 4
+    await expect(guesses.vault.unlockWithPin("0000")).rejects.toEqual(code("WRONG_CREDENTIAL")); // 5
     await expect(guesses.vault.unlockWithPin("0001")).rejects.toEqual(code("PIN_RATE_LIMITED"));
 
     // The user recovers on a clean device: unlocked and registered, but the PIN can't change.
@@ -160,5 +160,34 @@ describe("SP-10 / SP-11 / SP-23: secureAccount", () => {
     const thief = { accountId: "alice", keys: copied.pairs, published: copied.published };
     members.bob!.store.fork("team-1", version, await forgeVersion(clean.store, { version, owners: [thief], signer: thief }));
     expect((await members.bob!.vault.openTeam("team-1")).failure).toEqual(expect.objectContaining({ code: "TRUST_FAILURE", reason: "not_an_owner" }));
+  });
+});
+
+describe("SP-11 / SP-23: secureAccount reports the product's teams whose keys were removed (D-60, review 019 B)", () => {
+  it("a team whose wrap a thief deleted is reported failed, and a proven re-key with an owner's anchor ends the stolen keys", async () => {
+    const { w, members } = await team("bob");
+    const bob = members.bob!;
+    // A thief on bob's unlocked device copies the bundle, then deletes its wrap through the session.
+    const stolen = await bundleOf(bob.vault);
+    await bob.store.commit([{ op: "delete", key: { type: "member-keys-wrap", accountId: "bob", teamId: "team-1", memberKeysVersion: 1, accountKeyVersion: 1 } }]);
+
+    const clean = await w.device("bob");
+    await clean.vault.recover(bob.recoveryPhrase, "5678");
+    expect(await clean.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "9999", teamIds: ["team-1", "team-1"] })).toEqual({ rekeyed: [], failed: ["team-1"] });
+
+    // The repair: an owner's anchor, and the phrase that proves the re-key against the held keys.
+    const aliceTeam = await members.alice!.vault.openTeam("team-1");
+    await clean.vault.rekey("team-1", { phrase: bob.recoveryPhrase, anchor: aliceTeam.inviteAnchor() });
+    const { rotatedTo } = await aliceTeam.owner().reconcile(["alice", "bob"]);
+    expect(await accessOf(members.alice!.store, "bob", rotatedTo!)).not.toBeNull();
+    const access = (await accessOf(members.alice!.store, "bob", rotatedTo!))!;
+    expect(() => access.open(stolen.pairs.encryption)).toThrow();
+  });
+
+  it("refuses teamIds that aren't ids, before anything is written", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase, teamIds: [""] })).rejects.toEqual(code("MALFORMED_RECORD"));
+    expect(await bob.store.getAccountKeyVersion("bob")).toBe(1);
   });
 });

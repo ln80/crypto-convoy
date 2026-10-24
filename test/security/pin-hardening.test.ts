@@ -47,13 +47,13 @@ describe("SP-08: a PIN guess needs a server evaluation", () => {
   });
 
   it("every evaluation counts, wrong PINs included, until the budget refuses", async () => {
-    const w = world({ budget: 4 });
-    await w.account("alice"); // setup: 1 evaluation
+    const w = world({ budget: 5 });
+    await w.account("alice"); // setup and the recovery setup's PIN check: 2 evaluations (D-61)
     const device = await w.device("alice");
     await expect(device.vault.unlockWithPin("0000")).rejects.toEqual(code("WRONG_CREDENTIAL"));
     await expect(device.vault.unlockWithPin("1111")).rejects.toEqual(code("WRONG_CREDENTIAL"));
     await device.vault.unlockWithPin("1234");
-    expect(w.oprf.attempts("alice")).toBe(4);
+    expect(w.oprf.attempts("alice")).toBe(5);
     await expect((await w.device("alice")).vault.unlockWithPin("1234")).rejects.toEqual(code("PIN_RATE_LIMITED"));
   });
 
