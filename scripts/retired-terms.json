@@ -155,6 +155,30 @@
           "D-54"
         ]
       }
+    },
+    {
+      "pattern": "memberKeysVersion \\}`, which every approval takes",
+      "decision": "D-55",
+      "use": "the handle names the keys hash too: `{ accountId, memberKeysVersion, keysHash }`",
+      "allow": {}
+    },
+    {
+      "pattern": "naming the `memberKeysVersion` reviewed",
+      "decision": "D-55",
+      "use": "naming the keys reviewed, by version and keys hash",
+      "allow": {}
+    },
+    {
+      "pattern": "with the phrase, proven \\(§6\\.8\\): the current one or the old one",
+      "decision": "D-56",
+      "use": "`phrase` is the current phrase; `oldPhrase` signs a retry after a replacement",
+      "allow": {}
+    },
+    {
+      "pattern": "check `wrappedRecoveryPublicKey` against the phrase",
+      "decision": "D-56",
+      "use": "a stored recovery key that differs from the typed phrase's is reported, never refused",
+      "allow": {}
     }
   ]
 }

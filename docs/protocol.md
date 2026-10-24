@@ -317,7 +317,9 @@ Protection: `wrappedAccountKey = wrap(methodKey, "account-key-wrap", accountId, 
 
 For `recovery`, `wrappedRecoveryPublicKey = wrap(accountKey, "recovery-public-key", accountId, u32 accountKeyVersion, recoveryPublicKey)`: the recovery signing key's public half (§5.2), which a vault opened by the PIN or a device reads authenticated, without the phrase. A recovery wrap without it is `MALFORMED_RECORD`.
 
-Reader checks: `kdf` within bounds (§2); `accountKeyVersion` not lower than the highest the device has seen (SP-07); the opened key is 32 bytes. For PIN and recovery, a failed `unwrap` is reported as `WRONG_CREDENTIAL`. `wrappedRecoveryPublicKey` opens with the account key to 32 bytes, a valid Ed25519 public key (§2), else `DECRYPTION_FAILED` or `MALFORMED_RECORD`; when the vault was opened with the phrase, it equals the key derived from it, else `TRUST_FAILURE` (`key_mismatch`).
+Reader checks: `kdf` within bounds (§2); `accountKeyVersion` not lower than the highest the device has seen (SP-07); the opened key is 32 bytes. For PIN and recovery, a failed `unwrap` is reported as `WRONG_CREDENTIAL`. `wrappedRecoveryPublicKey` opens with the account key to 32 bytes, a valid Ed25519 public key (§2), else `DECRYPTION_FAILED` or `MALFORMED_RECORD`.
+
+Whoever holds the account key can rewrite `wrappedRecoveryPublicKey` alone, so the vault reads it only when it isn't given the phrase. Given the current phrase, it checks it by opening `wrappedAccountKey`, uses the key derived from the phrase, and reports a stored key that differs (`recovery-key-mismatch`) without refusing (D-56).
 
 The server also tells the client which `accountKeyVersion` is current. The client never trusts a lower one than it has seen. A device with no stored state has seen none: a malicious server that kept a retired version's wraps can make it adopt that version, which the user's PIN still opens. That residual is accepted (TH-05, SP-19).
 
@@ -530,7 +532,7 @@ The account key opens only through one of these three paths (SP-19).
 - **Same device.** Read the `deviceKey` and `deviceId` from `LocalKeyStore`, fetch that device's wrap at the current version, and unwrap. If the wrap is gone (revoked, or removed by a rotation), the device must register again: `DEVICE_NOT_REGISTERED`.
 - **PIN.** Fetch the PIN wrap, derive the `pinKey` (purpose `unlock`), unwrap. Then register the device (§5.5). With no PIN wrap at the current version (after a rotation without a PIN, D-40): `PIN_NOT_SET_UP`, before any server evaluation.
   - **Upgrade on unlock:** if the wrap's Argon2id cost is below the current writer setting, or its `oprfKeyId` isn't the settings' `writeKeyId`, derive a new `pinKey` from the same PIN (new salt, current settings, purpose `enroll`) and replace the PIN wrap (§5.6). The extra evaluation counts in the account's budget. If only the upgrade fails, the unlock stands and the old wrap is kept; the vault reports it (`pin-upgrade-failed`) and doesn't try the upgrade again, so a failing key service never spends an evaluation per unlock.
-- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; check `wrappedRecoveryPublicKey` against the phrase (§4.1). Then register the device (§5.5) and set a new PIN (§5.6), the phrase being the current credential. Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it. They happen first: if setting the PIN is refused (`PIN_RATE_LIMITED`), the account stays unlocked on this device with its previous PIN wrap. If someone else may have set that PIN, secure the account with the phrase alone (§5.11).
+- **Recovery phrase.** Fetch the recovery wrap, derive the `recoveryKey`, unwrap; a `wrappedRecoveryPublicKey` that isn't the phrase's is reported (§4.1, D-56). Then register the device (§5.5) and set a new PIN (§5.6), the phrase being the current credential. Unlocking with the phrase and registering the device need no server evaluation, so they work even when the PIN budget is used up; only setting the new PIN waits for it. They happen first: if setting the PIN is refused (`PIN_RATE_LIMITED`), the account stays unlocked on this device with its previous PIN wrap. If someone else may have set that PIN, secure the account with the phrase alone (§5.11).
 
 ### 5.5 Registering and revoking a device
 
@@ -545,17 +547,17 @@ If the device may have been used by an attacker while unlocked, revocation isn't
 
 **Current credential (D-41, SP-25).** Changing the PIN or replacing the phrase needs, besides the open `accountKey`, a current credential, checked before anything is written:
 - the current PIN: fetch the live PIN wrap and open it (§5.1, purpose `unlock`; one evaluation). The opened key must equal the open `accountKey`, else `WRONG_CREDENTIAL`; no PIN wrap is `PIN_NOT_SET_UP`;
-- the current phrase: derive the `recoveryKey` (§5.2) and open the recovery wrap with it, else `WRONG_CREDENTIAL`.
+- the current phrase: derive the `recoveryKey` (§5.2) and open the recovery wrap's `wrappedAccountKey` with it, else `WRONG_CREDENTIAL`. This is the only check of a phrase; the vault then uses the recovery public key derived from it (D-56).
 
 A PIN change takes the current PIN or the phrase (only the phrase when the current version has no PIN wrap, D-40). A phrase replacement takes the current phrase or the current PIN. A first recovery setup (§5.10) takes none. A change given no credential is `MALFORMED_RECORD`.
 
 **PIN.** With the `accountKey` open and a current credential checked, create the new wrap with a new `salt` and store it in place of the old one, with a `replace` (§12), or as a new wrap when the current version has none (D-40). The old credential stops working at once: the server archives the old wrap without serving it ([server contract](scope.md#server-contract), rule 7; SP-09). It keeps archived wraps for a restore window, so an account whose wraps were replaced with garbage by someone holding its session can be restored through the integration's support process (TH-36, D-39).
 
-**Recovery phrase.** With a current credential checked, set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new `recoveryPublicKey`:
-- if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the current recovery key: proven, and approved by owners' `reconcile` (SP-23); where the account is an owner, by its own `reconcile` (D-47);
+**Recovery phrase.** With a current credential checked, set up a new phrase as in §5.10; its wrap replaces the old one, under the same rule. Then re-key every team the account has member keys for (§6.8), with the new phrase's `recoveryPublicKey`:
+- if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the recovery key derived from it: proven, and approved by owners' `reconcile` (SP-23); where the account is an owner, by its own `reconcile` (D-47);
 - with the current PIN instead, the re-keys carry no proof, and an owner approves each by hand.
 
-Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed; a failed team is retried with the re-key of §6.8, with the old phrase to keep it proven (D-49).
+Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed; a failed team is retried with the re-key of §6.8, with the new phrase as `phrase` and the old one as `oldPhrase`, to keep it proven (D-49, D-56).
 
 ### 5.7 Rotating the account key (D-10)
 
@@ -596,8 +598,8 @@ Recovery is set up when a recovery wrap exists at the current account key versio
 For a device that may have been used while unlocked, a leaked PIN or a leaked phrase, or after a support restore (TH-48), run from a device the attacker didn't control, after the integration has ended the account's other sign-in sessions, so nobody publishes keys over its re-keys (D-43). Input: the recovery phrase; optionally, and recommended, a new phrase (D-45), the one `beginRecoverySetup()` showed (§5.10 step 1), typed back; and optionally a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one, or a new phrase that isn't the one held (compared as in §5.10 step 2): `WRONG_CREDENTIAL`, before anything is written.
 
 1. Rotate the account key (§5.7) with the phrase, the new phrase if given, and the new PIN if given. This cuts every other device: their wraps belong to the retired version (D-10). With a new phrase, the recovery wrap of the new version is for it, so the replaced phrase opens nothing of that version (SP-11).
-2. For every team the account has member keys for, in its own write: create new member keys (§5.9) with the `recoveryPublicKey` of the new version (the new phrase's, if given), whose record carries a `recoverySignature` by the **current** phrase's recovery signing key (§4.2): proven against the keys each team holds (SP-23). Each new floor comes from a chain containing every root the vault holds, so a floor planted with the stolen account key fails the team instead of being carried; an anchor an owner gave for the team (`anchors`) replaces the roots (§5.9, D-54).
-3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8, with the phrase given as `phrase`, which the team's held keys still carry (D-49); one that failed on its roots is retried with an anchor from an owner.
+2. For every team the account has member keys for, in its own write: create new member keys (§5.9) with the `recoveryPublicKey` derived from the new phrase, if given, else from the current one, never read back from the server (D-56), whose record carries a `recoverySignature` by the **current** phrase's recovery signing key (§4.2): proven against the keys each team holds (SP-23). Each new floor comes from a chain containing every root the vault holds, so a floor planted with the stolen account key fails the team instead of being carried; an anchor an owner gave for the team (`anchors`) replaces the roots (§5.9, D-54).
+3. Report the teams re-keyed and those that failed. A failed team is retried with the re-key of §6.8: with a new phrase, that phrase as `phrase` and the one given here as `oldPhrase`, which the team's held keys still carry (D-49, D-56); without one, this phrase as `phrase`. One that failed on its roots is retried with an anchor from an owner.
 
 A new PIN that opens the current PIN wrap is refused with `MALFORMED_RECORD` before anything is written (one evaluation): a retired version stays served to a stateless device, and the old PIN would open it (SP-19).
 4. Wipe the phrases and the keys derived from them; the vault forgets the new phrase it held.
@@ -648,7 +650,7 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 
 1. Fetch and check the member's `member-keys` record (§4.2), with its proof.
 2. The owner confirms the request is genuine (AS-06), unless it is a re-key proven by the recovery key (§6.8). The library reports the member's identity, keys and proof.
-3. Approve by a rotation (§6.6) that adds those keys to the roster (D-37). The owner names the `memberKeysVersion` they reviewed; it must be the account's newest published keys, else `STALE_VERSION`: keys replaced by a re-key, or published after the review, are never approved. Several approvals, joins and re-keys alike, share one rotation.
+3. Approve by a rotation (§6.6) that adds those keys to the roster (D-37). The owner names the keys they reviewed by version and keys hash (the handle of §6.9, D-55); the account's newest published record must have that keys hash: a newer version is `STALE_VERSION` (keys replaced by a re-key, or published after the review, are never approved), the same version with another hash is `TRUST_FAILURE` (`key_mismatch`). Several approvals, joins and re-keys alike, share one rotation.
 
 Any member can list who holds the current version, with who signed it (`team.members()`): its roster. A newly admitted member is visible to everyone (SP-15). This is detection, not prevention: a member admitted by a stolen owner key can read until someone notices and rotates.
 
@@ -656,7 +658,7 @@ Any member can list who holds the current version, with who signed it (`team.mem
 
 1. Open the current version n. The caller must be in the `owners` list of version n, else `NOT_AN_OWNER`.
 2. **Recipients.** Every account the caller **keeps** (an explicit allowlist, normally the integration's active members) that holds version n, in its roster, plus every account whose keys this rotation **approves** (§6.5). The caller is always kept. Each receives **one** set of keys:
-   - its newest published `member-keys` record, if this rotation approves it (for a new member, the only option). An approval names the `memberKeysVersion` the owner reviewed; if the account's newest published keys are no longer that version, the rotation stops with `STALE_VERSION` before anything is written (§6.8);
+   - its newest published `member-keys` record, if this rotation approves it (for a new member, the only option), and only if it has the keys hash the approval names (§6.5, D-55), else the rotation stops before anything is written;
    - otherwise the keys it holds, resolved from their `member-keys` record and checked against the roster's `keysHash`, else `TRUST_FAILURE` (`key_mismatch`).
 
    Only access to the **current** version counts, so an older roster entry is never carried forward, and an account's older keys never receive the new version. An account left out of the list loses access to the new version: forgetting someone costs them access, never leaks it. More than 1,000 recipients, or a record over 384 KiB of JSON (§2), is `MALFORMED_RECORD`, before anything is written.
@@ -680,8 +682,8 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 ### 6.8 Re-keying a member
 
-1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain containing every root, or from an anchor an owner gave (`rekey(teamId, { anchor })`, the repair for a device with no anchor or a planted floor) (§5.9, D-54), and a `recoverySignature` if the user entered a recovery phrase: the current one, or one whose recovery key a bundle the vault holds for the team carries (D-49), which signs. The member stays able to read with the old keys until the rotation.
-2. An owner approves the new keys by rotating the team key (§6.6), naming the `memberKeysVersion` reviewed. The library classifies the request:
+1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain containing every root, or from an anchor an owner gave (`rekey(teamId, { anchor })`, the repair for a device with no anchor or a planted floor) (§5.9, D-54), and, if the user entered the current recovery phrase (`phrase`, checked as in §5.6), its `recoveryPublicKey` and a `recoverySignature`: by `phrase`, or by `oldPhrase` when given, a phrase whose recovery key a bundle the vault holds for the team carries (D-49, D-56). Without a phrase, the keys carry the recovery wrap's key and no proof. The member stays able to read with the old keys until the rotation.
+2. An owner approves the new keys by rotating the team key (§6.6), naming the keys reviewed (§6.5). The library classifies the request:
    - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23): then only its own `reconcile` does, holding the keys (D-47);
    - **unproven**: anything else. The owner verifies out of band (AS-06, TH-37). The old keys can't vouch for the new ones, since an attacker may hold them (D-38).
 
@@ -695,11 +697,11 @@ The new keys receive the current version, and the chain gives every earlier one.
 
 **Overview.** For an owner, the library reports, for each account the integration lists and each account holding the current version:
 - its status: `no-keys`, `awaiting-approval` (keys published, never in a roster), `approved` (holds the current version with its newest keys), `outdated` (held only an older version), `rekey-awaiting-approval` (holds the current version, newer keys published);
-- the newest keys as a handle `{ accountId, memberKeysVersion }`, which every approval takes (§6.5, §6.8);
+- the newest keys as a handle `{ accountId, memberKeysVersion, keysHash }`, `keysHash` in base64url, which every approval takes (§6.5, §6.8, D-55);
 - the proof those keys carry: `recovery` or `none`;
 - whether the account is an owner, and whether it is in the integration's active list.
 
-Deciding `outdated` may need roster entries below the loaded chain: the client then fetches older records (§6.2).
+Deciding `outdated` may need roster entries below the loaded chain: the client then fetches older records (§6.2). Two `member-keys` records for one account and version are `TRUST_FAILURE` (`key_mismatch`) (D-55).
 
 Warnings, each naming the operation that clears it:
 - `single-owner` (D-06), cleared by an owner change;
@@ -876,7 +878,8 @@ vault.status()                            → { account: "not-set-up" | "locked"
                                           //   recovery: "not-set-up" | "set-up", pin: "not-set-up" | "set-up" }
 vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying;
                                           //   teams with keys this vault didn't make (`foreign-member-keys`, D-43; answer: secureAccount, D-54);
-                                          //   a PIN upgrade that failed (`pin-upgrade-failed`; a failed proof: report it, TH-51)
+                                          //   a PIN upgrade that failed (`pin-upgrade-failed`; a failed proof: report it, TH-51);
+                                          //   a recovery wrap naming another key than the typed phrase's (`recovery-key-mismatch`; answer: secureAccount, D-56)
 vault.setup(pin)                          // then set up recovery before any team work
 vault.beginRecoverySetup()                → { recoveryPhrase }   // held in memory until confirmed (§5.10)
 vault.confirmRecoveryPhrase(phrase, { currentPhrase } | { currentPin }) → { rekeyed, failed }
@@ -892,7 +895,7 @@ vault.secureAccount({ phrase, newPhrase?, newPin?, anchors? }) → { rekeyed: te
                                           // §5.11, D-40; newPhrase: from beginRecoverySetup, typed back (D-45)
 vault.createTeam(teamId)                  // creator is the first owner; throws RECOVERY_NOT_SET_UP
 vault.joinTeam(teamId, { anchor? })       // the invite link's anchor, checked first (§6.4, D-48); "pending" until approved
-vault.rekey(teamId, { phrase?, anchor? }) // new member keys; with the phrase, proven (§6.8): the current one or the old one (D-49);
+vault.rekey(teamId, { phrase?, oldPhrase?, anchor? }) // new member keys; `phrase`: the current one, proven (§6.8); `oldPhrase`: signs instead (D-49, D-56);
                                           //   `anchor`: from an owner, the root for the new floor (D-54)
 vault.leaveTeam(teamId)                   // throws LAST_OWNER for the only owner
 vault.openTeam(teamId)                    → TeamSession   // same context
@@ -916,7 +919,7 @@ owner.overview(activeAccountIds)          → { version, owners, accounts: [{ ac
                                           //   proof?: "recovery" | "none", isOwner, active }], warnings }
 owner.reconcile(activeAccountIds, { dryRun? })
                                           → { dryRun, rotatedTo?, removed, approvedRekeys, needsHuman }
-owner.approve(handles)                    → { rotatedTo, approved }   // handles from overview: one rotation
+owner.approve(handles)                    → { rotatedTo, approved }   // handles from overview, keys hash included (D-55): one rotation
 owner.remove(accountIds)                  → { rotatedTo, approved }   // a rotation keeping every other holder
 owner.setOwners(owners, { keep? })        // always a rotation with the new owner list; keeps every holder by default
 owner.grantedBy(ownerIds)                 → accounts in a current roster those owners signed (§6.7)

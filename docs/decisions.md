@@ -550,7 +550,7 @@ Rejected:
 - Keeping two operations: users and integrations stop after the first, and the teams are re-keyed twice.
 - A new phrase on `rotate` as well: securing is the operation for a compromise; a rotation alone leaves member keys the thief may hold (SP-11).
 
-Consequence: one call ends a phrase leak: new account key, new phrase, other devices cut, every team re-keyed with a proof. The proof is still made with the leaked phrase, so a thief who publishes proven keys first races the user as in TH-41; ending the account's other sessions first removes the way to publish. A team that failed to re-key is retried with `rekey(teamId, { phrase })` and the **old** phrase, which still proves it (D-49).
+Consequence: one call ends a phrase leak: new account key, new phrase, other devices cut, every team re-keyed with a proof. The proof is still made with the leaked phrase, so a thief who publishes proven keys first races the user as in TH-41; ending the account's other sessions first removes the way to publish. A team that failed to re-key is retried with `rekey(teamId, { phrase, oldPhrase })`: the new phrase, whose key the new keys carry, and the **old** one, which still proves it (D-49, D-56).
 
 ## D-46: Every roster entry names published member keys
 
@@ -602,7 +602,7 @@ Consequence: withholding or deleting `team-state` no longer puts an existing mem
 
 ## D-49: A re-key can be proven by the phrase the team's keys carry
 
-Status: Accepted.
+Status: Accepted; the retry's arguments amended by D-56 (`rekey(teamId, { phrase, oldPhrase })`).
 
 Problem: a proof verifies against the recovery key of the keys a team holds (§4.2). After a phrase replacement, those keys carry the old recovery key until the team approves the re-key; but `rekey(teamId, { phrase })` accepted only the current phrase. A team that failed to re-key during `confirmRecoveryPhrase` or `secureAccount` with a new phrase could only be retried unproven, so an owner approved it by hand.
 
@@ -707,3 +707,39 @@ Rejected:
 - Keeping a re-key going on a failed check: whoever makes the check fail chooses the floor.
 
 Consequence: a planted floor, a forged local anchor or a failed chain becomes a team reported failed, not a floor carried; the owner's anchor repairs it. A vault that never verified the team on this device still trusts the floor it holds until an owner's anchor is given (TH-20). The vault's anchor is one more local value, writable by any script in its origin, but a forged one only fails re-keys and exports on that device. Split layouts give the vault its `DeviceKeyStore` half, as before; same-origin layouts keep one store with two labels.
+
+## D-55: An approval names the keys hash it reviewed
+
+Status: Accepted.
+
+Problem: an approval named only `{ accountId, memberKeysVersion }`. `reconcile` checked the recovery proof, or the caller's custody of its own keys (D-47), on the record of one list; the rotation fetched the account's records again and sealed to whatever came back at that version. A server serving another record the second time got the next team key, or, for an owner's own re-key, an owner seat (review 013 A). Listing two records for one version did the same between the custody check and the handle (review 014 A).
+
+Decision:
+- The handle an owner approves is `{ accountId, memberKeysVersion, keysHash }`, `keysHash` being the keys hash (§4.2) of the record whose proof or custody the owner's client checked.
+- A rotation that approves a handle seals to the account's newest published record only if it has the handle's keys hash. A newer version is `STALE_VERSION`, as before; the handle's version with another hash is `TRUST_FAILURE` (`key_mismatch`).
+- Two records for one account and `memberKeysVersion`, in any list an owner's client reads, are `TRUST_FAILURE` (`key_mismatch`): write-once records can't have two values.
+
+Rejected:
+- Checking the proof again at rotation time: a second rule, which covers neither unproven keys a human approves nor the owner's own re-key (D-47).
+- An opaque handle: handles are plain data the integration stores, shows and passes back (D-31).
+
+Consequence: what the overview showed, what `reconcile` checked and what the rotation seals to are one record. Held keys stay pinned by the roster's keys hash (§6.6). Handles carry one more field, which an integration that builds handles itself must fill from the overview.
+
+## D-56: The phrase the user types is the only recovery key the vault uses
+
+Status: Accepted; amends D-49's arguments.
+
+Problem: the recovery wrap carries the recovery public key under the account key, apart from `wrappedAccountKey` (§4.1). Whoever holds the account key and the session could replace that field alone: the user's phrase still opened the account, `secureAccount` compared the phrase with the stored key and refused it, and the `rekey-needed` warning led the user to `rekey(teamId, { phrase })`, which signed, with the real phrase, keys carrying the attacker's recovery key (D-49's "a phrase a bundle carries"). The attacker then proved its own re-keys (review 013 B).
+
+Decision:
+- Given the current phrase, the vault checks it by opening the current recovery wrap's `wrappedAccountKey` with the recovery key derived from it, as a rotation and a PIN change already did, and uses the recovery public key derived from it for every key it writes or signs, never the stored one. A recovery signature is made only on keys carrying the key of a phrase typed in that operation: the current phrase, or the new phrase being set.
+- A stored key that differs from the typed phrase's is reported (`recovery-key-mismatch`, action `secureAccount`), never refused: `recover` opens the account. `rotate`, `secureAccount` and `confirmRecoveryPhrase` write a new recovery wrap from the typed phrase, which repairs it.
+- A retry after a replacement is `rekey(teamId, { phrase, oldPhrase })`: `phrase` is the current phrase, whose key the new keys carry; `oldPhrase` signs instead, and must be carried by one of the vault's bundles for the team, a guard against a typing mistake (owners check the keys the roster pins). `oldPhrase` without `phrase` is `MALFORMED_RECORD`.
+
+Rejected:
+- Binding the recovery public key to `wrappedAccountKey` (a new record version): the account-key holder replaces the whole wrap instead, and the user's phrase stops working, which is no better.
+- Refusing a mismatched wrap, in `recover` too: a user without a PIN couldn't unlock anywhere, so couldn't run `secureAccount`, the repair (review 014 B).
+- Dropping D-49: a team that fails during `secureAccount` with a new phrase would need an owner by hand.
+- Pinning the recovery public key in local storage: one more local value, which any script in the origin can write.
+
+Consequence: a replaced field can't make the user's phrase vouch for someone else's keys, and `secureAccount` repairs it. Operations given no phrase (`createTeam`, `joinTeam`, `rekey` without one) still read the stored key: keys they make while an account-key holder controls it carry its recovery key, so in those teams its re-keys stay proven; after `secureAccount`, a server colluding with it can publish proven keys above the user's (D-43's server rule is defence in depth), until an owner approves the user's re-key by hand (TH-12).

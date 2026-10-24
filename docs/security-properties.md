@@ -236,7 +236,7 @@ Related threats: TH-10, TH-11, TH-12, TH-20, TH-44, TH-48.
 
 ### SP-12: Compromised member keys can be replaced
 
-Property: a member can get new member keys for a team. The new keys are accepted only once an owner approves them, by a rotation sealed to them; a signature by the old keys is never enough. An approval holds for exactly the keys the owner reviewed: keys published after the review, or replaced by a newer re-key, are refused. A rotation carries one set of keys per account, so after that rotation the old member keys open nothing new. Keys published under the account by someone else never block the member's own writes: new keys take the newest published version plus one, and the vault reports keys it didn't make (`foreign-member-keys`, D-43).
+Property: a member can get new member keys for a team. The new keys are accepted only once an owner approves them, by a rotation sealed to them; a signature by the old keys is never enough. An approval holds for exactly the keys the owner reviewed, named by version and keys hash (D-55): keys published after the review, or replaced by a newer re-key, are refused (`STALE_VERSION`), and another record served for the reviewed version is `TRUST_FAILURE` (`key_mismatch`), as are two records for one version. A rotation carries one set of keys per account, so after that rotation the old member keys open nothing new. Keys published under the account by someone else never block the member's own writes: new keys take the newest published version plus one, and the vault reports keys it didn't make (`foreign-member-keys`, D-43).
 
 A recovery signature is the only proof (SP-23, D-38); any other re-key is shown to the owner as unproven, for an out-of-band check.
 
@@ -246,7 +246,7 @@ Assumptions: AS-01, AS-06 for the owner's check that the request is genuine.
 
 Verification:
 - `test/security/member-rekey.test.ts`: keys published without proof are reported as unproven and never approved by themselves; an owner approves by rotating (accepted); the old keys get no roster entry of the new version and open nothing created after it; keys published after the owner's review, including an owner's own, are refused; once the new keys are approved the vault deletes the old bundle, and the team still opens. A session thief publishes keys at the member's next version: the member's join and re-key still succeed, at the following version, and the vault reports the foreign keys until they're superseded. Limit: bait published after each proven re-key keeps it from being approved.
-- `test/security/key-substitution.test.ts`: approving keys a re-key replaced is refused.
+- `test/security/key-substitution.test.ts`: approving keys a re-key replaced is refused; a server serving another record for the reviewed version at rotation, or two records for one version, is refused before anything is written, for a member's proven re-key, an owner's own re-key and a manual approval (D-55).
 - `test/security/secure-account.test.ts`: keys published by a session thief before `secureAccount` don't block its re-keys or their approval by `reconcile`.
 
 Related threats: TH-12, TH-13, TH-20, TH-37, TH-47.
@@ -363,17 +363,18 @@ Related threats: TH-14, TH-37.
 
 ### SP-23: A re-key proven by the recovery key is approved without an out-of-band check
 
-Property: a `member-keys` record signed by the recovery key that the account's currently held keys carry is a proven re-key. The held keys are those the roster pins by keys hash: a record the server serves for that version with another hash is `TRUST_FAILURE` (`key_mismatch`), so the server can't choose the recovery key a proof is checked against. Owners' clients approve it in `reconcile` for accounts that aren't owners of the current version; anything else never counts as a proof. An owner's own re-key is approved by its own `reconcile` through possession of the keys instead (SP-22, D-47). Neither a stolen device nor a stolen session can produce the proof: the recovery signing key is derived from the phrase when the user types it and never stored. Replacing the phrase re-keys every team with the new recovery key, proven by the old phrase if given.
+Property: a `member-keys` record signed by the recovery key that the account's currently held keys carry is a proven re-key. The held keys are those the roster pins by keys hash: a record the server serves for that version with another hash is `TRUST_FAILURE` (`key_mismatch`), so the server can't choose the recovery key a proof is checked against. Owners' clients approve it in `reconcile` for accounts that aren't owners of the current version; anything else never counts as a proof. An owner's own re-key is approved by its own `reconcile` through possession of the keys instead (SP-22, D-47). Neither a stolen device nor a stolen session can produce the proof: the recovery signing key is derived from the phrase when the user types it and never stored. The vault signs only keys carrying the recovery key of a phrase typed in that operation, the current one or the new one being set, never a key read from the server, which an account-key holder can rewrite (D-56). Replacing the phrase re-keys every team with the new recovery key, proven by the old phrase if given.
 
 Limits:
 - **A leaked phrase** proves re-keys too: a thief can replace a member's keys in every team, racing the real user (TH-41).
 - **Owners** are never approved automatically by a proof, even a valid one; only the owner's own `reconcile`, holding the keys, approves them (D-47).
 - A phrase replaced with the PIN instead of the old phrase (D-41) re-keys every team without proof, so each needs a human approval.
+- Keys made without the phrase (`createTeam`, `joinTeam`, `rekey` without one) carry the recovery wrap's stored key: if an account-key holder rewrote it, its re-keys are proven in those teams until an owner approves the user's re-key by hand (TH-12, D-56).
 
 Assumptions: AS-01, AS-03 for the device where the phrase is typed.
 
 Verification:
-- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the old phrase is proven, and a phrase no bundle carries is refused (D-49); a record served for the held version with another keys hash, naming another recovery key, is refused by `reconcile` and `overview`.
+- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the new phrase and the old one is proven, and an old phrase no bundle carries is refused (D-49, D-56); a recovery wrap whose public key an account-key holder replaced: `secureAccount` accepts the real phrase and repairs it, `rekey` and `confirmRecoveryPhrase` sign keys carrying the typed phrase's key, `recover` opens, and the vault reports `recovery-key-mismatch` (D-56); a record served for the held version with another keys hash, naming another recovery key, is refused by `reconcile` and `overview`.
 - `test/vectors/recovery-key.v1.json`.
 
 Related threats: TH-10, TH-12, TH-13, TH-37, TH-41.
