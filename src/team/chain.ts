@@ -100,18 +100,17 @@ export function verifyChain(input: {
   }
 
   // Below the chain it isn't followed; on it, it must match; above it, the chain was cut.
-  const followed = [...anchors];
   if (state && state.version >= first.version) {
     if (state.version > newest) throw trustFailure("rollback");
     if (!records[0]!.suite.equal(hashes.get(state.version)!, state.hash)) throw trustFailure("state_conflict");
-    followed.push(state);
   }
 
-  const highestAnchor = followed.length > 0 ? Math.max(...followed.map((a) => a.version)) : 0;
+  // Every record above the lowest root, the version fetched from: what another device saw hides nothing here (D-57).
+  const reportedFrom = anchors.length > 0 ? first.version : 0;
   const ownerChanges: OwnerChange[] = [];
   const memberChanges: MemberChange[] = [];
   records.forEach((record, i) => {
-    if (record.version <= highestAnchor) return;
+    if (record.version <= reportedFrom) return;
     const previous = new Map((records[i - 1]?.roster ?? []).map((e) => [e.accountId, e.keysHash]));
     const current = new Map(record.roster.map((e) => [e.accountId, e.keysHash]));
     const joined = [...current.keys()].filter((id) => !previous.has(id));

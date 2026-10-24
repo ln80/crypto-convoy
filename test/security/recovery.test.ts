@@ -85,9 +85,10 @@ describe("SP-19: only authorized material opens the account key", () => {
     const w = world();
     const laptop = await w.account("alice");
     await laptop.vault.rotate({ phrase: laptop.recoveryPhrase, newPin: "1234" });
-    w.server.restore({ type: "account-key-wrap", accountId: "alice", accountKeyVersion: 1, method: "pin" });
+    // The retired version made current again (a server that kept it, or a support restore, TH-48); an honest
+    // server refuses wraps at a retired version, so the device registers only where the server serves that one (D-58).
+    w.server.restoreVersion("alice", 1);
     const fresh = await w.device("alice", { localKeys: new MemoryLocalKeyStore() });
-    fresh.store.accountVersion(1);
     await fresh.vault.unlockWithPin("1234");
     expect(fresh.vault.isUnlocked).toBe(true);
   });

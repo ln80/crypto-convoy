@@ -1,10 +1,10 @@
 // Rotating the account key (§5.7, D-10, SP-11).
 import { ConvoyError } from "../errors.js";
 import { callPort, type WriteOp } from "../ports.js";
-import { parseMemberKeys } from "../records/member-keys.js";
-import { createMemberKeysWrap, memberKeysWrapToJson, openMemberKeysWrap, parseMemberKeysWrap } from "../records/member-keys-wrap.js";
+import { createMemberKeysWrap, memberKeysWrapToJson } from "../records/member-keys-wrap.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { createWrap } from "./context.js";
+import { openedWraps } from "./member-custody.js";
 import { commit, deviceWrap, pinWrap, recoveryWrap, verifyPhrase } from "./unlock-methods.js";
 
 /**
@@ -19,7 +19,7 @@ export async function rotateAccount(
   current: OpenAccount,
   input: { phrase: string; newPhrase?: string; newPin?: string },
 ): Promise<{ account: OpenAccount }> {
-  const { suite, store, deviceKeys } = ports;
+  const { suite, deviceKeys } = ports;
   const { accountId } = current;
   // An open vault alone can't rotate (D-41): the current phrase proves the account, and is kept.
   if (typeof input?.phrase !== "string") throw new ConvoyError("MALFORMED_RECORD");
@@ -28,14 +28,9 @@ export async function rotateAccount(
   const next: OpenAccount = { accountId, version: current.version + 1, key: suite.randomBytes(suite.sizes.key) };
   const ops: WriteOp[] = [];
 
-  const wraps = await callPort(() => store.list({ type: "member-keys-wrap", accountId, accountKeyVersion: current.version }));
-  for (const json of wraps) {
-    const wrap = parseMemberKeysWrap(json, { accountId, accountKeyVersion: current.version });
-    const publishedJson = await callPort(() =>
-      store.get({ type: "member-keys", teamId: wrap.teamId, accountId, memberKeysVersion: wrap.memberKeysVersion }),
-    );
-    const published = parseMemberKeys(publishedJson, { teamId: wrap.teamId, accountId, memberKeysVersion: wrap.memberKeysVersion });
-    const bundle = openMemberKeysWrap(wrap, current.key, published);
+  // Every wrap that opens, unchecked against its published keys: opening the team checks them, and a
+  // rotation can't then be blocked by a planted bundle, nor made to drop a real one (D-58).
+  for (const { wrap, bundle } of await openedWraps(ports, current)) {
     const context = { accountId, teamId: wrap.teamId, memberKeysVersion: wrap.memberKeysVersion, accountKeyVersion: next.version };
     const rewrapped = createMemberKeysWrap(suite, context, next.key, bundle);
     suite.wipe(bundle.signingSeed, bundle.encryptionSecretKey, bundle.teamStateKey);

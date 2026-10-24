@@ -8,12 +8,14 @@ import { callPort, type WriteOp } from "../ports.js";
 import { createMemberKeys, keysHash, memberKeysToJson, parseMemberKeys, type MemberKeysProofs } from "../records/member-keys.js";
 import {
   bundleKeyPairs,
+  checkBundle,
   createMemberKeysWrap,
   generateBundle,
   memberKeysWrapToJson,
-  openMemberKeysWrap,
   parseMemberKeysWrap,
+  unwrapMemberKeys,
   type MemberKeyBundle,
+  type MemberKeysWrap,
 } from "../records/member-keys-wrap.js";
 import { createTeamKeyVersion, recordHash, teamKeyVersionToJson, type TeamKeyVersion } from "../records/team-key-version.js";
 import { createTeamState, teamStateToJson } from "../records/team-state.js";
@@ -21,19 +23,38 @@ import type { MemberBundle, TeamPorts } from "../team/context.js";
 import { TeamSession, sessionInternals } from "../team/session.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
 
+/**
+ * The account's wraps at its key version that parse and open under the account key. One that
+ * doesn't was never the account's (only the account key makes one): it is absent, as if withheld (§4.3, D-58).
+ */
+export async function openedWraps(ports: AccountPorts, account: OpenAccount): Promise<{ wrap: MemberKeysWrap; bundle: MemberKeyBundle }[]> {
+  const { accountId } = account;
+  const jsons = await callPort(() => ports.store.list({ type: "member-keys-wrap", accountId, accountKeyVersion: account.version }));
+  const opened: { wrap: MemberKeysWrap; bundle: MemberKeyBundle }[] = [];
+  for (const json of jsons) {
+    try {
+      const wrap = parseMemberKeysWrap(json, { accountId, accountKeyVersion: account.version });
+      opened.push({ wrap, bundle: unwrapMemberKeys(wrap, account.key) });
+    } catch (error) {
+      if (!isConvoyError(error)) throw error;
+    }
+  }
+  return opened;
+}
+
 /** Every member key bundle of this account for the team, newest first, checked against the published keys. */
 export async function openBundles(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<MemberBundle[]> {
   const { store, suite } = ports;
   const { accountId } = account;
-  const wraps = (await callPort(() => store.list({ type: "member-keys-wrap", accountId, accountKeyVersion: account.version })))
-    .map((json) => parseMemberKeysWrap(json, { accountId, accountKeyVersion: account.version }))
-    .filter((wrap) => wrap.teamId === teamId)
-    .sort((a, b) => b.memberKeysVersion - a.memberKeysVersion);
+  const opened = (await openedWraps(ports, account))
+    .filter(({ wrap }) => wrap.teamId === teamId)
+    .sort((a, b) => b.wrap.memberKeysVersion - a.wrap.memberKeysVersion);
   const bundles: MemberBundle[] = [];
-  for (const wrap of wraps) {
+  for (const { wrap, bundle } of opened) {
     const json = await callPort(() => store.get({ type: "member-keys", teamId, accountId, memberKeysVersion: wrap.memberKeysVersion }));
     const published = parseMemberKeys(json, { teamId, accountId, memberKeysVersion: wrap.memberKeysVersion });
-    const bundle = openMemberKeysWrap(wrap, account.key, published);
+    // A wrap that opens is the account's: one its published keys don't match is a trust failure, not absent.
+    checkBundle(suite, bundle, published);
     bundles.push({ memberKeysVersion: wrap.memberKeysVersion, published, pairs: bundleKeyPairs(suite, bundle), ...(bundle.floor ? { floor: bundle.floor } : {}) });
   }
   return bundles;
@@ -49,8 +70,9 @@ export interface NewMemberKeysOptions {
 }
 
 /**
- * The version for new member keys: one above the account's newest published record for the team
- * and every bundle held, so keys someone else published never block it (§5.9, D-43).
+ * The version for new member keys: one above the account's newest published record for the team,
+ * so keys someone else published never block it (§5.9, D-43). Every bundle is published with its
+ * wrap, which the server creates only in that batch (D-58).
  */
 export async function nextMemberKeysVersion(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<number> {
   const published = await callPort(() => ports.store.list({ type: "member-keys", teamId, accountId: account.accountId }));
@@ -58,8 +80,7 @@ export async function nextMemberKeysVersion(ports: AccountPorts, account: OpenAc
   for (const version of versions) {
     if (!Number.isSafeInteger(version) || (version as number) < 1 || (version as number) >= 2 ** 32 - 1) throw new ConvoyError("MALFORMED_RECORD");
   }
-  const held = (await openBundles(ports, account, teamId)).map((b) => b.memberKeysVersion);
-  return Math.max(0, ...(versions as number[]), ...held) + 1;
+  return Math.max(0, ...(versions as number[])) + 1;
 }
 
 /** New member keys: the published record, with its proof, and its wrap with its anchor floor (§5.9). */

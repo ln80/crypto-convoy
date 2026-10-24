@@ -321,10 +321,16 @@ export class Vault {
     );
     const expected = { accountId: this.accountId, accountKeyVersion: account.version };
     const local = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
-    return wraps
-      .filter((json) => (json as { method?: unknown }).method === "device")
-      .map((json) => parseAccountKeyWrap(json, { ...expected, method: "device" }).deviceId!)
-      .map((deviceId) => ({ deviceId, current: deviceId === local?.deviceId }));
+    // A device wrap that doesn't parse is left out: it was never a device of the account's (D-58).
+    const deviceIds: string[] = [];
+    for (const json of wraps.filter((w) => (w as { method?: unknown }).method === "device")) {
+      try {
+        deviceIds.push(parseAccountKeyWrap(json, { ...expected, method: "device" }).deviceId!);
+      } catch (error) {
+        if (!isConvoyError(error)) throw error;
+      }
+    }
+    return deviceIds.map((deviceId) => ({ deviceId, current: deviceId === local?.deviceId }));
   }
 
   /** Deletes a device's wrap: it can't unlock again (§5.5, SP-10). */

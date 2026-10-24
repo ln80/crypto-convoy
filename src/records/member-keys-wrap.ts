@@ -120,8 +120,15 @@ export function parseMemberKeysWrap(
  * Throws `DECRYPTION_FAILED`, or `TRUST_FAILURE` (`key_mismatch`).
  */
 export function openMemberKeysWrap(record: MemberKeysWrap, accountKey: Uint8Array, published: MemberKeys): MemberKeyBundle {
-  const { suite } = record;
   if (published.memberKeysVersion !== record.memberKeysVersion) throw trustFailure("key_mismatch");
+  const bundle = unwrapMemberKeys(record, accountKey);
+  checkBundle(record.suite, bundle, published);
+  return bundle;
+}
+
+/** Opens the bundle under the account key alone (§4.3). Throws `DECRYPTION_FAILED`. */
+export function unwrapMemberKeys(record: MemberKeysWrap, accountKey: Uint8Array): MemberKeyBundle {
+  const { suite } = record;
   const plaintext = unwrap(suite, accountKey, "member-keys-wrap", adFields(record), record.wrappedKeys);
   let bundle: MemberKeyBundle;
   try {
@@ -141,12 +148,16 @@ export function openMemberKeysWrap(record: MemberKeysWrap, accountKey: Uint8Arra
   } finally {
     suite.wipe(plaintext);
   }
+  return bundle;
+}
+
+/** The bundle's public keys must be the published record's (§4.3). Throws `TRUST_FAILURE` (`key_mismatch`). */
+export function checkBundle(suite: Suite, bundle: MemberKeyBundle, published: MemberKeys): void {
   const pairs = bundleKeyPairs(suite, bundle);
   const matches =
     suite.equal(pairs.signing.publicKey, published.signingPublicKey) &&
     suite.equal(pairs.encryption.publicKey, published.encryptionPublicKey);
   if (!matches) throw trustFailure("key_mismatch");
-  return bundle;
 }
 
 export function memberKeysWrapToJson(record: MemberKeysWrap): JsonRecord {

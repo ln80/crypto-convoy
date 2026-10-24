@@ -167,6 +167,19 @@ export class MemoryRecordStore {
           ownOnly(op.key);
           checkIdentity(op.key, op.record);
           if (live.has(keyString(op.key))) throw conflict("write-once");
+          if (op.key.type === "account-key-wrap" || op.key.type === "member-keys-wrap") {
+            // §11 (D-58): wraps at the current version, or at the one this batch switches to; a member
+            // keys wrap only with its member keys, or in that batch, so a session can't take the identity first.
+            const key = op.key;
+            const switched = ops.find((o) => o.op === "set-account-key-version" && o.accountId === key.accountId);
+            const at = switched?.op === "set-account-key-version" ? switched.accountKeyVersion : versions.get(key.accountId);
+            if (key.accountKeyVersion !== at) throw conflict("wrap at another account key version");
+            const withKeys = ops.some(
+              (o) => o.op === "create" && o.key.type === "member-keys" && key.type === "member-keys-wrap" &&
+                o.key.teamId === key.teamId && o.key.accountId === key.accountId && o.key.memberKeysVersion === key.memberKeysVersion,
+            );
+            if (key.type === "member-keys-wrap" && !switched && !withKeys) throw conflict("member keys wrap without its member keys");
+          }
           if (op.key.type === "team-key-version") {
             const { teamId, version } = op.key;
             const before = currentTeamKeyVersion(teamId, this.#live);

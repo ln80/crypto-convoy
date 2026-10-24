@@ -25,6 +25,8 @@ const keyOf = (record: WireRecord): RecordKey => {
 const create = (record: WireRecord): WriteOp => ({ op: "create", key: keyOf(record), record });
 const replace = (record: WireRecord): WriteOp => ({ op: "replace", key: keyOf(record) as Extract<RecordKey, { type: "account-key-wrap" }>, record });
 const conflict = expect.any(StoreConflictError);
+/** The account's first key version, switched in the same batch as its first wraps (§11, D-58). */
+const firstVersion = (accountId: string): WriteOp => ({ op: "set-account-key-version", accountId, expected: null, accountKeyVersion: 1 });
 
 function teamStore() {
   const server = new MemoryRecordStore();
@@ -93,7 +95,7 @@ describe("server contract (§11)", () => {
   it("serves private records only to their account", async () => {
     const server = new MemoryRecordStore();
     const wrap = r["account-key-wrap"];
-    await server.as("alice").commit([create(wrap)]);
+    await server.as("alice").commit([create(wrap), firstVersion("alice")]);
     await expect(server.as("bob").get(keyOf(wrap))).rejects.toThrow();
     await expect(server.anonymous().get(keyOf(wrap))).rejects.toThrow();
     await expect(server.as("bob").commit([create(wrap)])).rejects.toThrow();
@@ -114,7 +116,7 @@ describe("server contract (§11)", () => {
   it("archives a deleted record: no longer served, and restorable (TH-36)", async () => {
     const { server, alice } = teamStore();
     const wrap = r["account-key-wrap"];
-    await alice.commit([create(wrap)]);
+    await alice.commit([create(wrap), firstVersion("alice")]);
     await alice.commit([{ op: "delete", key: keyOf(wrap) }]);
     expect(await alice.get(keyOf(wrap))).toBeNull();
     expect(server.archived(keyOf(wrap))).toEqual([wrap]);
@@ -127,7 +129,7 @@ describe("server contract (§11)", () => {
     const { server, alice } = teamStore();
     const wrap = r["account-key-wrap"];
     const garbage = { ...wrap, createdAt: 1 };
-    await alice.commit([create(wrap)]);
+    await alice.commit([create(wrap), firstVersion("alice")]);
     await alice.commit([replace(garbage)]);
     expect(await alice.get(keyOf(wrap))).toEqual(garbage);
     expect(server.archived(keyOf(wrap))).toEqual([wrap]);
@@ -140,7 +142,7 @@ describe("server contract (§11)", () => {
   it("restores a chosen generation after several replacements", async () => {
     const { server, alice } = teamStore();
     const wrap = r["account-key-wrap"];
-    await alice.commit([create(wrap)]);
+    await alice.commit([create(wrap), firstVersion("alice")]);
     await alice.commit([replace({ ...wrap, createdAt: 1 })]);
     await alice.commit([replace({ ...wrap, createdAt: 2 })]);
     server.restore(keyOf(wrap), 0);
@@ -161,7 +163,7 @@ describe("server contract (§11)", () => {
   it("refuses a batch that touches one key twice, and leaves the archive unchanged", async () => {
     const { server, alice } = teamStore();
     const wrap = r["account-key-wrap"];
-    await alice.commit([create(wrap)]);
+    await alice.commit([create(wrap), firstVersion("alice")]);
     await expect(alice.commit([{ op: "delete", key: keyOf(wrap) }, create(wrap)])).rejects.toEqual(conflict);
     expect(await alice.get(keyOf(wrap))).toEqual(wrap);
     expect(server.archived(keyOf(wrap))).toEqual([]);

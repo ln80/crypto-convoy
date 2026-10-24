@@ -304,8 +304,11 @@ export class TeamSession {
     const own = await openOwnAccess(this.#ports, this.accountId, chain, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
 
     this.#chain = own?.chain ?? chain;
-    this.#ownerChanges = [...chain.ownerChanges];
-    this.#memberChanges = [...chain.memberChanges];
+    // Added to what the session holds: a reload never drops reports not yet read (D-57).
+    const known = new Set(this.#ownerChanges.map((c) => c.version));
+    this.#ownerChanges.push(...chain.ownerChanges.filter((c) => !known.has(c.version)));
+    const knownMembers = new Set(this.#memberChanges.map((c) => c.version));
+    this.#memberChanges.push(...chain.memberChanges.filter((c) => !knownMembers.has(c.version)));
     this.close();
     this.#own = own ?? undefined;
     if (own) this.#keys.set(own.teamKeyVersion, own.teamKey);

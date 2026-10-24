@@ -1,7 +1,8 @@
 /**
  * SP-04: Team keys go only to owner-approved member keys.
  * SP-12: Compromised member keys can be replaced (replaced keys are never approved).
- * Threats: TH-02, TH-37.
+ * SP-18: Invalid input fails before crypto (a record in a list that fails its checks is left out).
+ * Threats: TH-02, TH-25, TH-37.
  */
 import { describe, expect, it } from "vitest";
 import { isConvoyError } from "../../src/errors.js";
@@ -148,5 +149,23 @@ describe("SP-12: an approval holds for exactly the keys reviewed, by keys hash (
     await expect(session.owner().reconcile(["alice", "bob"])).rejects.toEqual(trust("key_mismatch"));
     await expect((await alice.vault.openTeam("team-1")).owner().overview(["alice", "bob"])).rejects.toEqual(trust("key_mismatch"));
     await noVersion3(members.bob!.store);
+  });
+});
+
+describe("SP-18: a malformed member keys record stops nothing (D-58, review 016 C)", () => {
+  it("a joiner's record with a bad signature is left out: every member and owner still works", async () => {
+    const { members, aliceTeam, w } = await team("bob");
+    const mallory = await w.account("mallory");
+    await mallory.vault.joinTeam("team-1");
+    const good = (await w.server.as("mallory").get({ type: "member-keys", teamId: "team-1", accountId: "mallory", memberKeysVersion: 1 })) as Record<string, unknown>;
+    await w.server.as("mallory").commit([
+      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "mallory", memberKeysVersion: 2 }, record: { ...good, memberKeysVersion: 2, signature: Buffer.alloc(64, 1).toString("base64url") } },
+    ]);
+    expect((await members.bob!.vault.openTeam("team-1")).state).toBe("ready");
+    const fresh = await members.alice!.vault.openTeam("team-1");
+    expect(fresh.state).toBe("ready");
+    // The bad record is unpublished: mallory's newest valid keys are still the ones to approve.
+    expect((await requestOf(fresh.owner(), "mallory")).keys).toMatchObject({ memberKeysVersion: 1 });
+    expect(await aliceTeam.owner().reconcile(["alice", "bob", "mallory"])).toMatchObject({ needsHuman: [expect.objectContaining({ accountId: "mallory" })] });
   });
 });

@@ -7,7 +7,7 @@ import { openAccountKeyWrap, openRecoveryPublicKey } from "../records/account-ke
 import { parseMemberKeysWrap } from "../records/member-keys-wrap.js";
 import type { KeyPair } from "../suites/suite.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
-import { newMemberKeys, nextMemberKeysVersion, openBundles, recordVaultAnchor, vaultAnchorOf } from "./member-custody.js";
+import { newMemberKeys, nextMemberKeysVersion, openBundles, openedWraps, recordVaultAnchor, vaultAnchorOf } from "./member-custody.js";
 import { deriveRecoveryKeys } from "./recovery-key.js";
 import { commit, fetchWrap } from "./unlock-methods.js";
 
@@ -83,8 +83,8 @@ export function oldPhraseSigner(ports: AccountPorts, accountId: string, phrase: 
 
 /** The teams this account holds member keys for, at its current account key version. */
 export async function accountTeams(ports: AccountPorts, account: OpenAccount): Promise<string[]> {
-  const wraps = await callPort(() => ports.store.list({ type: "member-keys-wrap", accountId: account.accountId, accountKeyVersion: account.version }));
-  const teams = wraps.map((json) => parseMemberKeysWrap(json, { accountId: account.accountId, accountKeyVersion: account.version }).teamId);
+  // Only teams with a wrap that opens: a garbage wrap names no team of the account's (D-58).
+  const teams = (await openedWraps(ports, account)).map(({ wrap }) => wrap.teamId);
   return [...new Set(teams)];
 }
 

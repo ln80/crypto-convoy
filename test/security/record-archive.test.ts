@@ -5,6 +5,10 @@
 import { describe, expect, it } from "vitest";
 import { replacePhrase } from "../support/fixtures.js";
 import { team } from "../support/teams.js";
+import { forgeMemberKeys, strangerKeys, bundleOf } from "../support/forge.js";
+import { vaultInternals } from "../../src/account/vault.js";
+import { createMemberKeysWrap, memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
+import { cc1 } from "../../src/suites/cc1/index.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
 const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
@@ -136,5 +140,59 @@ describe("SP-26: a session can't destroy an account's private records", () => {
     w.server.restore({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "device", deviceId: deviceId! });
     await other.vault.unlock();
     expect(other.vault.isUnlocked).toBe(true);
+  });
+});
+
+describe("SP-26: a record that fails its checks stops nothing (D-58, review 016 B)", () => {
+  const garbageWrap = (teamId: string, memberKeysVersion: number) => ({
+    v: 1, suite: "cc1", type: "member-keys-wrap", accountId: "bob", teamId, memberKeysVersion, accountKeyVersion: 1,
+    wrappedKeys: { nonce: b64(24), ciphertext: b64(97 + 16) },
+  });
+  const plant = (teamId: string, memberKeysVersion: number) => [
+    { op: "create", key: { type: "member-keys", teamId, accountId: "bob", memberKeysVersion }, record: { ...forgeMemberKeys("bob", memberKeysVersion, strangerKeys()), teamId } },
+    { op: "create", key: { type: "member-keys-wrap", accountId: "bob", teamId, memberKeysVersion, accountKeyVersion: 1 }, record: garbageWrap(teamId, memberKeysVersion) },
+  ] as const;
+
+  it("a session's garbage wraps, for the team and for another, are absent: the remedy and the team still work", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    // A session publishes keys under bob's account with a garbage wrap, at the team's next version and in a team bob isn't in.
+    const unparsable = [plant("team-y", 1)[0], { ...plant("team-y", 1)[1], record: { ...garbageWrap("team-y", 1), wrappedKeys: { nonce: b64(3), ciphertext: b64(3) } } }];
+    await bob.store.commit([...plant("team-1", 2), ...plant("team-x", 1), ...unparsable] as never);
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "foreign-member-keys", teamIds: ["team-1"] }));
+    const report = await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
+    expect(report).toEqual({ rekeyed: ["team-1"], failed: [] });
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: ["bob"] });
+  });
+
+  it("the server refuses a wrap without its keys, or at another account key version, so a session can't take bob's next identity", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    const wrapOnly = { op: "create", key: { type: "member-keys-wrap", accountId: "bob", teamId: "team-1", memberKeysVersion: 2, accountKeyVersion: 1 }, record: garbageWrap("team-1", 2) } as const;
+    await expect(bob.store.commit([wrapOnly])).rejects.toThrow("member keys wrap without its member keys");
+    const id = { type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" } as const;
+    const current = (await bob.store.get(id)) as Record<string, unknown>;
+    const next = { op: "create", key: { ...id, accountKeyVersion: 2 }, record: { ...current, accountKeyVersion: 2 } } as never;
+    await expect(bob.store.commit([next])).rejects.toThrow("wrap at another account key version");
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    expect((await bundleOf(bob.vault)).memberKeysVersion).toBe(2);
+  });
+
+  it("Accepted (TH-20): a wrap that opens with keys its record doesn't match fails its team, not the account", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    const held = await bundleOf(bob.vault);
+    const { ports, account } = vaultInternals(bob.vault);
+    // An account-key holder wraps bob's own bundle at a new version, under keys someone else published.
+    const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: 2, accountKeyVersion: account().version };
+    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey };
+    await ports.store.commit([
+      { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) },
+      { op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) },
+    ]);
+    expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("key_mismatch"));
+    // The rotation re-wraps it without checking, so securing the account still runs; that team is reported.
+    expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" })).toEqual({ rekeyed: [], failed: ["team-1"] });
   });
 });

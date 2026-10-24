@@ -3,6 +3,7 @@ import { sign, verify } from "../blocks/sign.js";
 import { bytes, string, u32, u64, type Field } from "../encoding/canonical.js";
 import { b64, type JsonRecord } from "../encoding/json.js";
 import { labelled } from "../encoding/labels.js";
+import { isConvoyError } from "../errors.js";
 import type { Suite } from "../suites/suite.js";
 import { expectContext, readEncryptionKey, readRecord, readSigningKey, writeHeader, type RecordHeader } from "./common.js";
 
@@ -123,4 +124,20 @@ export function memberKeysToJson(record: MemberKeys): JsonRecord {
     signature: b64(record.signature),
     ...(record.recoverySignature ? { recoverySignature: b64(record.recoverySignature) } : {}),
   };
+}
+
+/**
+ * A team's published records, as a list: one that fails its checks is left out, as if unpublished,
+ * so it stops nothing else (§4.2, D-58). Only for lists that verify, overview, reconcile or approve.
+ */
+export function parseListedMemberKeys(jsons: readonly unknown[], expected: Pick<MemberKeysContext, "teamId"> & Partial<MemberKeysContext>): MemberKeys[] {
+  const listed: MemberKeys[] = [];
+  for (const json of jsons) {
+    try {
+      listed.push(parseMemberKeys(json, { ...expected, accountId: expected.accountId ?? (json as { accountId?: string } | null)?.accountId ?? "" }));
+    } catch (error) {
+      if (!isConvoyError(error)) throw error;
+    }
+  }
+  return listed;
 }

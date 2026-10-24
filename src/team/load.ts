@@ -2,7 +2,7 @@
 import type { Anchor } from "../encoding/link.js";
 import { trustFailure } from "../errors.js";
 import { callPort, type AnchorStore, type RecordStore } from "../ports.js";
-import { parseMemberKeys } from "../records/member-keys.js";
+import { parseListedMemberKeys } from "../records/member-keys.js";
 import { parseTeamKeyVersion } from "../records/team-key-version.js";
 import type { Suite } from "../suites/suite.js";
 import { readServerState, type ServerState } from "./anchors.js";
@@ -41,9 +41,8 @@ export async function verifiedChain(ports: ChainPorts, teamId: string, anchors: 
   // From the lowest anchor: what lies below it is pinned by hash and fetched only when needed (§6.1 step 2).
   const fromVersion = anchors.length > 0 ? Math.min(...anchors.map((a) => a.version)) : 1;
   const records = await fetchVersions(ports, teamId, fromVersion);
-  const memberKeys = (await callPort(() => ports.store.list({ type: "member-keys", teamId }))).map((json) =>
-    parseMemberKeys(json, { teamId, accountId: (json as { accountId: string }).accountId }),
-  );
+  // A record that fails its checks is left out: one bad record never stops the team (D-58).
+  const memberKeys = parseListedMemberKeys(await callPort(() => ports.store.list({ type: "member-keys", teamId })), { teamId });
   return verifyChain({ records, anchors, memberKeys, ...(state ? { state } : {}) });
 }
 

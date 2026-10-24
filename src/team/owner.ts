@@ -3,7 +3,7 @@
 import { toBase64url } from "../encoding/base64url.js";
 import { ConvoyError, isConvoyError, trustFailure } from "../errors.js";
 import { callPort } from "../ports.js";
-import { keysHash, parseMemberKeys, type MemberKeys } from "../records/member-keys.js";
+import { keysHash, parseListedMemberKeys, type MemberKeys } from "../records/member-keys.js";
 import type { Holder } from "./access.js";
 import { commitTeam } from "./context.js";
 import {
@@ -156,8 +156,8 @@ export class TeamOwner {
     const { ports, teamId } = this.#core;
     const jsons = await callPort(() => ports.store.list({ type: "member-keys", teamId }));
     const byAccount = new Map<string, MemberKeys[]>();
-    for (const json of jsons) {
-      const keys = parseMemberKeys(json, { teamId, accountId: (json as { accountId: string }).accountId });
+    // A record that fails its checks is left out before the duplicate check (D-58).
+    for (const keys of parseListedMemberKeys(jsons, { teamId })) {
       byAccount.set(keys.accountId, [...(byAccount.get(keys.accountId) ?? []), keys]);
     }
     for (const list of byAccount.values()) this.#ascending(list);
@@ -167,7 +167,7 @@ export class TeamOwner {
   async #publishedKeys(accountId: string): Promise<MemberKeys[]> {
     const { ports, teamId } = this.#core;
     const jsons = await callPort(() => ports.store.list({ type: "member-keys", teamId, accountId }));
-    return this.#ascending(jsons.map((json) => parseMemberKeys(json, { teamId, accountId })));
+    return this.#ascending(parseListedMemberKeys(jsons, { teamId, accountId }));
   }
 
   /** Sorts by version; two records for one version are the server's equivocation (D-55). Throws `TRUST_FAILURE`. */

@@ -5,6 +5,9 @@
 import { describe, expect, it } from "vitest";
 import { bundleOf, forgeVersion, strangerKeys } from "../support/forge.js";
 import { team, keysHandle } from "../support/teams.js";
+import { ContentStore, addParts } from "../support/content-store.js";
+import { createTeamKeyReceiver } from "../../src/team/receiver.js";
+import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 
 describe("SP-15: owner and membership changes are visible", () => {
   it("each owner change is reported once, with its signer, on every member's client", async () => {
@@ -147,5 +150,64 @@ describe("SP-15: owners see each member's access and what needs their action", (
     });
     carol.store.fork("team-1", version, forged);
     expect((await carol.vault.openTeam("team-1")).failure).toEqual(expect.objectContaining({ code: "TRUST_FAILURE", reason: "key_mismatch" }));
+  });
+});
+
+describe("SP-15: each device and context reports what it hasn't seen (D-57, review 016 A)", () => {
+  /** A stolen owner key (A6) admits carol and removes her again. */
+  async function admitAndRemove(w: Awaited<ReturnType<typeof team>>["w"], aliceTeam: Awaited<ReturnType<typeof team>>["aliceTeam"]) {
+    const carol = await w.account("carol");
+    await carol.vault.joinTeam("team-1");
+    await aliceTeam.owner().approve([(await aliceTeam.owner().overview(["carol"])).accounts.find((a) => a.accountId === "carol")!.keys!]);
+    await aliceTeam.owner().remove(["carol"]);
+  }
+  const carolInAndOut = [
+    expect.objectContaining({ version: 3, added: ["carol"] }),
+    expect.objectContaining({ version: 4, removed: ["carol"] }),
+  ];
+
+  it("a second device reports a change the first already showed", async () => {
+    const { members, w, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    (await bob.vault.openTeam("team-1")).close();
+    const phone = await w.device("bob");
+    await phone.vault.unlockWithPin(bob.pin);
+    (await phone.vault.openTeam("team-1")).close();
+    await admitAndRemove(w, aliceTeam);
+    expect((await phone.vault.openTeam("team-1")).memberChanges).toEqual(carolInAndOut);
+    // The phone moved the floor and the team state; the laptop still reports from its own anchor.
+    expect((await bob.vault.openTeam("team-1")).memberChanges).toEqual(carolInAndOut);
+    expect((await bob.vault.openTeam("team-1")).memberChanges).toEqual([]);
+  });
+
+  it("a split layout reports from its second open, though the export moves the floor to the tip", async () => {
+    const { members, w, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    const pageAnchors = new MemoryLocalKeyStore();
+    const open = async () => {
+      const receiver = await createTeamKeyReceiver("bob", "team-1");
+      return receiver.openTeam({ store: bob.store, anchors: pageAnchors }, await bob.vault.exportTeamKeys("team-1", receiver.request));
+    };
+    (await open()).close();
+    await admitAndRemove(w, aliceTeam);
+    expect((await open()).memberChanges).toEqual(carolInAndOut);
+  });
+
+  it("a reload keeps the reports the session already held", async () => {
+    const { members, w, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    const pageAnchors = new MemoryLocalKeyStore();
+    const open = async () => {
+      const receiver = await createTeamKeyReceiver("bob", "team-1");
+      return receiver.openTeam({ store: bob.store, anchors: pageAnchors }, await bob.vault.exportTeamKeys("team-1", receiver.request));
+    };
+    (await open()).close();
+    await admitAndRemove(w, aliceTeam);
+    // The receiving session's roots are at the tip once loaded: a reload alone would report nothing.
+    const session = await open();
+    await aliceTeam.owner().rotate({ keep: ["bob"] });
+    // A write that finds the version moved reloads the session.
+    await addParts(session.beginItem(), new ContentStore(), "after", ["x"]).seal("after");
+    expect(session.memberChanges).toEqual(carolInAndOut);
   });
 });
