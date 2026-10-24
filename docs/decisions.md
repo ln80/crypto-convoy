@@ -580,7 +580,7 @@ Consequence: the owner's next routine `reconcile`, on the device where it secure
 
 ## D-48: Member keys carry an anchor floor
 
-Status: Accepted; which anchor the floor is, and when it counts, amended by D-50 and D-52.
+Status: Accepted; which anchor the floor is, and when it counts, amended by D-50, D-52 and D-54. The current rules are stated in D-54.
 
 Problem: a device with no local anchor took its anchor from the account's `team-state` (§4.4). If the server didn't serve it, or a session thief deleted it, the device was on first contact, trusting whatever chain the server presented (TH-04): a malicious server could show an existing member's new device a forged team whose key it held. Nothing told "joined, never opened" apart from "the record was withheld". An invite anchor protected only the joiner's first open, and had to be passed again in each context.
 
@@ -614,7 +614,7 @@ Consequence: a failed team is retried with the old phrase and stays proven. The 
 
 ## D-50: The anchor floor is the newest anchor the vault trusts
 
-Status: Accepted; the sources of the floor at a re-key or a rotation amended by D-51; the read rule, the re-key and the rotation superseded by D-52, then D-54.
+Status: Accepted; the sources of the floor at a re-key or a rotation amended by D-51; the read rule, the re-key and the rotation superseded by D-52, then D-54. Its join rule still holds; the current rules are stated in D-54.
 
 Problem: D-48's floor was set once (version 1, or the invite anchor) and then only carried, or filled from another anchor when missing. It counted only when a device had no other anchor, so an archived `team-state` below it won (TH-05). A member who joined without an invite anchor had no floor until a re-key or rotation: while the server withheld `team-state`, each new device was a new first contact (TH-04). The "carry, else fill" rule had two branches, written in five places.
 
@@ -645,7 +645,7 @@ Consequence: what reaches the floor was written by the vault (a floor) or by `ad
 
 ## D-52: The anchor floor is the root of trust
 
-Status: Accepted; the re-key's floor and its fallback amended by D-54.
+Status: Accepted; the re-key's floor and its fallback amended by D-54, which adds the vault's anchor to the roots. The current rules are stated in D-54.
 
 Problem: every anchor was a root of trust of its own. A record at an anchor's version was accepted by its hash alone, and the floor, the one anchor the vault builds from a chain it verified, was dropped as soon as a higher anchor existed (D-50). A local anchor, which a script in the origin or someone with the device can write, or a `team-state`, which any holder of a `teamStateKey` can write, therefore chose the chain once it was above the floor. With the server, a forged team opened `ready`; its anchor spread through `team-state` to new devices, and the re-key in `secureAccount` made it the floor (review 006 B and C). D-51 had removed only the local anchor from the floor's sources.
 
@@ -690,8 +690,12 @@ Status: Accepted.
 
 Problem: D-52 wrote a re-key's floor from a chain verified from the local anchor or the floor, and kept the current floor when that failed. Someone who held the account key could plant a floor in a wrap: a vault with no anchor of its own (a split layout, a new device) verified from it; a server that made the verification fail had it kept; a retry and an export fell back to it; a forged local anchor could stand in for it (reviews 009 B, 010). And `secureAccount` was trusted to end the old account key's reach, while a retired version comes back on a stateless or stale device, or through a support restore (review 009 C).
 
-Decision:
-- The vault keeps its own anchor per team, in its half of local storage (`local-vault-anchor`, §3.7), apart from the sessions' anchors. It records the tip of every chain it verifies (creation, join, open in its context, export) and never moves down.
+Decision. The current floor rules, in one place (they replace what D-48, D-50 and D-52 state, which keep their history):
+- **Write.** A bundle's floor is version 1 at creation (§6.3); at join, the tip of the chain verified from the invite anchor, or from version 1 without one (§6.4, D-50); at a re-key, the tip of a chain that contains every root the vault holds for the team, or of one from an owner's anchor (§5.9, §6.8); when the vault opens or exports the team, the verified tip if it is newer (§5.8). A rotation keeps it. Nothing else writes it.
+- **Read.** The roots are the newest bundle's floor, the local anchor, and in the vault's context the vault's own anchor; for keys with no floor, the `team-state` anchor too. The chain is fetched from the lowest root and must contain every root; the `team-state` anchor counts only on that chain (`state_conflict` when contradicted, `rollback` when above it) (§6.1, D-52).
+
+What this decision changed:
+- The vault keeps its own anchor per team, in its half of local storage (`local-vault-anchor`, §3.7), apart from the sessions' anchors. It records the tip of every chain it verifies (creation, join, open in its context, export) and never moves down, except when a repair from an owner's anchor replaces it.
 - A re-key writes a floor only from a chain that contains every root the vault holds for the team: the newest bundle's floor and its own anchor. If they conflict or the chain doesn't verify, the re-key fails and writes nothing. An export refuses on the same failure. D-52's "else the current floor" goes.
 - An anchor an owner gives out of band (`team.inviteAnchor()`), passed to `rekey` or `secureAccount`, is then the only root: the repair for a planted floor or a device with no anchor.
 - A rotation keeps each bundle's floor; `secureAccount`'s re-keys then write checked floors.

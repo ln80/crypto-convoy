@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
 
-**Now:** 0 of 2. Last review: 010 (`design`, plan 015), after 009 (`adversarial`, high findings). Open findings medium or above: none. Next: a fresh `adversarial` review.
+**Now:** 1 of 2. Last reviews: 012 (`change`, plans 013–015, low findings only) and 011 (`complexity`, low only): clean, but neither `adversarial`. Open findings medium or above: none. Next: a fresh `adversarial` review; if it finds nothing medium or above, 012 and it make the freeze candidate.
 
 ## Findings
 
@@ -70,6 +70,15 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 010-F | Forgeable input | Medium | Fixed | Export refuses (plan 015) |
 | 010-G | Residual | Medium | Accepted | Owner's anchor repair (plan 015) |
 | 010-H | Hardening | Low | Fixed | §5.5 (plan 015) |
+| 011-A | Simplification | Low | Open | |
+| 011-B | Stale text | Low | Fixed | Forgeability rows (with review 012) |
+| 011-C | Stale text, simplification | Low | Fixed | D-54 restates the rules; D-48, D-50, D-52 point to it (with review 012) |
+| 012-A | Stale text | Low | Open | — |
+| 012-B | Stale text | Low | Open | — |
+| 012-C | Spec → code | Low | Open | — |
+| 012-D | Spec → code | Low | Open | — |
+| 012-E | Stale text | Low | Open | — |
+| 012-F | Stale text | Low | Open | — |
 
 ## Residuals
 
