@@ -34,7 +34,7 @@ Never implement behaviour the protocol doesn't specify. If the spec is missing o
 
 ## Guides and skills
 
-- Guides: [architecture](.agents/guides/architecture.md) · [crypto rules](.agents/guides/crypto-rules.md) · [testing](.agents/guides/testing.md) · [editing specs](.agents/guides/spec-docs.md) · [workflow](.agents/guides/workflow.md)
+- Guides: [architecture](.agents/guides/architecture.md) · [crypto rules](.agents/guides/crypto-rules.md) · [testing](.agents/guides/testing.md) · [editing specs](.agents/guides/spec-docs.md) · [workflow](.agents/guides/workflow.md) · [hardening direction](.agents/guides/direction.md): which findings change the protocol, and the complexity budget
 - Skills (`.agents/skills/<name>/SKILL.md`, open Agent Skills format): [implement from spec](.agents/skills/implement-from-spec/SKILL.md) · [add an algorithm suite](.agents/skills/add-algorithm-suite/SKILL.md) · [security property tests](.agents/skills/security-property-tests/SKILL.md) · [protocol change](.agents/skills/protocol-change/SKILL.md) · [capture a learning note](.agents/skills/capture-learning/SKILL.md) · [maintain the protocol course](.agents/skills/maintain-course/SKILL.md) · [protocol review](.agents/skills/protocol-review/SKILL.md)
 - Plans: `.agents/plans/NNN-name.plan.md` · Reviews: `.agents/reviews/NNN-name.md`, with the [ledger](.agents/reviews/ledger.md) of findings and accepted risks, and the [forgeability table](.agents/reviews/forgeability.md)
 

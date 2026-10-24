@@ -4,9 +4,9 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 ## Stop rule
 
-Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing medium or above, and no medium-or-above finding is open.
+Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 013 (`adversarial`) found 013-A to 013-F; plan 016 fixed 013-A and 013-B (D-55, D-56, design review 014); the edit-only findings followed (013-E accepted, 013-F and 013-G fixed, 013-D's claim corrected). Open findings medium or above: 013-C, and 013-D's optional hardening. Next: decide those, then a review in another mode, then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 013 (`adversarial`) and 014 (`design`); plan 016 and the edit-only fixes closed 013-A, B, E, F, G and 013-D's claim. Still open: 013-C (needs an integration error or a removed member with the server) and 013-D's optional hardening (needs the session with an open vault); under the [hardening direction](../guides/direction.md) both default to accept and document, pending the user's confirmation. Next: settle those, then a `complexity` review (counts against review 011), then a fresh `adversarial` review.
 
 ## Findings
 
