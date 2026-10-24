@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 1 of 2. Last review: 015 (`complexity`) found nothing to fix; its 015-A and review 012's text items are corrected. Open: 011-A only (low, a simplification kept until another layout change). Next: a fresh `adversarial` review; if it finds nothing to fix, 015 and it make the freeze candidate.
+**Now:** 0 of 2. Last review: 016 (`adversarial`, fresh-context reviewer) found three one-actor findings to fix: 016-A (change reports appear once per account, never in a split layout; high), 016-B (a session's planted wrap blocks `secureAccount`, and no restore removes it; high), 016-C (one malformed `member-keys` record stops a team; low, a small fix). All three fixes are small (no new state). 016-D and E are text. Next: fix A–C through protocol-change, then a review in another mode, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -92,6 +92,11 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 014-D | Hardening | Low | Fixed | D-55 `TRUST_FAILURE` for another hash (plan 016) |
 | 014-E | Hardening | Low | Fixed | D-56 typed key (plan 016) |
 | 015-A | Simplification | Low | Fixed | Integration guide Duties table; the `delete` row follows scope rule 3 (edit) |
+| 016-A | Overclaim, spec → code | High | Open | |
+| 016-B | Missing threat, wrong claim | High | Open | |
+| 016-C | Missing threat | Low | Open | |
+| 016-D | Stale text | Low | Open | |
+| 016-E | Combined attack | Low | Open | |
 
 ## Residuals
 
