@@ -415,7 +415,7 @@ One rotation does it all: the chain gives the new keys every earlier version, an
 1. The member's vault deletes its wrapped member keys and its team state for the team.
 2. The remaining owners' `reconcile` rotates the team key without the member, once the integration drops them from the active list.
 
-The only owner can't leave: the library refuses (`LAST_OWNER`) until another owner is added. Otherwise the team would freeze (TH-18).
+A listed owner can't leave: the library refuses (`LAST_OWNER`). The owner steps down first, through an owner change (`setOwners` without it), which always keeps one owner, so the only owner can never leave. Otherwise the team would freeze (TH-18, D-65).
 
 ### Deleting an account
 

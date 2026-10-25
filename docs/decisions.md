@@ -727,7 +727,7 @@ Consequence: what the overview showed, what `reconcile` checked and what the rot
 
 ## D-56: The phrase the user types is the only recovery key the vault uses
 
-Status: Accepted; amends D-49's arguments.
+Status: Accepted; amends D-49's arguments; amended so a stored key that doesn't open is a mismatch (review 032 A).
 
 Problem: the recovery wrap carries the recovery public key under the account key, apart from `wrappedAccountKey` (§4.1). Whoever holds the account key and the session could replace that field alone: the user's phrase still opened the account, `secureAccount` compared the phrase with the stored key and refused it, and the `rekey-needed` warning led the user to `rekey(teamId, { phrase })`, which signed, with the real phrase, keys carrying the attacker's recovery key (D-49's "a phrase a bundle carries"). The attacker then proved its own re-keys (review 013 B).
 
@@ -743,6 +743,8 @@ Rejected:
 - Pinning the recovery public key in local storage: one more local value, which any script in the origin can write.
 
 Consequence: a replaced field can't make the user's phrase vouch for someone else's keys, and `secureAccount` repairs it. Operations given no phrase (`createTeam`, `joinTeam`, `rekey` without one) still read the stored key: keys they make while an account-key holder controls it carry its recovery key, so in those teams its re-keys stay proven; after `secureAccount`, a server colluding with it can publish proven keys above the user's (D-43's server rule is defence in depth), until an owner approves the user's re-key by hand (TH-12).
+
+Amendment (review 032 A, review 033 1): a session alone can replace the recovery wrap with one whose `wrappedRecoveryPublicKey` is missing, doesn't open, or isn't a valid key, or with a record that doesn't parse, its `wrappedAccountKey` intact or not. Reading the stored key threw, which refused `secureAccount`, a proven `rekey`, a phrase replacement, `recover` and the warnings; the PIN kept working, so nothing showed it. Now a stored key that can't be read counts as one that differs: given the phrase (checked by opening `wrappedAccountKey`), the phrase's key is used and the mismatch reported; `warnings()` reports `recovery-key-mismatch` for a recovery wrap that doesn't parse or whose key can't be read, and then leaves out `rekey-needed`, which needs that key; a recovery setup with the PIN (D-61) replaces the live wrap without parsing it. Operations given no phrase still need the stored key and fail. Accepted: a garbled `wrappedAccountKey` can't be told from a wrong phrase, so the phrase reads as wrong; the remedy is a recovery setup with the PIN, or a support restore of the archived wrap, the only one for an account with no PIN (TH-46).
 
 ## D-57: Change reports cover every record above the lowest root
 
@@ -773,7 +775,7 @@ Rejected:
 - Leaving a mismatched wrap behind in a rotation: a server forging or withholding `member-keys` records could make a rotation drop real bundles.
 - Requiring servers to verify `member-keys` signatures: defence in depth only (rule 8).
 
-Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account, its repairs included, until support archives that wrap (TH-20, review 022 A); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46).
+Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account, its repairs included, until support archives that wrap (TH-20, review 022 A); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46). A rotation re-wraps the wraps it lists: one the server withholds then stays with the retired version, archived, until support restores it (TH-28, review 032 F).
 
 Amendment (review 028 A): the account-wide lists still opened every team's bundles unguarded, so one team whose wrap opens but doesn't match its published record, or whose published record fails its checks or is withheld, made `warnings()` throw and `confirmRecoveryPhrase` throw after replacing the phrase, with no team re-keyed. Now, wherever the vault goes through every team of the account, a team whose bundles fail (any error but `STORE_ERROR`) stops only that team: `warnings()` lists it under `foreign-member-keys`, since only keys or a wrap this vault didn't make, or a withheld record, get it there, and every re-key across teams counts it among the teams to re-key, so it is reported `failed`. Rejected: a new warning code (new API for the case `foreign-member-keys` already names, with the same remedy); leaving the team out (the user would never learn of it, and a phrase replacement would leave it on the old recovery key unreported). A team listed under `foreign-member-keys` isn't listed under `rekey-needed` too, whose advice differs (review 029 A). An operation that re-keys across teams lists them before its first write, so a store error, which still stops it, writes nothing (review 030 A).
 
@@ -842,3 +844,32 @@ Rejected:
 - A support step in the remedy: a documented procedure would leave the user compromised until someone acts.
 
 Consequence: after a re-key, a `team-state` under the old keys stops nothing, whoever wrote or replayed it; the owner's own `reconcile` approves and the next open replaces it. Contexts never take turns: while a re-key is pending, a context holding only the old keys may write under them, which contexts holding the new keys ignore; after approval the old keys aren't in the roster and never write. Accepted: while a re-key is pending, a `team-state` under the old keys neither bounds rollback nor shows a split view to contexts with the new keys; the floor (D-50) and the local anchor still bound them. A server withholding the newest wrap chooses the older keys, and can replay a forged `team-state` written under them: availability only, like TH-28, since the floor and the vault's anchor still bound the chain (review 028 B). A forged record under the newest keys still fails with `state_conflict` or `rollback` (D-52).
+
+## D-64: `reconcile` approves only keys still the newest, and rotates with the rest
+
+Status: Accepted; its report and rotation narrowed by review 033.
+
+Problem: `reconcile` plans the approvals of proven re-keys and the removals of inactive holders in one rotation. At apply time, keys that are no longer the account's newest are refused (`STALE_VERSION`, D-55), and `reconcile` retried once, then failed. A member publishing a newer proven re-key between the snapshot and the apply, twice, kept every removal from happening (SP-22, TH-14) (review 032 B).
+
+Decision: at apply time, `reconcile` drops an approval whose keys are no longer the account's newest: that account receives the new version with the keys it holds, and isn't listed in `approvedRekeys`. The removals and the other approvals go ahead; if none is left, it doesn't rotate. The account's newer keys are classified by the next overview and `reconcile` like any others (`rekeys-awaiting-approval`, `rekey-unproven`, `owner-rekey`). `approve`, called with a person's handles, still refuses `STALE_VERSION`: a person reviewed exactly those keys. Another record for a reviewed version still stops it (`TRUST_FAILURE`, D-55).
+
+Rejected:
+- Retrying until the keys settle: a member publishing continuously keeps it failing.
+- Two rotations, removals then approvals: twice the versions at every `reconcile`.
+- A new `needsHuman` reason for the dropped approval (review 033 4): public API for nothing a person must do, and its advice ("handled next time") would wave away bait keys the next run reports anyway.
+
+Consequence: a member can delay its own approval by publishing, as TH-47 already accepts, but no longer anyone else's removal, and never its own access to the version.
+
+## D-65: A listed owner steps down before leaving
+
+Status: Accepted.
+
+Problem: `leaveTeam` refused only the sole listed owner. With two listed owners, one left, then the other: the owner list still named both, nobody held keys, and the team was frozen for good (TH-18, SP-16, review 032 C).
+
+Decision: `leaveTeam` refuses any account in the newest version's owner list, with `LAST_OWNER`. An owner steps down first, by `setOwners` without itself, which any owner may call, itself included; `setOwners` keeps at least one owner, so the only owner can never step down or leave.
+
+Rejected:
+- Counting owners who still hold keys: nothing in the chain says who deleted their wraps.
+- `leaveTeam` stepping down by itself: a leave would write a team key version, with the owner's signing key, and change the owner list without a separate act.
+
+Consequence: an owner who leaves takes one more step; the integration's owner-leave flow calls `setOwners` first, and its own removal of an account refuses a listed owner the same way. `LAST_OWNER` now means "a listed owner". An owner whose team doesn't open can't step down itself; another owner removes it (`setOwners`). Not covered (review 033 2): an account that left and is named owner again by another owner; a server serving a chain from before the account became owner, to a device that hasn't opened the team since (availability only, as withholding); a session deleting an owner's wraps directly (TH-46). Another owner can name a leaving owner again after each step-down; the product's removal is then the way out.

@@ -204,7 +204,7 @@ Attack: sends truncated, oversized or inconsistent records, aiming for a crash, 
 
 Impact: wrong data accepted, a client tricked into a weaker path, or a client that runs out of memory. A team key version that fails its checks stops the team for every member, for good.
 
-Disposition: partly mitigated by SP-18. Records are validated before any cryptographic operation, decryption never returns partial data, and the buffered API refuses parts above the integration's `maxBufferedSize` before downloading them. A record in a list that fails its checks is left out, so it stops nothing else (D-58). Accepted: a chain can't leave a version out, and a version's identity is written once (scope rule 3), so a version that fails its checks stops the team; the server's check of the caller (rule 8) is the barrier, and a server that can verify the version's signature against the previous version's owners should (integration guide).
+Disposition: partly mitigated by SP-18. Records are validated before any cryptographic operation, decryption never returns partial data, and the buffered API refuses parts above the integration's `maxBufferedSize` before downloading them. A record in a list that fails its checks is left out, so it stops nothing else (D-58). Accepted: a chain can't leave a version out, and a version's identity is written once (scope rule 3), so a version that fails its checks stops the team, and its members can't leave it (`leaveTeam` verifies the chain first); garbage records a session publishes in bulk cost each vault operation a read, availability only, which the integration's rate limits bound; the server's check of the caller (rule 8) is the barrier, and a server that can verify the version's signature against the previous version's owners should (integration guide).
 
 ### TH-26: Server delivers malicious code
 
@@ -234,7 +234,7 @@ Attack: deletes records or refuses to return them.
 
 Impact: users lose access to items or can't complete operations.
 
-Disposition: accepted. The library detects missing or inconsistent records and fails closed (it refuses rather than proceeding unsafely), but it can't force a server to store data.
+Disposition: accepted. The library detects missing or inconsistent records and fails closed (it refuses rather than proceeding unsafely), but it can't force a server to store data. A wrap withheld while the account rotates isn't re-wrapped and stays with the retired version: `secureAccount` reports that team failed, and after `rotate()` it reads `not-joined` until support restores the wrap (D-58, SP-26).
 
 ### TH-29: Network attacker reads or alters traffic
 
@@ -486,7 +486,7 @@ Attack: writes a well-formed `team-state` whose content is garbage (the server c
 
 Impact: for keys with no floor, every device of the account stops at `TRUST_FAILURE` (`state_unreadable`) for that team; with a floor, a `team-state` that doesn't open under the newest keys is absent, and one in a known version is replaced at the next open (D-62, D-63); one at an unknown version stays absent until restored. A readable one off the chain gives `state_conflict` or `rollback` (D-52). Deleted wraps lose the account its keys for the team. A deleted `team-state` sends a new device back to its member keys' anchor floor (D-48, D-50).
 
-Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. A wrap that doesn't open is absent (D-58), so a created one stops nothing, and the server creates wraps only with their published keys or in a rotation; a replaced one looks like a deletion. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28.
+Disposition: mitigated by SP-26 (D-42): the server archives every replaced or removed private record, and support restores it. A wrap that doesn't open is absent (D-58), so a created one stops nothing, and the server creates wraps only with their published keys or in a rotation; a replaced one looks like a deletion. Residual, accepted: until support acts, the team is unavailable to the account, an availability loss like TH-28. A session replacing the recovery wrap with one that doesn't parse, or whose key can't be read, is reported (`recovery-key-mismatch`) and repaired by `secureAccount` (D-56); one whose `wrappedAccountKey` is garbled makes the phrase read as wrong, and is undone by a recovery setup with the PIN or a support restore.
 
 ### TH-47: Session thief takes a member's key version numbers
 
@@ -510,7 +510,7 @@ Attack: keeps the team keys they held and reads items, including new ones.
 
 Impact: continued access after removal.
 
-Disposition: mitigated by SP-06 for items and inboxes created after the next rotation, which an owner's `reconcile` runs once the account leaves the integration's active list; rotations keep an allowlist, so forgetting someone removes them (SP-22, §6.6). Accepted: what the member could read before (AS-07), inboxes created earlier (TH-30), the gap a later re-admission opens (D-07), and a server (A2) that keeps listing the removed member as active, which keeps them in with no roster change to report (SP-22 Limit).
+Disposition: mitigated by SP-06 for items and inboxes created after the next rotation, which an owner's `reconcile` runs once the account leaves the integration's active list, and which keys another member publishes meanwhile can't stop (D-64); rotations keep an allowlist, so forgetting someone removes them (SP-22, §6.6). Accepted: what the member could read before (AS-07), inboxes created earlier (TH-30), the gap a later re-admission opens (D-07), and a server (A2) that keeps listing the removed member as active, which keeps them in with no roster change to report (SP-22 Limit).
 
 ### TH-15: Member forges an item's author
 
@@ -560,7 +560,7 @@ Attack: an owner loses both their PIN and recovery phrase, or leaves.
 
 Impact: if nobody else can act as owner, nobody can admit members or rotate the team key ever again. The team is frozen.
 
-Disposition: mitigated by SP-16 for teams with two or more owners; a single-owner team is accepted with a warning, and the only owner can't leave (`LAST_OWNER`) or be deleted by the integration. No server-side recovery exists: it would be a backdoor (SP-19).
+Disposition: mitigated by SP-16 for teams with two or more owners; a listed owner steps down before leaving, so owners who leave never leave the list behind them (D-65); a single-owner team is accepted with a warning, and the only owner can't leave (`LAST_OWNER`) or be deleted by the integration. No server-side recovery exists: it would be a backdoor (SP-19).
 
 ### TH-30: Removed member opens new submissions to an existing inbox
 

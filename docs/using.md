@@ -141,7 +141,7 @@ Every operation throws one class, `ConvoyError`, with a `code` from protocol §9
 | `DEVICE_NOT_REGISTERED` | Unlock with the PIN (this registers the device) |
 | `NOT_GRANTED` | Wait for an owner, or show the content as unavailable |
 | `STALE_VERSION` | Reopen the team and try again; for an approval, review the newer keys first |
-| `LAST_OWNER` | Add another owner first |
+| `LAST_OWNER` | Step down first: an owner calls `setOwners` without this account (another owner, if the team doesn't open); the only owner can't leave (D-65) |
 | `NOT_AN_OWNER` | Hide owner screens for this account |
 | `RECOVERY_NOT_SET_UP` | Run the recovery setup (`beginRecoverySetup`, `confirmRecoveryPhrase`) |
 | `TRUST_FAILURE` | Stop and show a security warning. A team session becomes `unverified` for good (`session.failure`). On a PIN operation, your OPRF service answered with an evaluation its pinned key didn't prove (D-53) |

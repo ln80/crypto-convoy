@@ -232,6 +232,18 @@
       "decision": "D-63",
       "use": "with a floor, the next anchor advance rewrites a team-state under older keys",
       "allow": {}
+    },
+    {
+      "pattern": "until another owner is added",
+      "decision": "D-65",
+      "use": "a listed owner steps down first (setOwners)",
+      "allow": {}
+    },
+    {
+      "pattern": "Add another owner first",
+      "decision": "D-65",
+      "use": "Step down first",
+      "allow": {}
     }
   ]
 }

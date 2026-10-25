@@ -171,6 +171,7 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 032-E | Wrong claim | Low | Open | Owner caller mistakes: `MALFORMED_RECORD` (edit) |
 | 032-F | Missing threat | Low | Open | To accept: D-58, TH-28 (a wrap withheld during a rotation) |
 | 032-G | Note | Low | Open | TH-25 residual sentence (edit) |
+| 033-1 to 7 | Design | — | Fixed | Taken in plan 023's spec (D-56 amended, D-64, D-65) |
 
 ## Residuals
 

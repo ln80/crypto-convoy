@@ -281,12 +281,14 @@ Related threats: TH-17, TH-41.
 
 ### SP-16: Losing one owner never freezes a team with other owners
 
-Property: in a team with two or more owners, any remaining owner can, without the others: approve members, rotate the team key, and add or remove owners, including the owner who lost their credentials.
+Property: in a team with two or more owners, any remaining owner can, without the others: approve members, rotate the team key, and add or remove owners, including the owner who lost their credentials. `leaveTeam` refuses a listed owner, who steps down first (D-65).
+
+Limit: a team can still end with listed owners who hold no keys: an account that left and is named owner again by another owner, a server serving a chain from before the account became owner, and a session deleting an owner's wraps (TH-46) (D-65).
 
 Assumptions: at least one other owner can still unlock their account.
 
 Verification:
-- `test/security/owner-continuity.test.ts`: one owner disappears; another removes them, re-adds them with new keys, admits a member and rotates.
+- `test/security/owner-continuity.test.ts`: one owner disappears; another removes them, re-adds them with new keys, admits a member and rotates. A listed owner's leave is `LAST_OWNER`; after stepping down it leaves; two owners can't both leave; a member who isn't an owner leaves (D-65).
 
 Related threats: TH-18.
 
@@ -350,7 +352,7 @@ Related threats: TH-40.
 
 ### SP-22: Automatic owner actions never widen access
 
-Property: `reconcile` (D-31) gives a team key version only to accounts that already hold the current version with the same keys, to accounts whose re-key is proven by their recovery key (SP-23) and who aren't owners, and to the calling owner's own new keys when its session holds them (D-47). It never gives a version to a first-time joiner, to an account that held only an older version, to unproven keys, or to another owner's new keys. It never adds or removes an owner, and replaces only the caller's own owner key: an inactive owner is left to a human. Removing any other account from the active list leads to a rotation without it.
+Property: `reconcile` (D-31) gives a team key version only to accounts that already hold the current version with the same keys, to accounts whose re-key is proven by their recovery key (SP-23) and who aren't owners, and to the calling owner's own new keys when its session holds them (D-47). It never gives a version to a first-time joiner, to an account that held only an older version, to unproven keys, or to another owner's new keys. It never adds or removes an owner, and replaces only the caller's own owner key: an inactive owner is left to a human. Removing any other account from the active list leads to a rotation without it. Keys an account publishes while `reconcile` runs never stop its removals: that approval is left out and reported (D-64).
 
 Limits:
 - The active list comes from the integration. An account the integration wrongly lists as active, and that still holds the current version, keeps it; one wrongly left out loses access until an owner approves it again.
@@ -359,7 +361,7 @@ Limits:
 Assumptions: AS-01. An owner runs `reconcile` with the integration's active list.
 
 Verification:
-- `test/security/reconcile.test.ts`: a removed member listed as active again doesn't get the version back; an inactive holder is rotated out; unproven re-keys, other owners' re-keys, inactive owners and joins are returned as needing a human; the caller's own re-key is approved when its session holds the keys, never when they were published by someone else (D-47); a dry run writes nothing.
+- `test/security/reconcile.test.ts`: a removed member listed as active again doesn't get the version back; an inactive holder is rotated out; unproven re-keys, other owners' re-keys, inactive owners and joins are returned as needing a human; the caller's own re-key is approved when its session holds the keys, never when they were published by someone else (D-47); a dry run writes nothing. A member publishing newer proven keys during `reconcile` keeps the version with the keys it holds, and the inactive holder is still removed (D-64).
 - `test/properties/reconcile.properties.test.ts`: for any snapshot, the plan gives the new version to no account outside the rule above.
 
 Related threats: TH-14, TH-37.
@@ -377,7 +379,7 @@ Limits:
 Assumptions: AS-01, AS-03 for the device where the phrase is typed.
 
 Verification:
-- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the new phrase and the old one is proven, and an old phrase no bundle carries is refused (D-49, D-56); a recovery wrap whose public key an account-key holder replaced: `secureAccount` accepts the real phrase and repairs it, `rekey` and `confirmRecoveryPhrase` sign keys carrying the typed phrase's key, `recover` opens, and the vault reports `recovery-key-mismatch` (D-56); a record served for the held version with another keys hash, naming another recovery key, is refused by `reconcile` and `overview`.
+- `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the new phrase and the old one is proven, and an old phrase no bundle carries is refused (D-49, D-56); a recovery wrap whose public key an account-key holder replaced: `secureAccount` accepts the real phrase and repairs it, `rekey` and `confirmRecoveryPhrase` sign keys carrying the typed phrase's key, `recover` opens, and the vault reports `recovery-key-mismatch` (D-56); the same for one a session garbled so it doesn't open (review 032 A); a record served for the held version with another keys hash, naming another recovery key, is refused by `reconcile` and `overview`.
 - `test/vectors/recovery-key.v1.json`.
 
 Related threats: TH-10, TH-12, TH-13, TH-37, TH-41.

@@ -114,7 +114,7 @@ For DynamoDB, a rotation must fit `TransactWriteItems` (100 items): cap the team
 
 - **Removal by the product:** a removed member can't read the chain any more, so it can't run `leaveTeam`. Your server removes (archives, rule 7) that account's `member-keys-wrap` and `team-state` records for the team; owners' next `reconcile` rotates the member out (§6.9).
 - **Deleting an account** is your server's job, not one transaction: delete its records for each team as above, then archive its `account-key-wrap` records for the restore window (a session thief could otherwise delete the account, TH-36) and purge them after it. **Never delete records the team shares** (`member-keys`, `team-key-version`, `item`, `inbox`): other members verify old owners' signatures against published `member-keys` records.
-- **The last owner:** refuse to remove or delete an account that is the only owner in the newest team key version (`LAST_OWNER`, TH-18). The product's owner role may change before the chain's owner list does (D-30): check the list in the record.
+- **Owners leaving:** refuse to remove or delete an account that is a listed owner in the newest team key version, as `leaveTeam` does (`LAST_OWNER`, TH-18, D-65): an owner steps down first, by `setOwners` without them, then leaves; the only owner can't. Drop an account that left from the active list, so the next `reconcile` takes it out of the roster and it can't be named owner again while holding nothing. The product's owner role may change before the chain's owner list does (D-30): check the list in the record.
 
 ## Content
 
