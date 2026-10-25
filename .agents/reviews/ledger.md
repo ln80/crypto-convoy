@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 029 (`change`) and 030 (`adversarial`); plan 022 fixed 030-A and B, accepted 030-C, and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a `change` review of plan 022, then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 031 (`change`, plan 022, nothing to fix) and 032 (`adversarial`, fresh context, no critical). Open findings to fix: 032-A (garbled recovery key refuses the phrase), 032-B (`reconcile` blocked by stale approvals), 032-C (`LAST_OWNER` counts listed owners). Edits: 031-A, 032-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a plan for 032-A, B, C and the edits.
 
 ## Findings
 
@@ -163,6 +163,14 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 030-E | Wrong claim | Low | Fixed | Using guide, `VaultWarning` (plan 022) |
 | 030-F | Wrong claim | Low | Fixed | Using guide, `VaultWarning` (plan 022) |
 | 030-G | Spec gap | Low | Fixed | Scope rule 3 (plan 022) |
+| 031-A | Stale text | Low | Open | §12 `warnings()` line: `rekey-needed`'s answer (edit) |
+| 032-A | Wrong claim, spec → code | Medium | Open | Needs a decision: a stored recovery key that doesn't open is a mismatch, not a failure |
+| 032-B | Missing threat | Medium | Open | Needs a decision: `reconcile` skips stale approvals and rotates with the rest |
+| 032-C | Wrong claim | Medium | Open | Needs a decision: a listed owner steps down before leaving |
+| 032-D | Spec → code | Low | Open | `createTeam` anchor from the committed record (edit) |
+| 032-E | Wrong claim | Low | Open | Owner caller mistakes: `MALFORMED_RECORD` (edit) |
+| 032-F | Missing threat | Low | Open | To accept: D-58, TH-28 (a wrap withheld during a rotation) |
+| 032-G | Note | Low | Open | TH-25 residual sentence (edit) |
 
 ## Residuals
 
