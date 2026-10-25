@@ -68,12 +68,12 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | Operation | Condition (refuse with a conflict otherwise) |
 | --- | --- |
 | `create` | No live record under that key (write-once, rule 3) |
-| `create` of `team-key-version` | Version = current + 1 (§11). Accept records up to 384 KiB: the roster of a team of up to 1,000 members (D-34); DynamoDB's 400 KB item limit fits |
+| `create` of `team-key-version` | Version = current + 1 (§11), and the caller is the signer and holds the owner capability (rule 8). A version that fails its checks stops the team for good, since its identity is never written again (TH-25): give the owner capability only to the chain's owners, and verify the signature against the previous version's owners if your server can. Accept records up to 384 KiB: the roster of a team of up to 1,000 members (D-34); DynamoDB's 400 KB item limit fits |
 | `create` of `member-keys` | The caller is the record's account, and `memberKeysVersion` is that account's newest for the team plus 1, or 1 (rule 8, D-43) |
 | `create` of `member-keys-wrap` | In the same batch as its `member-keys` record, or in a batch that switches the account key version, at the new version (D-58) |
 | `create` of `account-key-wrap` | At the account's current key version, or in a batch that switches it, at the new version (D-58) |
 | `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6). Enforce it, and write-once, in the server itself: they are the only barrier against a former member who kept an old team key (TH-50) |
-| `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4); archive the previous revision (rule 7, D-42) |
+| `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4; the library relies on it, D-62); archive the previous revision (rule 7, D-42) |
 | `replace` (`account-key-wrap`, `member-keys-wrap`) | A live record exists under the key; archive it, then store the new one as live (D-39, D-52) |
 | `delete` | Only the caller's own private records (`account-key-wrap`, `member-keys-wrap`, `team-state`); refuse it for any other record (rule 3). Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
 | `set-account-key-version` | The current version equals `expected`; then stop serving every record of the old version, keeping it archived (rule 7, D-42) |

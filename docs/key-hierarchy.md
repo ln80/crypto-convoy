@@ -150,7 +150,7 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 
 | Attribute | Value |
 | --- | --- |
-| Purpose | Encrypts this member's copy of the team state on the server: its anchor, the newest team key version record it verified (SP-07). A new device starts from the anchor floor the member keys bundle carries, and follows this anchor when the chain from the floor contains it (D-48, D-52). |
+| Purpose | Encrypts this member's copy of the team state on the server: its anchor, the newest team key version record it verified (SP-07). A new device starts from the anchor floor the member keys bundle carries, and follows this anchor when the chain from the floor contains it (D-48, D-52). Only the newest bundle's key counts: a team state under an older bundle's key is absent, and the next advance rewrites it (D-63). |
 | Algorithm | 256-bit symmetric key, used with XChaCha20-Poly1305. |
 | Generation | Random, in the member keys bundle. |
 | Storage | In the member keys bundle. |

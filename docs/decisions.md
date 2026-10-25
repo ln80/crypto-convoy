@@ -645,7 +645,7 @@ Consequence: what reaches the floor was written by the vault (a floor) or by `ad
 
 ## D-52: The anchor floor is the root of trust
 
-Status: Accepted; the re-key's floor and its fallback amended by D-54, which adds the vault's anchor to the roots. The current rules are stated in D-54.
+Status: Accepted; the re-key's floor and its fallback amended by D-54, which adds the vault's anchor to the roots. The current rules are stated in D-54. With a floor, a `team-state` under keys being replaced is absent (D-63).
 
 Problem: every anchor was a root of trust of its own. A record at an anchor's version was accepted by its hash alone, and the floor, the one anchor the vault builds from a chain it verified, was dropped as soon as a higher anchor existed (D-50). A local anchor, which a script in the origin or someone with the device can write, or a `team-state`, which any holder of a `teamStateKey` can write, therefore chose the chain once it was above the floor. With the server, a forged team opened `ready`; its anchor spread through `team-state` to new devices, and the re-key in `secureAccount` made it the floor (review 006 B and C). D-51 had removed only the local anchor from the floor's sources.
 
@@ -813,7 +813,7 @@ Consequence: onboarding asks for the PIN once more (one evaluation). An account 
 
 ## D-62: With a floor, a team state that doesn't open is absent
 
-Status: Accepted; revisits D-42's rejected repair.
+Status: Accepted; revisits D-42's rejected repair; amended for malformed records and unknown versions (reviews 024 A, 026 B); which key opens it narrowed by D-63.
 
 Problem: a `team-state` that doesn't open stopped every device at `state_unreadable`. After a session deleted a team's wrap, the repair D-59 and D-60 document (a proven `rekey` with an owner's anchor, approved) left the member there for good: the server's `team-state` was under the deleted bundle's key, and only support could replace it. A session writing garbage did the same (TH-46) (review 022 B).
 
@@ -824,3 +824,19 @@ Rejected:
 - Replacing it from any context: a context holding older keys and one holding the current keys would overwrite each other on every open (review 023 C).
 
 Consequence: D-42 rejected this repair because a device holding an older bundle could overwrite a newer `team-state` and move the anchor back. With a floor, `team-state` chooses nothing (D-52) and bounds no report (D-57); it still bounds rollback above the floor for a context with no local anchor, and only when it opens. Only keys the roster holds replace it, which a stale context's aren't. A garbage `team-state` now stops only keys with no floor (TH-46).
+
+Amendment (reviews 024 A, 025 A, 026 B): a record that failed its shape checks still stopped the team, before any key was tried, and `leaveTeam` with it. Now the reader takes `revision` first, an integer from 1 to 2^53 − 2; a `revision` that fails is `MALFORMED_RECORD`, whatever the floor. With a floor, the rest is read by version: an unknown `v` or suite is absent and never replaced, since readers ship first (§10) and an older client must not overwrite a newer one's record; a known version that fails its shape, context or decryption doesn't open, so it is absent and replaced as above. With no floor, each failure is the error it was. The `revision` field keeps its name and meaning in every `team-state` layout. The server accepts a write only at the current revision + 1 (scope rule 4), which the cap relies on: without it, a session writes a revision the replacement would push past the cap. Rejected: narrowing the claim to well-formed records (the explanation costs more than the branch); replacing an unknown version (with mixed library versions on one account, the record would switch formats back and forth). Consequence: a session's record at an unknown version stays absent until support restores the previous revision, as a deleted one would without the next advance; the floor bounds it (D-50, TH-46).
+
+## D-63: With a floor, a team state counts only under the newest keys
+
+Status: Accepted; narrows D-62; revisits, for keys being replaced, D-52's rejected overwrite.
+
+Problem: a holder of a copied bundle with the session (a script in the vault, or someone with a signed-in device) writes a readable `team-state` under that bundle's `teamStateKey`, naming a forged anchor. `secureAccount` re-keys the team, but the vault keeps the old bundle until the new keys are approved, and every held bundle opened `team-state`: every open was `state_conflict`, so a sole owner's own `reconcile` (D-47) never approved the new keys, and the copied owner key stayed the owner's until support restored the record (review 025 B).
+
+Decision: when the newest bundle holds a floor, `team-state` counts only if it opens under that bundle's `teamStateKey`. One that opens only under an older bundle's key is absent (D-62), and the anchor advance replaces it once the newest bundle is in the tip's roster. Writers already write under the newest bundle's key. The vault's clean-up (§6.8 step 4) no longer rewrites `team-state`; the next advance does. For keys with no floor, `team-state` is a root and every held bundle still opens it.
+
+Rejected:
+- The re-key writing `team-state` under the new keys (review 026 A, C, D): the server replays the archived forged revision, a holder of the old key with a session rewrites it, a failed write is silent, and the write could move an anchor back.
+- A support step in the remedy: a documented procedure would leave the user compromised until someone acts.
+
+Consequence: after a re-key, a `team-state` under the old keys stops nothing, whoever wrote or replayed it; the owner's own `reconcile` approves and the next open replaces it. Contexts never take turns: while a re-key is pending, a context holding only the old keys may write under them, which contexts holding the new keys ignore; after approval the old keys aren't in the roster and never write. Accepted: while a re-key is pending, a `team-state` under the old keys neither bounds rollback nor shows a split view to contexts with the new keys; the floor (D-50) and the local anchor still bound them. A forged record under the newest keys still fails with `state_conflict` or `rollback` (D-52).

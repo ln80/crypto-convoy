@@ -226,6 +226,12 @@
       "decision": "D-62",
       "use": "with a floor, an unreadable team-state is absent and replaced",
       "allow": {}
+    },
+    {
+      "pattern": "if it can read it, rewrites",
+      "decision": "D-63",
+      "use": "with a floor, the next anchor advance rewrites a team-state under older keys",
+      "allow": {}
     }
   ]
 }
