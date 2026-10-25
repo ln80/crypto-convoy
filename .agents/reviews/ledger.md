@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 031 (`change`, plan 022, nothing to fix) and 032 (`adversarial`, fresh context, no critical). Open findings to fix: 032-A (garbled recovery key refuses the phrase), 032-B (`reconcile` blocked by stale approvals), 032-C (`LAST_OWNER` counts listed owners). Edits: 031-A, 032-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 023 (`.agents/plans/023-recovery-key-mismatch-reconcile-owners-leaving.plan.md`) fixes 032-A, B, C (D-56 amended, D-64, D-65), accepts 032-F and does the edits. Next: implement it, with a `design` review of D-64 and D-65 after its spec phase.
+**Now:** 0 of 2. Last reviews: 032 (`adversarial`) and 033 (`design`); plan 023 fixed 032-A, B, C (D-56 amended, D-64, D-65), accepted 032-F, and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a `change` review of plan 023, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -163,14 +163,14 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 030-E | Wrong claim | Low | Fixed | Using guide, `VaultWarning` (plan 022) |
 | 030-F | Wrong claim | Low | Fixed | Using guide, `VaultWarning` (plan 022) |
 | 030-G | Spec gap | Low | Fixed | Scope rule 3 (plan 022) |
-| 031-A | Stale text | Low | Open | §12 `warnings()` line: `rekey-needed`'s answer (edit) |
-| 032-A | Wrong claim, spec → code | Medium | Open | Needs a decision: a stored recovery key that doesn't open is a mismatch, not a failure |
-| 032-B | Missing threat | Medium | Open | Needs a decision: `reconcile` skips stale approvals and rotates with the rest |
-| 032-C | Wrong claim | Medium | Open | Needs a decision: a listed owner steps down before leaving |
-| 032-D | Spec → code | Low | Open | `createTeam` anchor from the committed record (edit) |
-| 032-E | Wrong claim | Low | Open | Owner caller mistakes: `MALFORMED_RECORD` (edit) |
-| 032-F | Missing threat | Low | Open | To accept: D-58, TH-28 (a wrap withheld during a rotation) |
-| 032-G | Note | Low | Open | TH-25 residual sentence (edit) |
+| 031-A | Stale text | Low | Fixed | §12 (plan 023) |
+| 032-A | Wrong claim, spec → code | Medium | Fixed | D-56 amended (plan 023) |
+| 032-B | Missing threat | Medium | Fixed | D-64 (plan 023) |
+| 032-C | Wrong claim | Medium | Fixed | D-65; SP-16 Limit (plan 023) |
+| 032-D | Spec → code | Low | Fixed | `createTeam` (plan 023) |
+| 032-E | Wrong claim | Low | Fixed | Owner refusals, §9 (plan 023) |
+| 032-F | Missing threat | Low | Accepted | D-58, TH-28 (plan 023) |
+| 032-G | Note | Low | Fixed | TH-25 (plan 023) |
 | 033-1 to 7 | Design | — | Fixed | Taken in plan 023's spec (D-56 amended, D-64, D-65) |
 
 ## Residuals
@@ -218,5 +218,9 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-28 | A2, with a forged `team-state` written earlier under keys the account replaced (A7, A9) | Withholding the newest wrap makes the older keys read `team-state`, so the replayed forged record gives `state_conflict` | Availability; the floor and the vault's anchor still bound the chain (D-63, review 028 B) | — |
 
 | TH-37 | A11 | Keys published, or a team created, under the account in a team where the vault holds no keys go unreported; members joining such a team see the account as its owner (review 030 C) | A session acts as the user in the product; listing an account's keys across teams needs a new store query; `secureAccount` with `teamIds` reports a listed team with no keys (D-60) | A store query for an account's published keys across teams |
+
+| TH-28 | A2 | A wrap withheld while the account rotates stays with the retired version: the team reads `not-joined` after `rotate()` until support restores it (review 032 F) | Withholding is the server's; the archive restores it (SP-26) | — |
+| TH-46 | A11 | A recovery wrap that doesn't parse, or whose `wrappedAccountKey` is garbled, disables the phrase until a setup with the PIN or a support restore; with no PIN, support only (review 033 1) | A garbled `wrappedAccountKey` can't be told from a wrong phrase; the mismatch is reported where it can be (D-56) | — |
+| SP-16 | Another owner, A2, A11 | A team can end with listed owners and no keys: a departed account named owner again, a chain served from before an account became owner, wraps a session deletes (review 033 2) | Nothing in the chain says who deleted their wraps (D-65) | Owners' key custody in the chain |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.

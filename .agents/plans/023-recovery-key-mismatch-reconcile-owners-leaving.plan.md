@@ -134,4 +134,36 @@ Rejected:
 
 ## Execution notes
 
-(empty)
+- **Design review 033 changed the plan before any code.** All seven of its findings were taken into the spec commit:
+  - D-56's amendment covers a recovery wrap that doesn't parse, a missing key and an invalid key, not only a key that doesn't decrypt;
+  - a garbled `wrappedAccountKey` is accepted in TH-46;
+  - SP-16 is narrowed, with a Limit;
+  - the integration duty says "a listed owner";
+  - D-64 keeps the skipped account's held keys, adds no `HumanReason` (`rekey-superseded` dropped), and writes nothing when nothing is left;
+  - the `MALFORMED_RECORD` refusals cover `rotate` and `setOwners` too, and §9's row covers invalid arguments.
+- **D-56, as built:**
+  - `storedRecoveryKey` (`recovery.ts`) returns `{ present, key }`, with `key: null` for a wrap that doesn't parse or whose key can't be read; `STORE_ERROR` still throws.
+  - `typedPhrase` and `recover` treat a key that can't be read as a mismatch.
+  - `warnings()` reports `recovery-key-mismatch` for it, and leaves out `rekey-needed`.
+  - `confirmRecoveryPhrase` uses `present` to choose `replace` or `create`, without parsing.
+  - A wrap that doesn't parse can't be checked against the phrase, so `secureAccount` refuses it. Its remedy is the setup with the PIN, and TH-46's sentence says so; this was corrected while coding.
+- **D-64, as built:**
+  - `#rotate` takes a `reconcile` argument.
+  - `#recipients` resolves approvals first; with `reconcile`, it drops an approval whose keys are `STALE_VERSION` and keeps that account's held keys.
+  - With no removals and every approval dropped, `#rotate` returns null and nothing is written.
+  - `#apply` reports only the approvals kept.
+- **D-65:** `leaveTeam` refuses any listed owner with `LAST_OWNER`.
+- **032-E:** `#rotate` refuses, before building, a rotation where an owner of the new list neither stays in `keep` nor is approved: `MALFORMED_RECORD`. This covers `remove([owner])`, `rotate` and `setOwners`.
+- **032-D:** `newTeamOps` returns the floor, and `createTeam` records it.
+- **Tests:**
+  - `recovery-proof.test.ts`: a garbled key is reported and repaired; an unparsable wrap is reported and replaced with the PIN.
+  - `reconcile.test.ts`: newer keys published mid-run leave the member holding the version, and the inactive holder is removed; with nothing left, no version is written.
+  - `owner-continuity.test.ts`: owners step down before leaving; a member leaves; owner refusals.
+  - `secure-account.test.ts`: `createTeam` with its wrap withheld.
+- **Guards:** each of the seven fixes, reverted, fails its test.
+- **Checks:** `typecheck`, `check:spec`, `npm test` (776), `test:browser` (10), `build`, `test:package` and fuzz (30) pass.
+- **Integration (doconvoy e2eev2):**
+  - The owner-leave flow calls `setOwners` without the owner, then `leaveTeam`.
+  - The product's removal of a listed owner is refused the same way.
+  - A departed account is dropped from the active list.
+  - No type change: `HumanReason` is unchanged.
