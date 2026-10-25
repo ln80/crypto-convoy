@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 034 (`change`) and 035 (`adversarial`); plan 024 fixed 035-A, B (D-54, D-58 amended) and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a `change` review of plan 024, then a fresh `adversarial` review.
+**Now:** 1 of 2. Last reviews: 035 (`adversarial`) and 036 (`change`, plan 024, nothing to fix; edits 036-A, B). Open findings to fix: none. Still open, low: 011-A, 036-A, 036-B; for the next `complexity` review: 026-F, 028-C. Next: a fresh `adversarial` review (037), with a different model in Cursor.
 
 ## Findings
 
@@ -179,6 +179,8 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 035-C | Wrong claim | Low | Fixed | Recovery warning action; `UNSUPPORTED_VERSION` (plan 024) |
 | 035-D | Spec → code | Low | Fixed | §6.7, §12 (plan 024) |
 | 035-E | Wrong premise | Low | Fixed | §4.1 (plan 024) |
+| 036-A | Stale text | Low | Open | §5.4: an unreadable wrap at unlock (edit) |
+| 036-B | Stale text | Low | Open | Using guide: `status()` with an unreadable wrap (edit) |
 
 ## Residuals
 
