@@ -25,11 +25,23 @@ export function samePhrase(a: string, b: string): boolean {
   return words(a) === words(b);
 }
 
-/** The recovery public key at the account's current version, or `null` when recovery isn't set up (D-35). */
-export async function currentRecoveryKey(ports: AccountPorts, account: OpenAccount): Promise<Uint8Array | null> {
-  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
-  return wrap ? openRecoveryPublicKey(wrap, account.key) : null;
+/**
+ * The recovery wrap at the account's current version: absent (recovery not set up, D-35), or present
+ * with its public key, `null` when the record doesn't parse or its key can't be read, which a session
+ * can cause: a mismatch, never a failure (D-56).
+ */
+export async function storedRecoveryKey(ports: AccountPorts, account: OpenAccount): Promise<{ present: boolean; key: Uint8Array | null }> {
+  try {
+    const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
+    return wrap ? { present: true, key: openRecoveryPublicKey(wrap, account.key) } : { present: false, key: null };
+  } catch (error) {
+    if (unreadable(error)) return { present: true, key: null };
+    throw error;
+  }
 }
+
+/** A record's own failure, as opposed to the store's: a record someone else wrote may cause it (D-56, D-58). */
+const unreadable = (error: unknown) => isConvoyError(error) && !isConvoyError(error, "STORE_ERROR");
 
 /**
  * The current phrase, checked by opening the recovery wrap's account key, never against the public
@@ -54,7 +66,14 @@ export async function typedPhrase(ports: AccountPorts, account: OpenAccount, phr
     } finally {
       suite.wipe(key);
     }
-    return { signing, mismatch: !suite.equal(openRecoveryPublicKey(wrap, account.key), signing.publicKey) };
+    // A stored key that can't be read differs too: reported, never refused (D-56).
+    let stored: Uint8Array | null = null;
+    try {
+      stored = openRecoveryPublicKey(wrap, account.key);
+    } catch (error) {
+      if (!unreadable(error)) throw error;
+    }
+    return { signing, mismatch: stored === null || !suite.equal(stored, signing.publicKey) };
   } catch (error) {
     suite.wipe(signing.secretKey);
     throw error;
@@ -201,7 +220,7 @@ async function teamBundles(ports: AccountPorts, account: OpenAccount, teamId: st
   try {
     return await openBundles(ports, account, teamId);
   } catch (error) {
-    if (isConvoyError(error) && !isConvoyError(error, "STORE_ERROR")) return null;
+    if (unreadable(error)) return null;
     throw error;
   }
 }

@@ -137,3 +137,59 @@ describe("SP-22: reconcile only narrows access by itself", () => {
     expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "owner-rekey" }] });
   });
 });
+
+describe("SP-22: keys published during reconcile never stop its removals (D-64, review 032 B)", () => {
+  it("a member publishing newer proven keys mid-run keeps the version with the keys it holds; the inactive holder is removed", async () => {
+    const { members, aliceTeam } = await team("bob", "carol");
+    const bob = members.bob!;
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    // When the owner re-reads bob's keys to approve them, bob has just published newer ones.
+    const store = members.alice!.store;
+    const inner = store.inner;
+    let armed = true;
+    store.inner = {
+      ...inner,
+      get: (key) => inner.get(key),
+      getAccountKeyVersion: (id) => inner.getAccountKeyVersion(id),
+      commit: (ops) => inner.commit(ops),
+      list: async (query) => {
+        if (armed && query.type === "member-keys" && "accountId" in query && query.accountId === "bob") {
+          armed = false;
+          await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+        }
+        return inner.list(query);
+      },
+    };
+    const report = await aliceTeam.owner().reconcile(["alice", "bob"]);
+    expect(report).toMatchObject({ rotatedTo: 3, removed: ["carol"], approvedRekeys: [] });
+    expect(armed).toBe(false);
+    expect(await accessOf(members.alice!.store, "carol", 3)).toBeNull();
+    // bob still holds version 3 with the keys it held.
+    expect(await accessOf(members.alice!.store, "bob", 3)).not.toBeNull();
+    expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(3);
+  });
+
+  it("with nothing left once the stale approval is dropped, no version is written", async () => {
+    const { members, aliceTeam } = await team("bob");
+    const bob = members.bob!;
+    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+    const store = members.alice!.store;
+    const inner = store.inner;
+    let armed = true;
+    store.inner = {
+      ...inner,
+      get: (key) => inner.get(key),
+      getAccountKeyVersion: (id) => inner.getAccountKeyVersion(id),
+      commit: (ops) => inner.commit(ops),
+      list: async (query) => {
+        if (armed && query.type === "member-keys" && "accountId" in query && query.accountId === "bob") {
+          armed = false;
+          await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
+        }
+        return inner.list(query);
+      },
+    };
+    expect(await aliceTeam.owner().reconcile(["alice", "bob"])).toMatchObject({ removed: [], approvedRekeys: [] });
+    expect(aliceTeam.currentVersion).toBe(2);
+  });
+});

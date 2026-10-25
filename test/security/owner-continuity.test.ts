@@ -32,3 +32,34 @@ describe("SP-16: another owner keeps the team running", () => {
     expect(alice.owners()).toEqual(["alice", "bob"]);
   });
 });
+
+describe("SP-16: a listed owner steps down before leaving (D-65, review 032 C)", () => {
+  it("two owners can't both leave: each steps down first, and the last can't", async () => {
+    const { members, aliceTeam } = await team("bob");
+    await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob"] });
+    await expect(members.bob!.vault.leaveTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "LAST_OWNER" }));
+    // bob steps down himself, then leaves.
+    await (await members.bob!.vault.openTeam("team-1")).owner().setOwners(["alice"]);
+    await members.bob!.vault.leaveTeam("team-1");
+    expect((await members.bob!.vault.openTeam("team-1")).state).toBe("not-joined");
+    // alice, now the only owner, can't.
+    await expect(members.alice!.vault.leaveTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "LAST_OWNER" }));
+  });
+
+  it("a member who isn't an owner leaves", async () => {
+    const { members } = await team("bob");
+    await members.bob!.vault.leaveTeam("team-1");
+    expect((await members.bob!.vault.openTeam("team-1")).state).toBe("not-joined");
+  });
+
+  it("an owner left out of a rotation is a caller's mistake: MALFORMED_RECORD, before anything is written", async () => {
+    const { aliceTeam } = await team("bob");
+    await aliceTeam.owner().setOwners(["alice", "bob"], { keep: ["bob"] });
+    const owner = aliceTeam.owner();
+    await expect(owner.remove(["bob"])).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    await expect(owner.setOwners(["alice", "bob"], { keep: [] })).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    await expect(owner.rotate({ keep: [] })).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    expect(aliceTeam.currentVersion).toBe(3);
+    expect(aliceTeam.state).toBe("ready");
+  });
+});

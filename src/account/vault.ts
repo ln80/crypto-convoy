@@ -23,7 +23,7 @@ import { createWrap, replaceWrap, wrapKey } from "./context.js";
 import { deriveRecoveryKeys } from "./recovery-key.js";
 import {
   accountTeams,
-  currentRecoveryKey,
+  storedRecoveryKey,
   oldPhraseSigner,
   phrasePublicKey,
   productTeams,
@@ -207,7 +207,8 @@ export class Vault {
     const account = this.#requireAccount();
     const pending = this.#pendingPhrase;
     if (pending === null || !samePhrase(phrase, pending)) throw new ConvoyError("WRONG_CREDENTIAL");
-    const old = await currentRecoveryKey(this.#ports, account);
+    // A wrap that doesn't parse or whose key can't be read is still replaced, never read (D-56).
+    const old = (await storedRecoveryKey(this.#ports, account)).present;
     const { currentPhrase, currentPin } = options ?? {};
     // Every setup needs a current credential: with no recovery wrap, the PIN; whoever deletes it chooses nothing (D-61).
     if (!old || typeof currentPhrase !== "string") {
@@ -287,8 +288,14 @@ export class Vault {
     let key: Uint8Array;
     try {
       key = openAccountKeyWrap(wrap, recoveryKey);
-      // Another key than this phrase's: reported, never refused, so `secureAccount` can repair it (§4.1, D-56).
-      if (!suite.equal(openRecoveryPublicKey(wrap, key), signing.publicKey)) this.#recoveryMismatch = true;
+      // Another key than this phrase's, or one that can't be read: reported, never refused, so `secureAccount` can repair it (§4.1, D-56).
+      let stored: Uint8Array | null = null;
+      try {
+        stored = openRecoveryPublicKey(wrap, key);
+      } catch (error) {
+        if (!isConvoyError(error)) throw error;
+      }
+      if (stored === null || !suite.equal(stored, signing.publicKey)) this.#recoveryMismatch = true;
     } finally {
       suite.wipe(recoveryKey, signing.secretKey);
     }
@@ -451,19 +458,22 @@ export class Vault {
     if (!(await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" }))) {
       warnings.push({ code: "pin-not-set-up", teamIds: [], action: "changePin" });
     }
-    const recovery = await currentRecoveryKey(this.#ports, account);
-    if (!recovery) return [{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }, ...warnings];
+    const recovery = await storedRecoveryKey(this.#ports, account);
+    if (!recovery.present) return [{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }, ...warnings];
     const foreign = await teamsWithForeignKeys(this.#ports, account);
     // A team whose keys fail is answered with secureAccount, not rekey: listed once, under foreign keys (D-58).
-    const stale = (await teamsWithOldRecoveryKey(this.#ports, account, recovery)).filter((teamId) => !foreign.includes(teamId));
-    if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
+    // With a stored key that can't be read, which teams carry it can't be told: the mismatch is reported instead (D-56).
+    if (recovery.key) {
+      const stale = (await teamsWithOldRecoveryKey(this.#ports, account, recovery.key)).filter((teamId) => !foreign.includes(teamId));
+      if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
+    }
     // Keys this vault didn't make: someone holds the session or the old account key (D-54).
     if (foreign.length > 0) warnings.push({ code: "foreign-member-keys", teamIds: foreign, action: "secureAccount" });
     if (this.#upgradeFailure) {
       const proof = isConvoyError(this.#upgradeFailure, "TRUST_FAILURE");
       warnings.push({ code: "pin-upgrade-failed", teamIds: [], action: proof ? "report" : "changePin" });
     }
-    if (this.#recoveryMismatch) warnings.push({ code: "recovery-key-mismatch", teamIds: [], action: "secureAccount" });
+    if (this.#recoveryMismatch || !recovery.key) warnings.push({ code: "recovery-key-mismatch", teamIds: [], action: "secureAccount" });
     return warnings;
   }
 
@@ -471,9 +481,10 @@ export class Vault {
   async createTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
     const version = await nextMemberKeysVersion(this.#ports, account, teamId);
-    await commit(this.#ports, newTeamOps(this.#ports, account, teamId, await recoveryPublicKey(this.#ports, account), version));
-    const [created] = await openBundles(this.#ports, account, teamId);
-    await recordVaultAnchor(this.#ports, this.accountId, teamId, created!.floor!);
+    const { ops, floor } = newTeamOps(this.#ports, account, teamId, await recoveryPublicKey(this.#ports, account), version);
+    await commit(this.#ports, ops);
+    // The vault's anchor is the version it just wrote, never read back from the server.
+    await recordVaultAnchor(this.#ports, this.accountId, teamId, floor);
   }
 
   /**
@@ -561,12 +572,13 @@ export class Vault {
 
   /**
    * Deletes this account's keys and state for a team (§5.9), after verifying the chain here.
-   * Throws `LAST_OWNER` for the only owner, `TRUST_FAILURE` if the chain doesn't verify.
+   * Throws `LAST_OWNER` for a listed owner, who steps down first (D-65), `TRUST_FAILURE` if the chain doesn't verify.
    */
   async leaveTeam(teamId: string): Promise<void> {
     const account = this.#requireAccount();
     const owners = await currentOwners(this.#ports, account, teamId);
-    if (owners.length === 1 && owners[0] === this.accountId) throw new ConvoyError("LAST_OWNER");
+    // A listed owner steps down first (setOwners without it): owners never leave the list behind them (D-65).
+    if (owners.includes(this.accountId)) throw new ConvoyError("LAST_OWNER");
     const bundles = await openBundles(this.#ports, account, teamId);
     await commit(this.#ports, [
       ...bundles.map((b) => ({

@@ -1,7 +1,7 @@
 // Owner operations (§6.5–§6.9): one object per admin intent, plain data in and out (D-31).
 // Every access change is a rotation whose roster lists the recipients (D-37).
 import { toBase64url } from "../encoding/base64url.js";
-import { ConvoyError, isConvoyError, trustFailure } from "../errors.js";
+import { ConvoyError, isConvoyError, malformed, trustFailure } from "../errors.js";
 import { callPort } from "../ports.js";
 import { keysHash, parseListedMemberKeys, type MemberKeys } from "../records/member-keys.js";
 import type { Holder } from "./access.js";
@@ -121,7 +121,8 @@ export class TeamOwner {
    */
   async setOwners(owners: readonly string[], options: Partial<RotationOptions> = {}): Promise<{ version: number; recipients: string[] }> {
     const keep = options.keep ?? (await this.#holders()).map((h) => h.accountId);
-    return this.#rotate({ ...options, keep }, owners);
+    const { version, recipients } = (await this.#rotate({ ...options, keep }, owners))!;
+    return { version, recipients };
   }
 
   /** Accounts in the current roster that one of `ownerIds` signed: review them before removing those owners (§6.7 step 3). */
@@ -135,16 +136,18 @@ export class TeamOwner {
    * `MALFORMED_RECORD` (over the §2 bounds).
    */
   async rotate(options: RotationOptions): Promise<{ version: number; recipients: string[] }> {
-    return this.#rotate(options, undefined);
+    const { version, recipients } = (await this.#rotate(options, undefined))!;
+    return { version, recipients };
   }
 
   async #apply(snapshot: MembershipSnapshot, plan: ReconcilePlan): Promise<ReconcileReport> {
-    let rotatedTo: number | undefined;
-    if (plan.rotate) {
-      const keep = snapshot.holders.map((h) => h.accountId).filter((id) => !plan.remove.includes(id));
-      rotatedTo = (await this.rotate({ keep, approve: plan.approveRekeys })).version;
-    }
-    return report(plan, false, rotatedTo);
+    if (!plan.rotate) return report(plan, false, undefined);
+    const keep = snapshot.holders.map((h) => h.accountId).filter((id) => !plan.remove.includes(id));
+    // Keys published since the plan drop their approval, never the rest of the rotation (D-64).
+    const done = await this.#rotate({ keep, approve: plan.approveRekeys }, undefined, { removals: plan.remove.length });
+    if (!done) return report({ ...plan, approveRekeys: [] }, false, undefined);
+    const approveRekeys = plan.approveRekeys.filter((h) => !done.dropped.includes(h.accountId));
+    return report({ ...plan, approveRekeys }, false, done.version);
   }
 
   #holders(): Promise<Holder[]> {
@@ -239,8 +242,20 @@ export class TeamOwner {
   }
 
   /** One set of keys per account: approved newest keys, or the keys it holds (§6.6 step 2). */
-  async #recipients(holders: readonly Holder[], options: RotationOptions): Promise<Recipient[]> {
+  async #recipients(holders: readonly Holder[], options: RotationOptions, dropStale: boolean): Promise<{ recipients: Recipient[]; dropped: string[] }> {
     const { suite } = this.#core.ports;
+    // Approved keys: a holder's replacement, or a new member (§6.5). For reconcile, keys no longer the
+    // account's newest drop that approval, and the account keeps the keys it holds (D-64).
+    const approved: MemberKeys[] = [];
+    const dropped: string[] = [];
+    for (const handle of options.approve ?? []) {
+      try {
+        approved.push(await this.#reviewedKeys(handle));
+      } catch (error) {
+        if (!dropStale || !isConvoyError(error, "STALE_VERSION")) throw error;
+        dropped.push(handle.accountId);
+      }
+    }
     const newest = new Map<string, Holder>();
     for (const h of holders) {
       const seen = newest.get(h.accountId);
@@ -248,28 +263,37 @@ export class TeamOwner {
     }
     const recipients: Recipient[] = [];
     for (const [accountId, holder] of newest) {
-      if (options.approve?.some((a) => a.accountId === accountId)) continue;
+      if (approved.some((k) => k.accountId === accountId)) continue;
       // The keys held, resolved from their published record and checked against the pinned hash.
       const keys = (await this.#publishedKeys(accountId)).find((k) => k.memberKeysVersion === holder.memberKeysVersion);
       if (!keys || !suite.equal(keysHash(suite, keys), holder.keysHash)) throw this.#core.markUnverified(trustFailure("key_mismatch"));
       recipients.push(recipientFromKeys(suite, keys));
     }
-    // Approved keys: a holder's replacement, or a new member (§6.5).
-    for (const handle of options.approve ?? []) recipients.push(recipientFromKeys(suite, await this.#reviewedKeys(handle)));
-    return recipients;
+    for (const keys of approved) recipients.push(recipientFromKeys(suite, keys));
+    return { recipients, dropped };
   }
 
-  async #rotate(options: RotationOptions, newOwners: readonly string[] | undefined): Promise<{ version: number; recipients: string[] }> {
+  /** With `reconcile`, stale approvals are dropped and nothing is written when nothing is left (null). */
+  async #rotate(
+    options: RotationOptions,
+    newOwners: readonly string[] | undefined,
+    reconcile?: { removals: number },
+  ): Promise<{ version: number; recipients: string[]; dropped: string[] } | null> {
     const core = this.#core;
     const signer = core.ownerSigner();
     const current = core.current();
     const kept = (await this.#holders()).filter((h) => h.accountId === core.accountId || options.keep.includes(h.accountId));
-    const recipients = await this.#recipients(kept, options);
+    const owners = newOwners ?? current.owners.map((o) => o.accountId);
+    // A caller's mistake, refused before anything is built: every owner must receive the new version (§6.7, §9).
+    const receiving = (id: string) => kept.some((h) => h.accountId === id) || (options.approve ?? []).some((a) => a.accountId === id);
+    if (owners.some((id) => !receiving(id))) throw malformed();
+    const { recipients, dropped } = await this.#recipients(kept, options, reconcile !== undefined);
+    // Nothing left to do once every approval was dropped and nothing is removed: no version is written (D-64).
+    if (reconcile && reconcile.removals === 0 && dropped.length === (options.approve ?? []).length) return null;
 
     const { suite } = core.ports;
     const nextKey = suite.randomBytes(suite.sizes.key);
     const currentKey = await core.teamKey(current.version);
-    const owners = newOwners ?? current.owners.map((o) => o.accountId);
     try {
       const version = versionOp(core.ports, current, core.currentHash(), currentKey, nextKey, owners, recipients, signer);
       // One record, roster included: a rotation is never half done (§6.6 step 5, D-34).
@@ -278,7 +302,7 @@ export class TeamOwner {
       suite.wipe(nextKey);
     }
     await core.reload();
-    return { version: current.version + 1, recipients: recipients.map((r) => r.accountId) };
+    return { version: current.version + 1, recipients: recipients.map((r) => r.accountId), dropped };
   }
 }
 

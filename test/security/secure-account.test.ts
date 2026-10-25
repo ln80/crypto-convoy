@@ -264,6 +264,15 @@ describe("SP-11 / SP-23: secureAccount reports the product's teams whose keys we
     expect((await bundleOf(bob.vault, "team-9")).memberKeysVersion).toBe(2);
   });
 
+  it("createTeam takes its vault anchor from the version it wrote, not from a read-back the server can withhold (review 032 D)", async () => {
+    const { members } = await team();
+    const alice = members.alice!;
+    alice.store.drop({ type: "member-keys-wrap", teamId: "team-9" });
+    await alice.vault.createTeam("team-9");
+    alice.store.reset();
+    expect((await alice.vault.openTeam("team-9")).state).toBe("ready");
+  });
+
   it("refuses teamIds that aren't ids, before anything is written", async () => {
     const { members } = await team("bob");
     const bob = members.bob!;

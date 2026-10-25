@@ -216,3 +216,35 @@ describe("SP-23: the vault signs only for the phrase typed, never the recovery k
     expect((await bundleOf(bob.vault)).memberKeysVersion).toBe(before.memberKeysVersion);
   });
 });
+
+describe("SP-23: a recovery wrap a session garbled is a mismatch, never a refusal (D-56, review 032 A)", () => {
+  const recoveryKey = { type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "recovery" } as const;
+  const flip = (value: string) => {
+    const bytes = Buffer.from(value, "base64url");
+    bytes[0]! ^= 1;
+    return bytes.toString("base64url");
+  };
+
+  it("a stored public key that doesn't open: reported, and secureAccount repairs it", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    const stored = (await bob.store.get(recoveryKey)) as Record<string, { nonce: string; ciphertext: string }>;
+    const garbled = { ...stored, wrappedRecoveryPublicKey: { ...stored.wrappedRecoveryPublicKey!, ciphertext: flip(stored.wrappedRecoveryPublicKey!.ciphertext) } };
+    await bob.store.commit([{ op: "replace", key: recoveryKey, record: garbled }]);
+    expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "recovery-key-mismatch", action: "secureAccount" }));
+    expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" })).toEqual({ rekeyed: ["team-1"], failed: [] });
+    expect(await bob.vault.warnings()).not.toContainEqual(expect.objectContaining({ code: "recovery-key-mismatch" }));
+    expect((await bundleOf(bob.vault)).published.recoveryPublicKey).toEqual(phraseKey("bob", bob.recoveryPhrase));
+  });
+
+  it("a recovery wrap that doesn't parse: reported, and a setup with the PIN replaces it", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    const stored = (await bob.store.get(recoveryKey)) as Record<string, unknown>;
+    await bob.store.commit([{ op: "replace", key: recoveryKey, record: { ...stored, extra: 1 } }]);
+    expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "recovery-key-mismatch" }));
+    const { recoveryPhrase } = bob.vault.beginRecoverySetup();
+    expect(await bob.vault.confirmRecoveryPhrase(recoveryPhrase, { currentPin: "1234" })).toEqual({ rekeyed: ["team-1"], failed: [] });
+    expect(await bob.vault.warnings()).not.toContainEqual(expect.objectContaining({ code: "recovery-key-mismatch" }));
+  });
+});

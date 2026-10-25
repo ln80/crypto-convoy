@@ -139,14 +139,14 @@ function memberKeysOps(ports: AccountPorts, account: OpenAccount, keys: Generate
   ];
 }
 
-/** Team creation (§6.3): member keys and version 1, owned by and rostered to the creator, in one batch; the bundle's floor is version 1 (D-48). */
+/** Team creation (§6.3): member keys and version 1, owned by and rostered to the creator, in one batch; the bundle's floor is version 1 (D-48), returned too. */
 export function newTeamOps(
   ports: AccountPorts,
   account: OpenAccount,
   teamId: string,
   recoveryPublicKey: Uint8Array,
   memberKeysVersion: number,
-): WriteOp[] {
+): { ops: WriteOp[]; floor: Anchor } {
   const { suite, clock } = ports;
   const keys = generateMemberKeys(ports, account, teamId, memberKeysVersion, { recoveryPublicKey });
   const { bundle } = keys;
@@ -173,7 +173,7 @@ export function newTeamOps(
   });
   suite.wipe(teamKey);
   const floor = { version: 1, hash: recordHash(version) };
-  return [...memberKeysOps(ports, account, keys, floor), { op: "create", key: { type: "team-key-version", teamId, version: 1 }, record: teamKeyVersionToJson(version) }];
+  return { ops: [...memberKeysOps(ports, account, keys, floor), { op: "create", key: { type: "team-key-version", teamId, version: 1 }, record: teamKeyVersionToJson(version) }], floor };
 }
 
 /** The vault's own anchor for a team, apart from the sessions' (D-54). */
