@@ -319,7 +319,9 @@ For `recovery`, `wrappedRecoveryPublicKey = wrap(accountKey, "recovery-public-ke
 
 Reader checks: `kdf` within bounds (§2); `accountKeyVersion` not lower than the highest the device has seen (SP-07); the opened key is 32 bytes. For PIN and recovery, a failed `unwrap` is reported as `WRONG_CREDENTIAL`. `wrappedRecoveryPublicKey` opens with the account key to 32 bytes, a valid Ed25519 public key (§2), else `DECRYPTION_FAILED` or `MALFORMED_RECORD`.
 
-Whoever holds the account key can rewrite `wrappedRecoveryPublicKey` alone, so the vault reads it only when it isn't given the phrase. Given the current phrase, it checks it by opening `wrappedAccountKey`, uses the key derived from the phrase, and reports a stored key that differs, or can't be read, (`recovery-key-mismatch`) without refusing (D-56).
+The vault reads the PIN wrap, the recovery wrap and this device's wrap by their identity. One that doesn't parse, or fails its shape or context checks at a known `v` and suite, is present but unreadable: that method reads as set up, unlocking with it fails (`WRONG_CREDENTIAL`, or `DEVICE_NOT_REGISTERED` for a device), `warnings()` reports it, and the operation that writes that method replaces it without reading it (D-58).
+
+Whoever holds the account key can rewrite `wrappedRecoveryPublicKey` alone, and the server can replay an earlier one of the same version, which gives nothing a holder of the old phrase doesn't already have with it (TH-36); so the vault reads it only when it isn't given the phrase. Given the current phrase, it checks it by opening `wrappedAccountKey`, uses the key derived from the phrase, and reports a stored key that differs, or can't be read, (`recovery-key-mismatch`) without refusing (D-56).
 
 The server also tells the client which `accountKeyVersion` is current. The client never trusts a lower one than it has seen. A device with no stored state has seen none: a malicious server that kept a retired version's wraps can make it adopt that version, which the user's PIN still opens. That residual is accepted (TH-05, SP-19).
 
@@ -587,7 +589,7 @@ Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so i
 
 - **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team, or 1 for none (D-43, D-58: every bundle is published with its wrap): keys someone else published under the account never block it. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap` with its anchor floor (§4.3, D-50): version 1 for a new team (§6.3), the verified chain's tip on a join (§6.4), and on a re-key the newest version of a chain that contains every root the vault holds for the team: the newest bundle's floor and the vault's own anchor (§5.8), or, when the caller gives an anchor from an owner, that anchor alone (§6.8). If the roots conflict or the chain doesn't verify, the re-key fails with `TRUST_FAILURE` and writes nothing (D-54). Then open the team (§5.8).
 - **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is an owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): it steps down first, by `setOwners` without itself (§6.7), which keeps at least one owner, so the only owner can't leave (D-65). The member's keys stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
-- **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is the only owner of a team, for the same reason as above (TH-18).
+- **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is a listed owner of a team, for the same reason as above (TH-18, D-65).
 
 ### 5.10 Setting up recovery (D-35)
 
@@ -675,7 +677,7 @@ A rotation is one record: it is never half done (D-34).
 
 Every owner change is a rotation (§6.6) whose new version carries the new owner list (D-13, D-19). There is no separate owner record.
 
-1. Choose the new owner list. New owners must hold version n; their signing keys come from their `member-keys` records.
+1. Choose the new owner list. New owners must hold version n, or have keys the same rotation approves; their signing keys come from their `member-keys` records. The rotation must keep or approve every owner of the new list, else `MALFORMED_RECORD`, before anything is built.
 2. Run the rotation (§6.6) with that list in version n+1. The record, signed by an owner of version n, carries the owner list and the roster in one write: an owner change is never half applied.
 3. When an owner is removed: members listed in a current roster the removed owner signed are listed for the caller to review before step 2 includes them. This is a **warning**, not a guarantee: access later re-signed by another owner no longer shows as coming from the removed owner (SP-15).
 
@@ -685,7 +687,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
 ### 6.8 Re-keying a member
 
-1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain containing every root, or from an anchor an owner gave (`rekey(teamId, { anchor })`, the repair for a device with no anchor, a planted floor, or a team whose wraps are gone, since with an owner's anchor it runs when the vault holds no bundle, D-59; it replaces every root and is trusted as given, so it must reach the user from an owner outside the server, TH-04) (§5.9, D-54), and, if the user entered the current recovery phrase (`phrase`, checked as in §5.6), its `recoveryPublicKey` and a `recoverySignature`: by `phrase`, or by `oldPhrase` when given, a phrase whose recovery key a bundle the vault holds for the team carries (D-49, D-56). Without a phrase, the keys carry the recovery wrap's key and no proof. The member stays able to read with the old keys until the rotation.
+1. The vault creates new member keys for the team with the next `memberKeysVersion` (§5.9), with its floor from a chain containing every root, or from an anchor an owner gave (`rekey(teamId, { anchor })`, the repair for a device with no anchor, a planted floor, or a team whose wraps are gone, since with an owner's anchor it runs when the vault holds no bundle, D-59; it replaces every root, this device's local anchor included, and is trusted as given, so it must reach the user from an owner outside the server, TH-04) (§5.9, D-54), and, if the user entered the current recovery phrase (`phrase`, checked as in §5.6), its `recoveryPublicKey` and a `recoverySignature`: by `phrase`, or by `oldPhrase` when given, a phrase whose recovery key a bundle the vault holds for the team carries (D-49, D-56). Without a phrase, the keys carry the recovery wrap's key and no proof. The member stays able to read with the old keys until the rotation.
 2. An owner approves the new keys by rotating the team key (§6.6), naming the keys reviewed (§6.5). The library classifies the request:
    - **proven**: a `recoverySignature` that verifies with the recovery key of the keys the account holds (§4.2). Owners' `reconcile` approves it, unless the account is an owner (SP-23): then only its own `reconcile` does, holding the keys (D-47);
    - **unproven**: anything else. The owner verifies out of band (AS-06, TH-37). The old keys can't vouch for the new ones, since an attacker may hold them (D-38).
@@ -926,7 +928,7 @@ owner.reconcile(activeAccountIds, { dryRun? })
                                           → { dryRun, rotatedTo?, removed, approvedRekeys, needsHuman }
 owner.approve(handles)                    → { rotatedTo, approved }   // handles from overview, keys hash included (D-55): one rotation
 owner.remove(accountIds)                  → { rotatedTo, approved }   // a rotation keeping every other holder; an owner: MALFORMED_RECORD (setOwners first)
-owner.setOwners(owners, { keep? })        // always a rotation with the new owner list; keeps every holder by default; an owner left out of keep, or not holding the version: MALFORMED_RECORD
+owner.setOwners(owners, { keep?, approve? }) // always a rotation with the new owner list; keeps every holder by default; an owner neither kept nor approved: MALFORMED_RECORD
 owner.grantedBy(ownerIds)                 → accounts in a current roster those owners signed (§6.7)
 owner.rotate({ keep, approve? })          // low level: keep holders, add or replace approved keys; an owner left out of keep: MALFORMED_RECORD
 

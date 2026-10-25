@@ -77,7 +77,7 @@ The library doesn't do any of the following. The integration owns them:
   - set a strict Content Security Policy and `Referrer-Policy: no-referrer`;
   - reveal only after an explicit click, so link scanners don't trigger or use up views;
   - avoid sending share links from the integration's own server, which would then see the key (TH-23).
-- **Devices and accounts:** ending a revoked device's sign-in sessions; refusing to delete an account that is the only owner of a team; authenticating restore requests to its support process, which bring back whatever the restored records open (TH-48).
+- **Devices and accounts:** ending a revoked device's sign-in sessions; refusing to delete an account that is a listed owner of a team (D-65); authenticating restore requests to its support process, which bring back whatever the restored records open (TH-48).
 - **What parts mean:** text formats, file types, form fields. The integration can store such details in each part's opaque `meta`, which the library encrypts and authenticates without reading (D-16).
 - **What it sends to its own server:** values the integration computes from plaintext (for example file hashes or file names sent in clear) leak content. The library never produces them; the integration must not either.
 - **Presenting timestamps:** record timestamps are chosen by their writer; the integration must not show them as a trusted time (TH-35).

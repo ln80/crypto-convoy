@@ -686,7 +686,7 @@ Consequence: whatever answers PIN evaluations without the key can only refuse th
 
 ## D-54: Floors are written only where every root agrees; the vault keeps its own anchor
 
-Status: Accepted.
+Status: Accepted; the repair also replaces this device's local anchor (review 035 A).
 
 Problem: D-52 wrote a re-key's floor from a chain verified from the local anchor or the floor, and kept the current floor when that failed. Someone who held the account key could plant a floor in a wrap: a vault with no anchor of its own (a split layout, a new device) verified from it; a server that made the verification fail had it kept; a retry and an export fell back to it; a forged local anchor could stand in for it (reviews 009 B, 010). And `secureAccount` was trusted to end the old account key's reach, while a retired version comes back on a stateless or stale device, or through a support restore (review 009 C).
 
@@ -697,7 +697,7 @@ Decision. The current floor rules, in one place (they replace what D-48, D-50 an
 What this decision changed:
 - The vault keeps its own anchor per team, in its half of local storage (`local-vault-anchor`, §3.7), apart from the sessions' anchors. It records the tip of every chain it verifies (creation, join, open in its context, export) and never moves down, except when a repair from an owner's anchor replaces it.
 - A re-key writes a floor only from a chain that contains every root the vault holds for the team: the newest bundle's floor and its own anchor. If they conflict or the chain doesn't verify, the re-key fails and writes nothing. An export refuses on the same failure. D-52's "else the current floor" goes.
-- An anchor an owner gives out of band (`team.inviteAnchor()`), passed to `rekey` or `secureAccount`, is then the only root: the repair for a planted floor or a device with no anchor.
+- An anchor an owner gives out of band (`team.inviteAnchor()`), passed to `rekey` or `secureAccount`, is then the only root: the repair for a planted floor or a device with no anchor. The repair replaces the vault's anchor and this device's local anchor with the new floor, so the device it runs on opens on the repaired chain; other devices repair the same way, or are reset, and a receiving context gets a new transfer (review 035 A).
 - A rotation keeps each bundle's floor; `secureAccount`'s re-keys then write checked floors.
 - Retired versions: no client rule stops a server that serves one to a device with no newer state, or a support restore. The limits say so (SP-11, SP-19, TH-05, TH-12); a new phrase is the recommended default; a new PIN that opens the current PIN wrap is refused; the integration resets the account's other devices after `secureAccount`; `foreign-member-keys` advises `secureAccount`, not `rekey`.
 
@@ -760,7 +760,7 @@ Consequence: a device or context reports every change since it last verified the
 
 ## D-58: A record that fails its own checks is absent
 
-Status: Accepted; amended so a team whose bundles fail stops only that team (review 028 A).
+Status: Accepted; amended so a team whose bundles fail stops only that team (review 028 A), and so a wrap read by its identity that doesn't parse costs only its method (review 035 B).
 
 Problem: one record could stop everything around it. A session created a garbage `member-keys-wrap` under a new identity: every account-wide operation failed (`secureAccount`, `rotate`, the warnings), and no restore removed a record with no archived generation. An account-key holder could do the same with a wrap that opens but whose published keys don't match. A joiner published a `member-keys` record with a bad signature, and every member's team became `unverified`, with no way to delete it (review 016 B, C; review 017 A–C, F, G).
 
@@ -778,6 +778,8 @@ Rejected:
 Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account, its repairs included, until support archives that wrap (TH-20, review 022 A); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46). A rotation re-wraps the wraps it lists: one the server withholds then stays with the retired version, archived, until support restores it (TH-28, review 032 F).
 
 Amendment (review 028 A): the account-wide lists still opened every team's bundles unguarded, so one team whose wrap opens but doesn't match its published record, or whose published record fails its checks or is withheld, made `warnings()` throw and `confirmRecoveryPhrase` throw after replacing the phrase, with no team re-keyed. Now, wherever the vault goes through every team of the account, a team whose bundles fail (any error but `STORE_ERROR`) stops only that team: `warnings()` lists it under `foreign-member-keys`, since only keys or a wrap this vault didn't make, or a withheld record, get it there, and every re-key across teams counts it among the teams to re-key, so it is reported `failed`. Rejected: a new warning code (new API for the case `foreign-member-keys` already names, with the same remedy); leaving the team out (the user would never learn of it, and a phrase replacement would leave it on the old recovery key unreported). A team listed under `foreign-member-keys` isn't listed under `rekey-needed` too, whose advice differs (review 029 A). An operation that re-keys across teams lists them before its first write, so a store error, which still stops it, writes nothing (review 030 A).
+
+Amendment (review 035 B): the vault reads the PIN wrap, the recovery wrap and this device's wrap by their identity, and a record that didn't parse there threw: a session replacing the PIN wrap made `status()` and `warnings()` throw, hiding every warning, and refused the PIN change with the phrase, `secureAccount` with a new PIN and `recover`. Now each of those reads gives absent, readable, or present but unreadable (it doesn't parse, or a known `v` and suite fails its shape or context checks; an unknown `v` or suite stays `UNSUPPORTED_VERSION`, readers first, §10). Present but unreadable: `status()` reads that method as set up; `warnings()` reports `pin-not-set-up` for the PIN, and `recovery-key-mismatch` for recovery, with action `beginRecoverySetup`, since the phrase can't be checked against it (D-56); unlocking with it is `WRONG_CREDENTIAL`, or `DEVICE_NOT_REGISTERED` for this device's wrap; and the operation that writes the method replaces it without reading it (a PIN change, whose same-PIN check is skipped as for a spent share, a recovery setup, a device registration). A session's garbage there costs that method only; support restores it (SP-26).
 
 ## D-59: The vault's own anchor roots every vault verification
 
