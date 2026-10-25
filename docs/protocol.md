@@ -560,7 +560,7 @@ A PIN change takes the current PIN or the phrase (only the phrase when the curre
 - if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the recovery key derived from it: proven, and approved by owners' `reconcile` (SP-23); where the account is an owner, by its own `reconcile` (D-47);
 - with the current PIN instead, the re-keys carry no proof, and an owner approves each by hand.
 
-Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed, a team whose bundles fail their checks included (D-58); a failed team is retried with the re-key of §6.8, with the new phrase as `phrase` and the old one as `oldPhrase`, to keep it proven (D-49, D-56).
+The teams to re-key are listed before anything is written, so a store error while listing writes nothing and the pending phrase is kept (review 030 A). Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed, a team whose bundles fail their checks included (D-58); a failed team is retried with the re-key of §6.8, with the new phrase as `phrase` and the old one as `oldPhrase`, to keep it proven (D-49, D-56).
 
 ### 5.7 Rotating the account key (D-10)
 
@@ -600,7 +600,7 @@ Recovery is set up when a recovery wrap exists at the current account key versio
 
 For a device that may have been used while unlocked, a leaked PIN or a leaked phrase, or after a support restore (TH-48), run from a device the attacker didn't control, after the integration has ended the account's other sign-in sessions, so nobody publishes keys over its re-keys (D-43). Input: the recovery phrase; optionally, and recommended, a new phrase (D-45), the one `beginRecoverySetup()` showed (§5.10 step 1), typed back; and optionally a new PIN: without one, for example when the PIN budget is spent (TH-44), the account has no PIN until `changePin` sets one (D-40). Without recovery set up: `RECOVERY_NOT_SET_UP`; a phrase that isn't the current one, or a new phrase that isn't the one held (compared as in §5.10 step 2): `WRONG_CREDENTIAL`, before anything is written.
 
-1. Rotate the account key (§5.7) with the phrase, the new phrase if given, and the new PIN if given. This cuts every other device: their wraps belong to the retired version (D-10). With a new phrase, the recovery wrap of the new version is for it, so the replaced phrase opens nothing of that version (SP-11).
+1. List the account's teams: those with a wrap that opens (D-58). A rotation doesn't change them, and a store error here writes nothing (review 030 A). Then rotate the account key (§5.7) with the phrase, the new phrase if given, and the new PIN if given. This cuts every other device: their wraps belong to the retired version (D-10). With a new phrase, the recovery wrap of the new version is for it, so the replaced phrase opens nothing of that version (SP-11).
 2. For every team the account has member keys for, in its own write: create new member keys (§5.9) with the `recoveryPublicKey` derived from the new phrase, if given, else from the current one, never read back from the server (D-56), whose record carries a `recoverySignature` by the **current** phrase's recovery signing key (§4.2): proven against the keys each team holds (SP-23). Each new floor comes from a chain containing every root the vault holds, so a floor planted with the stolen account key fails the team instead of being carried, on a device whose vault verified the team; on one whose vault never did, a planted floor, or a planted newest bundle with none, is trusted (TH-20); an anchor an owner gave for the team (`anchors`) replaces the roots (§5.9, D-54).
 3. Report the teams re-keyed and those that failed: a team whose re-key failed, and a team in `teamIds` (the teams the integration's product says the user belongs to) with no wrap that opens, which is repaired with a proven `rekey` and an owner's anchor (D-60). Retry a failed team before the account's next `reconcile` as an owner: until then, that team's held keys include any bundle the vault re-wrapped, which an owner's own `reconcile` approves (D-47). A failed team is retried with the re-key of §6.8: with a new phrase, that phrase as `phrase` and the one given here as `oldPhrase`, which the team's held keys still carry (D-49, D-56); without one, this phrase as `phrase`. One that failed on its roots is retried with an anchor from an owner.
 
@@ -625,7 +625,7 @@ Run when a team session starts, before any other team operation.
 4. The current version n is the newest record of the verified chain.
 5. Find this member's newest access: the newest version whose roster has an entry for one of its keys (§4.5). Check it and open it. For a version above 1, open its `wrappedPreviousKey` with the opened key. The keys and version it names are the keys the account **holds**.
 6. Work out the access state (§9).
-7. **Advance the anchor** to version n, locally and in the server's `team-state` (compare-and-set on `revision`). It is written under the newest bundle's `teamStateKey`. An absent one (with a floor, one that doesn't open under that key, §4.4) is replaced only if the newest bundle is in version n's roster, and never at an unknown `v` or suite (D-62, D-63). On conflict: reload the server's state, check that the chain contains one at or below its tip (a newer one is left to the next open), then retry.
+7. **Advance the anchor** to version n, locally and in the server's `team-state` (compare-and-set on `revision`). It is written under the newest bundle's `teamStateKey`. An absent one (with a floor, one that doesn't open under that key, §4.4) is replaced only if the newest bundle is in version n's roster, and never at an unknown `v` or suite (D-62, D-63). On conflict: reload the server's state, check that the chain contains one between its first record and its tip (one below the first record isn't followed, a newer one is left to the next open), then retry.
 
 Any `TRUST_FAILURE` puts the team in the `unverified` state for this session.
 
@@ -637,7 +637,7 @@ Records below the lowest anchor aren't fetched by §6.1. When a version below it
 
 ### 6.3 Creating a team
 
-1. The vault creates the creator's member keys (§5.9), `memberKeysVersion` 1.
+1. The vault creates the creator's member keys (§5.9), at the next `memberKeysVersion`: 1 unless keys were already published under the account for that team id; the roster entry names that version.
 2. Generate `teamKey_1`.
 3. Create the version record for version 1: owners and roster are the creator; `prevHash` all zeros; no `wrappedPreviousKey`.
 4. Store the record with the member keys in one atomic batch; the bundle's anchor floor is version 1 and its record hash (§4.3).

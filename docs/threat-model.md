@@ -472,11 +472,11 @@ Disposition: mitigated by SP-26 and the server contract (rule 7, D-39, D-42): th
 
 Actor: session thief (A11).
 
-Attack: publishes member keys under the victim's account in a team: a join before the victim joins, or a "re-key" request. An owner who trusts the name approves them.
+Attack: publishes member keys under the victim's account in a team: a join before the victim joins, or a "re-key" request. An owner who trusts the name approves them. Or creates a team under the account, with its own keys as the owner's, and invites people as the user.
 
 Impact: the attacker reads the team from that rotation on.
 
-Disposition: partly mitigated: only a re-key signed by the member's recovery key is proven, which a session can't produce (SP-23); approvals hold for exactly the reviewed keys, and `reconcile` never approves an unproven one (SP-12, SP-22); keys the member's vault didn't make are reported and can't block it (D-43, TH-47). Accepted: an owner who approves an unproven request without the out-of-band check (AS-06); invite proofs, which would cover first joins, are deferred (D-32).
+Disposition: partly mitigated: only a re-key signed by the member's recovery key is proven, which a session can't produce (SP-23); approvals hold for exactly the reviewed keys, and `reconcile` never approves an unproven one (SP-12, SP-22); keys the member's vault didn't make can't block it (D-43, TH-47), and are reported for the teams where the vault holds keys; `secureAccount` with the product's `teamIds` reports a listed team where it holds none (D-60). Accepted: keys published, or a team created, under the account where the vault holds no keys go unreported, since a session acts as the user in the product (review 030 C); an owner who approves an unproven request without the out-of-band check (AS-06); invite proofs, which would cover first joins, are deferred (D-32).
 
 ### TH-46: Session thief corrupts private team records
 
@@ -496,7 +496,7 @@ Attack: publishes `member-keys` records under the victim's account at the versio
 
 Impact: the member's own write collides forever (`STALE_VERSION`): no join, and no re-key, including those of `secureAccount`.
 
-Disposition: partly mitigated by SP-12 (D-43): new keys take the newest published version plus one, the server accepts keys only from their account at its next version, and the vault reports keys it didn't make (`foreign-member-keys`). The bait keys stay unproven, so only a human approves them (TH-37). Accepted: only the newest keys can be approved, so while the thief keeps the session, bait published after each of the member's keys leaves them unapprovable; the integration ends the account's other sessions, as `secureAccount` requires (§5.11).
+Disposition: partly mitigated by SP-12 (D-43): new keys take the newest published version plus one, the server accepts keys only from their account at its next version, and the vault reports keys it didn't make, for the teams where it holds keys (`foreign-member-keys`). The bait keys stay unproven, so only a human approves them (TH-37). Accepted: only the newest keys can be approved, so while the thief keeps the session, bait published after each of the member's keys leaves them unapprovable; the integration ends the account's other sessions, as `secureAccount` requires (§5.11).
 
 ## Members and owners
 
