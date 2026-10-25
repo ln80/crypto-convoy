@@ -43,7 +43,7 @@ import {
   acceptVersion,
   commit,
   currentVersion,
-  fetchWrap,
+  readWrap,
   newDevice,
   openWithPin,
   pinWrap,
@@ -237,9 +237,10 @@ export class Vault {
     if (!device) throw new ConvoyError("DEVICE_NOT_REGISTERED");
     const version = await currentVersion(this.#ports, this.accountId);
     if (version === null) throw new ConvoyError("DEVICE_NOT_REGISTERED");
-    const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId });
-    if (!wrap) throw new ConvoyError("DEVICE_NOT_REGISTERED");
-    await this.#open({ accountId: this.accountId, version, key: openAccountKeyWrap(wrap, device.deviceKey) });
+    // A device wrap that can't be read is no registration: the device registers again (D-58).
+    const read = await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId });
+    if (read.state !== "readable") throw new ConvoyError("DEVICE_NOT_REGISTERED");
+    await this.#open({ accountId: this.accountId, version, key: openAccountKeyWrap(read.wrap, device.deviceKey) });
   }
 
   /**
@@ -249,9 +250,12 @@ export class Vault {
    */
   async unlockWithPin(pin: string): Promise<void> {
     const version = await this.#requireVersion();
-    const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "pin" });
+    const read = await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "pin" });
     // Rotated with the phrase alone (D-40): no PIN until one is set, and no evaluation spent.
-    if (!wrap) throw new ConvoyError("PIN_NOT_SET_UP");
+    if (read.state === "absent") throw new ConvoyError("PIN_NOT_SET_UP");
+    // One that can't be read can't be opened: no evaluation spent either (D-58).
+    if (read.state === "unreadable") throw new ConvoyError("WRONG_CREDENTIAL");
+    const { wrap } = read;
     const account = { accountId: this.accountId, version, key: await openWithPin(this.#ports, wrap, pin, "unlock") };
 
     const { ops, device } = await this.#registration(account);
@@ -282,8 +286,10 @@ export class Vault {
   async recover(phrase: string, newPin: string): Promise<void> {
     const { suite } = this.#ports;
     const version = await this.#requireVersion();
-    const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "recovery" });
-    if (!wrap) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+    const read = await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "recovery" });
+    if (read.state === "absent") throw new ConvoyError("RECOVERY_NOT_SET_UP");
+    if (read.state === "unreadable") throw new ConvoyError("WRONG_CREDENTIAL");
+    const { wrap } = read;
     const { recoveryKey, signing } = deriveRecoveryKeys(suite, this.accountId, phrase);
     let key: Uint8Array;
     try {
@@ -320,8 +326,9 @@ export class Vault {
     else if (typeof currentPin === "string") await verifyPin(this.#ports, account, currentPin);
     else throw new ConvoyError("MALFORMED_RECORD");
     const wrap = await pinWrap(this.#ports, account, newPin);
-    const current = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
-    await commit(this.#ports, current ? replaceWrap(wrap) : [createWrap(wrap)]);
+    // A live wrap is replaced, read or not: one that can't be read costs the PIN only (D-58).
+    const current = await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
+    await commit(this.#ports, current.state !== "absent" ? replaceWrap(wrap) : [createWrap(wrap)]);
   }
 
   /**
@@ -426,10 +433,11 @@ export class Vault {
    * when it is spent the check is skipped, and setting the new PIN fails as well (D-40, TH-44).
    */
   async #refuseCurrentPin(account: OpenAccount, newPin: string): Promise<void> {
-    const wrap = await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
-    if (!wrap) return;
+    // No wrap, or one that can't be read: nothing the new PIN could open, so no check (D-58).
+    const read = await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
+    if (read.state !== "readable") return;
     try {
-      this.#ports.suite.wipe(await openWithPin(this.#ports, wrap, newPin, "enroll"));
+      this.#ports.suite.wipe(await openWithPin(this.#ports, read.wrap, newPin, "enroll"));
     } catch (error) {
       if (isConvoyError(error, "WRONG_CREDENTIAL") || isConvoyError(error, "PIN_RATE_LIMITED")) return;
       throw error;
@@ -441,21 +449,23 @@ export class Vault {
   async status(): Promise<VaultStatus> {
     const version = await callPort(() => this.#ports.store.getAccountKeyVersion(this.accountId));
     if (version === null) return { account: "not-set-up", deviceRegistered: false, deviceId: null, recovery: "not-set-up", pin: "not-set-up" };
+    // A wrap that can't be read still says the method is set up; `warnings()` names it (D-58).
     const has = async (method: "recovery" | "pin") =>
-      (await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method })) ? "set-up" : "not-set-up";
+      (await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method })).state !== "absent" ? "set-up" : "not-set-up";
     const [recovery, pin] = await Promise.all([has("recovery"), has("pin")]);
     const device = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
-    const wrap = device
-      ? await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId })
-      : null;
-    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: wrap !== null, deviceId: device?.deviceId ?? null, recovery, pin };
+    const registered = device
+      ? (await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId })).state === "readable"
+      : false;
+    return { account: this.#account ? "unlocked" : "locked", deviceRegistered: registered, deviceId: device?.deviceId ?? null, recovery, pin };
   }
 
   /** What the user should act on (§12): recovery not set up, teams whose keys predate the current phrase. */
   async warnings(): Promise<VaultWarning[]> {
     const account = this.#requireAccount();
     const warnings: VaultWarning[] = [];
-    if (!(await fetchWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" }))) {
+    // No PIN wrap, or one that can't be read: set a PIN (D-40, D-58).
+    if ((await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" })).state !== "readable") {
       warnings.push({ code: "pin-not-set-up", teamIds: [], action: "changePin" });
     }
     const recovery = await storedRecoveryKey(this.#ports, account);
@@ -473,7 +483,9 @@ export class Vault {
       const proof = isConvoyError(this.#upgradeFailure, "TRUST_FAILURE");
       warnings.push({ code: "pin-upgrade-failed", teamIds: [], action: proof ? "report" : "changePin" });
     }
-    if (this.#recoveryMismatch || !recovery.key) warnings.push({ code: "recovery-key-mismatch", teamIds: [], action: "secureAccount" });
+    // A recovery wrap that doesn't parse can't be checked against the phrase: a new setup with the PIN replaces it (D-58).
+    if (!recovery.parsed) warnings.push({ code: "recovery-key-mismatch", teamIds: [], action: "beginRecoverySetup" });
+    else if (this.#recoveryMismatch || !recovery.key) warnings.push({ code: "recovery-key-mismatch", teamIds: [], action: "secureAccount" });
     return warnings;
   }
 
@@ -596,7 +608,8 @@ export class Vault {
     const local = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
     if (local) {
       const expected = { accountId: this.accountId, accountKeyVersion: account.version, method: "device", deviceId: local.deviceId } as const;
-      if (await fetchWrap(this.#ports, expected)) return { ops: [], device: null };
+      // One that can't be read is no registration: a new device registers (D-58).
+      if ((await readWrap(this.#ports, expected)).state === "readable") return { ops: [], device: null };
     }
     const { device, op } = newDevice(this.#ports, account);
     return { ops: [op], device };

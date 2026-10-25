@@ -244,6 +244,27 @@ describe("SP-07: a client never goes back", () => {
       await dave.vault.joinTeam("team-1");
       expect((await bundleOf(dave.vault)).floor).toEqual({ version: 1, hash: recordHash(parseTeamKeyVersion(forged, { teamId: "team-1" })) });
     });
+
+    it("the repair with an owner's anchor replaces this device's local anchor too: after a forged first contact, it opens the real chain (review 035 A)", async () => {
+      const { w, aliceTeam } = await team();
+      const mallory = await w.account("mallory");
+      await mallory.vault.joinTeam("team-1");
+      const m = await bundleOf(mallory.vault);
+      const owner = { accountId: "mallory", keys: m.pairs, published: m.published };
+      const forged = forgeFirstVersion({ owner, roster: [owner] });
+      const dave = await w.account("dave");
+      dave.store.rollback("team-1", 1).fork("team-1", 1, forged);
+      await dave.vault.joinTeam("team-1");
+      // dave opens the forged team: this device's local anchor now names it.
+      (await dave.vault.openTeam("team-1")).close();
+      // The server turns honest; an owner gives dave the real anchor out of band.
+      dave.store.reset();
+      expect((await dave.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
+      await dave.vault.rekey("team-1", { phrase: dave.recoveryPhrase, anchor: aliceTeam.inviteAnchor() });
+      const session = await dave.vault.openTeam("team-1");
+      expect(session.failure).toBeUndefined();
+      expect(session.state).toBe("pending");
+    });
   });
 
   it("an existing member's join with an invite anchor checks it, writes nothing and keeps the floor (D-50)", async () => {

@@ -52,6 +52,63 @@ describe("SP-26: a session can't destroy an account's private records", () => {
     expect(await bob.store.get(stateKey)).toMatchObject({ v: 2, revision: newer });
   });
 
+  describe("a wrap read by its identity that doesn't parse costs only its method (D-58, review 035 B)", () => {
+    const wrapKey = (method: "pin" | "recovery") => ({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method }) as const;
+    const garble = async (bob: { store: { get: (k: never) => Promise<unknown>; commit: (ops: never) => Promise<void> } }, method: "pin" | "recovery", change: Record<string, unknown>) => {
+      const stored = (await bob.store.get(wrapKey(method) as never)) as Record<string, unknown>;
+      await bob.store.commit([{ op: "replace", key: wrapKey(method), record: { ...stored, ...change } }] as never);
+    };
+
+    it("a PIN wrap: status and warnings go on, and the phrase sets a new one", async () => {
+      const { members } = await team("bob");
+      const bob = members.bob!;
+      await garble(bob as never, "pin", { extra: 1 });
+      expect(await bob.vault.status()).toMatchObject({ pin: "set-up", recovery: "set-up" });
+      expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "pin-not-set-up", action: "changePin" }));
+      await bob.vault.changePin("5678", { phrase: bob.recoveryPhrase });
+      expect(await bob.vault.warnings()).not.toContainEqual(expect.objectContaining({ code: "pin-not-set-up" }));
+      expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "2468" })).toEqual({ rekeyed: ["team-1"], failed: [] });
+    });
+
+    it("a PIN wrap that doesn't parse: unlocking with the PIN is WRONG_CREDENTIAL, without an evaluation; secureAccount with a new PIN runs", async () => {
+      const { members, w } = await team("bob");
+      const bob = members.bob!;
+      await garble(bob as never, "pin", { extra: 1 });
+      const phone = await w.device("bob");
+      await expect(phone.vault.unlockWithPin("1234")).rejects.toEqual(code("WRONG_CREDENTIAL"));
+      expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "2468" })).toEqual({ rekeyed: ["team-1"], failed: [] });
+    });
+
+    it("this device's wrap: recover with the phrase registers the device again", async () => {
+      const { members } = await team("bob");
+      const bob = members.bob!;
+      const { deviceKeys } = vaultInternals(bob.vault).ports;
+      const local = (await deviceKeys.getDevice("bob"))!;
+      const key = { type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "device", deviceId: local.deviceId } as const;
+      const stored = (await bob.store.get(key)) as Record<string, unknown>;
+      await bob.store.commit([{ op: "replace", key, record: { ...stored, extra: 1 } }]);
+      bob.vault.lock();
+      await expect(bob.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
+      expect(await bob.vault.status()).toMatchObject({ deviceRegistered: false });
+      await bob.vault.recover(bob.recoveryPhrase, "5678");
+      expect(await bob.vault.status()).toMatchObject({ deviceRegistered: true });
+      bob.vault.lock();
+      await bob.vault.unlock();
+      expect(bob.vault.isUnlocked).toBe(true);
+    });
+
+    it("a recovery wrap that doesn't parse: status goes on, the warning points to a new setup; one at an unknown version is UNSUPPORTED_VERSION", async () => {
+      const { members } = await team("bob");
+      const bob = members.bob!;
+      await garble(bob as never, "recovery", { extra: 1 });
+      expect(await bob.vault.status()).toMatchObject({ recovery: "set-up" });
+      expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "recovery-key-mismatch", action: "beginRecoverySetup" }));
+      await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase })).rejects.toEqual(code("WRONG_CREDENTIAL"));
+      await garble(bob as never, "recovery", { extra: undefined, v: 99 });
+      await expect(bob.vault.warnings()).rejects.toEqual(code("UNSUPPORTED_VERSION"));
+    });
+  });
+
   it("TH-46: a deleted member keys wrap is restored", async () => {
     const { members, w } = await team("bob");
     const bob = members.bob!;

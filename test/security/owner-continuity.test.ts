@@ -46,6 +46,16 @@ describe("SP-16: a listed owner steps down before leaving (D-65, review 032 C)",
     await expect(members.alice!.vault.leaveTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "LAST_OWNER" }));
   });
 
+  it("a rotation may name as owner an account whose keys it approves (§6.7, review 035 D)", async () => {
+    const { w, aliceTeam } = await team();
+    const carol = await w.account("carol");
+    await carol.vault.joinTeam("team-1");
+    await aliceTeam.owner().setOwners(["alice", "carol"], { approve: [await keysHandle(aliceTeam, "carol", 1)] });
+    const session = await carol.vault.openTeam("team-1");
+    expect(session.state).toBe("ready");
+    expect(session.owners()).toEqual(["alice", "carol"]);
+  });
+
   it("a member who isn't an owner leaves", async () => {
     const { members } = await team("bob");
     await members.bob!.vault.leaveTeam("team-1");

@@ -1,6 +1,6 @@
 // The three unlock methods and their wraps (§4.1, §5.3–§5.6).
 import { toBase64url } from "../encoding/base64url.js";
-import { ConvoyError, StoreConflictError, trustFailure } from "../errors.js";
+import { ConvoyError, StoreConflictError, isConvoyError, trustFailure } from "../errors.js";
 import { callPort, type LocalDevice, type OprfPurpose, type WriteOp } from "../ports.js";
 import {
   createAccountKeyWrap,
@@ -32,6 +32,28 @@ export async function acceptVersion(ports: AccountPorts, account: OpenAccount): 
   const seen = await callPort(() => ports.deviceKeys.getAccountKeyVersion(account.accountId));
   if (seen === null || account.version > seen) {
     await callPort(() => ports.deviceKeys.setAccountKeyVersion(account.accountId, account.version));
+  }
+}
+
+/** A wrap read by its identity: absent, readable, or present but unreadable (D-58). */
+export type ReadWrap = { readonly state: "absent" } | { readonly state: "readable"; readonly wrap: AccountKeyWrap } | { readonly state: "unreadable" };
+
+/**
+ * The wrap the caller asked for. One that doesn't parse, or fails its shape or context checks at a
+ * known version and suite, is present but unreadable: it costs that method only (D-58). An unknown
+ * version or suite stays `UNSUPPORTED_VERSION`, readers first (§10); a store error, `STORE_ERROR`.
+ */
+export async function readWrap(
+  ports: AccountPorts,
+  expected: { accountId: string; accountKeyVersion: number; method: UnlockMethod; deviceId?: string },
+): Promise<ReadWrap> {
+  const json = await callPort(() => ports.store.get(wrapKey(expected)));
+  if (json === null || json === undefined) return { state: "absent" };
+  try {
+    return { state: "readable", wrap: parseAccountKeyWrap(json, expected) };
+  } catch (error) {
+    if (isConvoyError(error) && !isConvoyError(error, "UNSUPPORTED_VERSION") && !isConvoyError(error, "STORE_ERROR")) return { state: "unreadable" };
+    throw error;
   }
 }
 
@@ -115,15 +137,19 @@ export async function openWithPin(ports: AccountPorts, wrap: AccountKeyWrap, pin
  * Throws `PIN_NOT_SET_UP`, `WRONG_CREDENTIAL`, `PIN_RATE_LIMITED`.
  */
 export async function verifyPin(ports: AccountPorts, account: OpenAccount, pin: string): Promise<void> {
-  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "pin" });
-  if (!wrap) throw new ConvoyError("PIN_NOT_SET_UP");
-  sameKey(ports, account, await openWithPin(ports, wrap, pin, "unlock"));
+  const read = await readWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "pin" });
+  if (read.state === "absent") throw new ConvoyError("PIN_NOT_SET_UP");
+  // A wrap that can't be read can't be opened: no evaluation spent on it (D-58).
+  if (read.state === "unreadable") throw new ConvoyError("WRONG_CREDENTIAL");
+  sameKey(ports, account, await openWithPin(ports, read.wrap, pin, "unlock"));
 }
 
 /** Checks the current phrase against the live recovery wrap (§5.6, D-41). Throws `RECOVERY_NOT_SET_UP`, `WRONG_CREDENTIAL`. */
 export async function verifyPhrase(ports: AccountPorts, account: OpenAccount, phrase: string): Promise<void> {
-  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
-  if (!wrap) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+  const read = await readWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
+  if (read.state === "absent") throw new ConvoyError("RECOVERY_NOT_SET_UP");
+  if (read.state === "unreadable") throw new ConvoyError("WRONG_CREDENTIAL");
+  const { wrap } = read;
   const recoveryKey = deriveRecoveryKey(ports.suite, account.accountId, phrase);
   let key: Uint8Array;
   try {

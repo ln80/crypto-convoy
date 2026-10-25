@@ -117,7 +117,8 @@ export class TeamOwner {
 
   /**
    * Every owner change is a rotation carrying the new owner list (§6.7, D-13). Keeps every
-   * current holder unless `keep` says otherwise; new owners must hold the current version.
+   * current holder unless `keep` says otherwise; new owners hold the current version or have keys
+   * it approves. An owner neither kept nor approved is `MALFORMED_RECORD`, before anything is built.
    */
   async setOwners(owners: readonly string[], options: Partial<RotationOptions> = {}): Promise<{ version: number; recipients: string[] }> {
     const keep = options.keep ?? (await this.#holders()).map((h) => h.accountId);
@@ -132,7 +133,7 @@ export class TeamOwner {
 
   /**
    * Low level: creates the next team key version for the kept holders and the approved keys
-   * (§6.6). Accounts left out lose access to it. Throws `NOT_AN_OWNER`, `STALE_VERSION`,
+   * (§6.6). Accounts left out lose access to it; an owner left out is `MALFORMED_RECORD`. Throws `NOT_AN_OWNER`, `STALE_VERSION`,
    * `MALFORMED_RECORD` (over the §2 bounds).
    */
   async rotate(options: RotationOptions): Promise<{ version: number; recipients: string[] }> {

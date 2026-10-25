@@ -11,7 +11,7 @@ import type { MemberBundle } from "../team/context.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { newMemberKeys, nextMemberKeysVersion, openBundles, openedWraps, recordVaultAnchor, vaultAnchorOf } from "./member-custody.js";
 import { deriveRecoveryKeys } from "./recovery-key.js";
-import { commit, fetchWrap } from "./unlock-methods.js";
+import { commit, readWrap } from "./unlock-methods.js";
 
 /** Teams re-keyed by an account-wide operation, and those to retry with `rekey` (§5.6, §5.11). */
 export interface RekeyReport {
@@ -30,12 +30,18 @@ export function samePhrase(a: string, b: string): boolean {
  * with its public key, `null` when the record doesn't parse or its key can't be read, which a session
  * can cause: a mismatch, never a failure (D-56).
  */
-export async function storedRecoveryKey(ports: AccountPorts, account: OpenAccount): Promise<{ present: boolean; key: Uint8Array | null }> {
+export async function storedRecoveryKey(
+  ports: AccountPorts,
+  account: OpenAccount,
+): Promise<{ present: boolean; parsed: boolean; key: Uint8Array | null }> {
+  const read = await readWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
+  if (read.state === "absent") return { present: false, parsed: false, key: null };
+  // A wrap that doesn't parse can't be checked against the phrase: a recovery setup with the PIN replaces it (D-58).
+  if (read.state === "unreadable") return { present: true, parsed: false, key: null };
   try {
-    const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
-    return wrap ? { present: true, key: openRecoveryPublicKey(wrap, account.key) } : { present: false, key: null };
+    return { present: true, parsed: true, key: openRecoveryPublicKey(read.wrap, account.key) };
   } catch (error) {
-    if (unreadable(error)) return { present: true, key: null };
+    if (unreadable(error)) return { present: true, parsed: true, key: null };
     throw error;
   }
 }
@@ -51,8 +57,11 @@ const unreadable = (error: unknown) => isConvoyError(error) && !isConvoyError(er
  */
 export async function typedPhrase(ports: AccountPorts, account: OpenAccount, phrase: string): Promise<{ signing: KeyPair; mismatch: boolean }> {
   const { suite } = ports;
-  const wrap = await fetchWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
-  if (!wrap) throw new ConvoyError("RECOVERY_NOT_SET_UP");
+  const read = await readWrap(ports, { accountId: account.accountId, accountKeyVersion: account.version, method: "recovery" });
+  if (read.state === "absent") throw new ConvoyError("RECOVERY_NOT_SET_UP");
+  // One that doesn't parse can't be opened with the phrase (D-58).
+  if (read.state === "unreadable") throw new ConvoyError("WRONG_CREDENTIAL");
+  const { wrap } = read;
   const { recoveryKey, signing } = deriveRecoveryKeys(suite, account.accountId, phrase);
   try {
     let key: Uint8Array;
@@ -150,6 +159,8 @@ export async function rekeyTeam(
   const options = { recoveryPublicKey, floor, ...(signer ? { recoverySigningSecretKey: signer.secretKey } : {}) };
   await commit(ports, newMemberKeys(ports, account, teamId, await nextMemberKeysVersion(ports, account, teamId), options).ops);
   await recordVaultAnchor(ports, account.accountId, teamId, floor, ownerAnchor !== undefined);
+  // An owner's anchor replaces every root of this context, its local anchor included: the device it runs on opens the repaired chain (D-54).
+  if (ownerAnchor && ports.anchors) await callPort(() => ports.anchors!.setAnchor(account.accountId, teamId, floor));
 }
 
 /**
