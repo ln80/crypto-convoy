@@ -113,4 +113,20 @@ Elsewhere:
 
 ## Execution notes
 
-(empty)
+- **D-63, as built:** `readServerState` opens `team-state` with the newest bundle only when it holds a floor, every held bundle otherwise. With a floor, a record that doesn't open there has `anchor: null`. `loadChain` no longer throws for an unreadable state: with no floor, `readServerState` throws the original error itself.
+- **D-62 amended, as built:** `readTeamStateRevision` reads `revision` before the envelope (1 to 2^53 − 2, else `MALFORMED_RECORD`). A parse failure with a floor is absent, and `unknownVersion` is set for `UNSUPPORTED_VERSION`. `advanceAnchor` never replaces an absent record that has `unknownVersion` set, nor one whose newest bundle isn't in the roster.
+- **Clean-up:** `maintainBundles` no longer reads or rewrites `team-state`. The same batch gives the newest bundle a floor when it has none, so after clean-up the newest keys always hold a floor, and §6.8 step 4 says only that. This simplifies the spec phase's wording, which kept a rewrite for keys with no floor.
+- **§4.4 correction during the spec phase:** a context mismatch is `TRUST_FAILURE` (`context_mismatch`), not `MALFORMED_RECORD` (§8).
+- **025-C:** accepted in TH-25 (now Partly mitigated), SP-18's Limit, and the integration guide's `team-key-version` route. Ledger residual added.
+- **Text:** 024-B (scope rule 4, §11, the integration route), 025-D (TH-20, §5.11 step 2), 025-E (§6.1 step 7), and 024-C (the `openTeamState` comment). The course (gitignored, local) was updated: `03-the-team/03-anchors.md`, `02-the-account/answers.md`, and the stale "floor from the `team-state` anchor" in `02-the-account/06-same-pin-rewraps.md` (D-52), found in passing.
+- **Tests:**
+  - `secure-account.test.ts`: a sole owner with a forged readable state approves after `secureAccount`, with the state rewritten and with it replayed.
+  - `record-archive.test.ts`: a short ciphertext is replaced; a `v: 2` record is left alone.
+  - `rollback.test.ts`: with no floor, a malformed record is `MALFORMED_RECORD`; the test now writes through compare-and-set, since the fake store serves its first matching replacement.
+  - `key-substitution.test.ts`: SP-18's Limit, where every member is `bad_signature`.
+- **Guards** (each fails one test):
+  - every bundle opening `team-state` with a floor;
+  - the full parse before the revision;
+  - an unknown version made replaceable.
+- **Checks:** `typecheck`, `npm test` (762), `test:browser` (10), `check:spec`, `build` and `test:package` pass.
+- **Integration (doconvoy e2eev2):** the Go key store must refuse a `team-state` write that isn't at the current revision + 1. The library relies on this (scope rule 4). No API change.

@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 024 (`change`, plan 019) and 025 (`adversarial`, fresh context, no critical or high). Open findings to fix: 024-A (= 025-A, a malformed `team-state` with a floor) and 025-B (a forged readable `team-state` blocks the owner's own approval); to decide: 025-C. Edits: 024-B, 024-C, 025-D, 025-E. Still open, low: 011-A. Plan 020 (`.agents/plans/020-team-state-newest-key.plan.md`) fixes 024-A and 025-B, accepts 025-C and does the edits. Design review 026: replace the re-key's write with "counts only under the newest key"; an unknown `v` is never replaced. Plan 020 revised accordingly. Next: implement it, then a `change` review and a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 025 (`adversarial`) and 026 (`design`); plan 020 fixed 024-A (= 025-A) and 025-B (D-62 amended, D-63), accepted 025-C, and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F. Next: a `change` review of plan 020, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -135,19 +135,19 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 023-D | Simplification | — | Dropped | Rejected in D-62 |
 | 023-E | Spec gap | Low | Fixed | §6.1 step 1, D-62 |
 | 023-F | Spec gap | Low | Fixed | Clean-up; revision cap |
-| 024-A | Overclaim, spec → code | Medium (025-A) | Open | Needs a D-62 amendment: a malformed `team-state` is absent with a floor |
-| 024-B | Spec → code | Low | Open | Scope rule 4, §11: revision current + 1 (edit) |
-| 024-C | Stale text | Low | Open | `team-state.ts` comment, course (edit); ledger residual narrowed |
-| 025-A | Overclaim, spec → code | Medium | Open | Same as 024-A; wider impact |
-| 025-B | Wrong premise | Medium | Open | Needs a decision: the re-key writes `team-state` under the new keys, or a support step in the remedy |
-| 025-C | Overclaim, missing threat | Medium | Open | Needs a decision: accept and document (TH-25, SP-18, integration guide), or the server verifies version signatures |
-| 025-D | Overclaim | Low | Open | TH-20, §5.11 (edit) |
-| 025-E | Spec → code | Low | Open | §6.1 step 7 (edit) |
-| 026-A | Simplification | Medium | Open | Taken in plan 020 (D-63): `team-state` counts only under the newest key, in place of the re-key's write |
-| 026-B | Forgeable input, spec gap | Medium | Open | Taken in plan 020 (D-62 amended): an unknown `v` or suite is absent, never replaced |
+| 024-A | Overclaim, spec → code | Medium (025-A) | Fixed | D-62 amended (plan 020) |
+| 024-B | Spec → code | Low | Fixed | Scope rule 4, §11 (plan 020) |
+| 024-C | Stale text | Low | Fixed | `team-state.ts` comment, course (plan 020); ledger residual narrowed |
+| 025-A | Overclaim, spec → code | Medium | Fixed | D-62 amended (plan 020) |
+| 025-B | Wrong premise | Medium | Fixed | D-63: with a floor, `team-state` counts only under the newest keys (plan 020) |
+| 025-C | Overclaim, missing threat | Medium | Accepted | TH-25, SP-18 Limit, integration guide (plan 020) |
+| 025-D | Overclaim | Low | Fixed | TH-20, §5.11 (plan 020) |
+| 025-E | Spec → code | Low | Fixed | §6.1 step 7 (plan 020) |
+| 026-A | Simplification | Medium | Fixed | D-63 (plan 020) |
+| 026-B | Forgeable input, spec gap | Medium | Fixed | D-62 amended: an unknown version is never replaced (plan 020) |
 | 026-C | Spec gap | Low | Dropped | Moot: plan 020 has no write |
 | 026-D | Hardening | Low | Dropped | Moot: plan 020 has no write |
-| 026-E | Spec gap | Low | Open | Scope rule 4: revision + 1 relied on (with 024-B) |
+| 026-E | Spec gap | Low | Fixed | Scope rule 4: revision + 1, relied on (plan 020) |
 | 026-F | Simplification | — | Open | Next `complexity` review: `team-state` conflicts as reports |
 
 ## Residuals
@@ -173,14 +173,14 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-37 | A11 | An owner approving an unproven request without the out-of-band check | Needs a human (AS-06); invite proofs deferred (D-32) | D-32 |
 | TH-38 | A6 with A2 | Two records for one version, shown to different members | Needs key transparency | Key transparency |
 | TH-41 | A8 | A phrase thief proves re-keys and races the member, until an owner removes the account or approves one set by hand | The phrase is the proof (D-33); securing with a new phrase ends it (D-45) | — |
-| TH-46 | A11 | Garbage or deleted wraps, and an unreadable `team-state` for keys with no floor, make a team unavailable until support acts; with a floor, an unreadable `team-state` is replaced at the next open (D-62) | Availability, like TH-28 | — |
+| TH-46 | A11 | Garbage or deleted wraps, a `team-state` that doesn't open for keys with no floor, and one at an unknown version, make a team unavailable or leave it without a server anchor until support acts; with a floor, any other `team-state` that doesn't open is replaced at the next open (D-62) | Availability, like TH-28 | — |
 | TH-47 | A11 | Bait keys keep a member's keys unapprovable while the thief keeps the session | Only the newest keys are approved | — |
 | TH-48 | A8, A7, A2 | A support restore brings back what an attacker can open | Restores are the integration's to authenticate | — |
 | TH-49 | A2, A9 | A forged transfer opens a forged team in a receiving context | The two contexts share no secret; the channel is the integration's (D-29) | A shared secret between contexts |
 | TH-50 | A4 or A5 with A2 | A holder of an older team key version and the server rewrite or add items | Readers can't order writes; the server's write-once rule is the barrier | D-09 with key transparency or an owner-signed item index |
 | TH-12, SP-19 | A2 or a support restore, with the old account key | A retired account key version, served to a stateless or stale device or restored, opens with unchanged credentials; keys made there are the attacker's | No client rule tells a retired version from the current one without state (D-54) | Key transparency for account versions |
 | TH-09, TH-51 | A2, A10 | One POPRF key per key id serves every account: a repeated proof nonce or one exported tweaked key reveals it; queries concentrate on it | Per-account public keys can't be pinned in client code (D-53) | Key ids rotated, or a cap per key id, in the integration |
-| TH-46 | A9, A7 (`teamStateKey`) | A readable `team-state` with a forged anchor stops the account's devices (`state_conflict`, `rollback`) until support restores | Overwriting it would discard evidence of a split view (D-52) | — |
+| TH-46 | A9, A7 (`teamStateKey`) | A readable `team-state` with a forged anchor, under the account's newest keys, stops the account's devices (`state_conflict`, `rollback`) until support restores or the account re-keys; under keys being replaced it stops nothing (D-63) | Overwriting it would discard evidence of a split view (D-52) | — |
 | TH-20 | A9, A7 (account key), A2 | A planted floor on a device whose vault never verified the team, with a server serving a matching forged chain, is trusted until an owner's anchor is given | The vault has no other root there (D-54) | Owner fingerprints (D-11) |
 | TH-12, SP-23 | A7 or A9 with the session, with A2 | Keys made without the phrase (`createTeam`, `joinTeam`, an unproven `rekey`) while the recovery wrap names the attacker's key carry it: its re-keys stay proven there, and a colluding server can publish them after `secureAccount`, until an owner approves the user's re-key by hand | No phrase-free source of the current recovery key that an account-key holder can't rewrite (D-56) | A locally pinned recovery key, or key transparency |
 | TH-39 | A2 or A3 on the channel | A substituted transfer request receives the member's private keys, the owner key included | The two contexts share no secret; the channel is the integration's (D-29), as in TH-49 | A shared secret between contexts |
@@ -189,5 +189,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-20 | A7 or A9 (account key) with the session | A planted wrap that opens with keys its published record doesn't match fails that team for the account, re-joins and repairs included, until support archives it (review 022 A) | Only the account key makes a wrap; telling a planted one from a server's forged record would need trusting the server (D-58) | Key transparency for member keys |
 | SP-18, §10 | — (a reader that hasn't updated) | A roster entry naming a `member-keys` record of a newer format reads as `key_mismatch`, not `UNSUPPORTED_VERSION`, because a team's list leaves out records it can't read (D-58) | Otherwise a joiner stops the team by declaring an unknown version; readers ship before writers (§10) | A version check on roster entries |
 | TH-04 | A2 | An existing member re-joining without an anchor, on a device with no vault anchor, while the server withholds its wraps, is a first contact (review 019 A, review 020) | The vault has no root there; the integration re-joins members only with an owner's anchor (D-59) | Owner fingerprints (D-11) or key transparency |
+
+| TH-25 | A11 on an owner's account, or a holder of the owner capability | A team key version that fails its checks, at the next version, stops the team for every member, for good (review 025 C) | Availability; a chain can't leave a version out, and both fixes are costly (a server signature check, or support freeing a version identity) | A server-side signature check, or support freeing a version identity |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
