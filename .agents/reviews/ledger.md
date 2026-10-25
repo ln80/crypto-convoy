@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 024 (`change`, plan 019) and 025 (`adversarial`, fresh context, no critical or high). Open findings to fix: 024-A (= 025-A, a malformed `team-state` with a floor) and 025-B (a forged readable `team-state` blocks the owner's own approval); to decide: 025-C. Edits: 024-B, 024-C, 025-D, 025-E. Still open, low: 011-A. Plan 020 (`.agents/plans/020-malformed-state-rekey-writes-state.plan.md`) fixes 024-A and 025-B, accepts 025-C and does the edits. Next: its `design` review, then after it a `change` review and a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 024 (`change`, plan 019) and 025 (`adversarial`, fresh context, no critical or high). Open findings to fix: 024-A (= 025-A, a malformed `team-state` with a floor) and 025-B (a forged readable `team-state` blocks the owner's own approval); to decide: 025-C. Edits: 024-B, 024-C, 025-D, 025-E. Still open, low: 011-A. Plan 020 (`.agents/plans/020-team-state-newest-key.plan.md`) fixes 024-A and 025-B, accepts 025-C and does the edits. Design review 026: replace the re-key's write with "counts only under the newest key"; an unknown `v` is never replaced. Plan 020 revised accordingly. Next: implement it, then a `change` review and a fresh `adversarial` review.
 
 ## Findings
 
@@ -143,6 +143,12 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 025-C | Overclaim, missing threat | Medium | Open | Needs a decision: accept and document (TH-25, SP-18, integration guide), or the server verifies version signatures |
 | 025-D | Overclaim | Low | Open | TH-20, §5.11 (edit) |
 | 025-E | Spec → code | Low | Open | §6.1 step 7 (edit) |
+| 026-A | Simplification | Medium | Open | Taken in plan 020 (D-63): `team-state` counts only under the newest key, in place of the re-key's write |
+| 026-B | Forgeable input, spec gap | Medium | Open | Taken in plan 020 (D-62 amended): an unknown `v` or suite is absent, never replaced |
+| 026-C | Spec gap | Low | Dropped | Moot: plan 020 has no write |
+| 026-D | Hardening | Low | Dropped | Moot: plan 020 has no write |
+| 026-E | Spec gap | Low | Open | Scope rule 4: revision + 1 relied on (with 024-B) |
+| 026-F | Simplification | — | Open | Next `complexity` review: `team-state` conflicts as reports |
 
 ## Residuals
 
