@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 027 (`change`, plan 020, nothing to fix) and 028 (`adversarial`, fresh context, no critical or high). Open findings to fix: 028-A (one bad record stops `warnings()` and `confirmRecoveryPhrase` for the account). Edits: 027-A, 028-B, 028-D, 028-E. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a plan for 028-A and the edits, then a `change` review and a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 027 (`change`, plan 020, nothing to fix) and 028 (`adversarial`, fresh context, no critical or high). Open findings to fix: 028-A (one bad record stops `warnings()` and `confirmRecoveryPhrase` for the account). Edits: 027-A, 028-B, 028-D, 028-E. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 021 (`.agents/plans/021-bad-team-stops-only-its-team.plan.md`) fixes 028-A and does the edits. Next: implement it, then a `change` review and a fresh `adversarial` review.
 
 ## Findings
 
