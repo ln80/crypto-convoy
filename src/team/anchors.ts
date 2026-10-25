@@ -1,21 +1,27 @@
 // Anchors against rollback (§4.4, §6.1 steps 1 and 7, SP-07).
 import type { Anchor } from "../encoding/link.js";
-import { StoreConflictError, trustFailure } from "../errors.js";
+import { StoreConflictError, isConvoyError, trustFailure } from "../errors.js";
 import { callPort, type TeamStateKey } from "../ports.js";
-import { createTeamState, openTeamState, parseTeamState, teamStateToJson } from "../records/team-state.js";
+import { createTeamState, openTeamState, parseTeamState, readTeamStateRevision, teamStateToJson } from "../records/team-state.js";
 import { keysHash } from "../records/member-keys.js";
 import type { VerifiedChain } from "./chain.js";
 import type { MemberBundle, TeamPorts } from "./context.js";
 
 export interface ServerState {
   readonly revision: number;
-  /** Null when no team state key the session holds opens it: absent where the keys hold a floor (D-62). */
+  /** Null when it doesn't open: absent, which happens only where the newest keys hold a floor (D-62, D-63). */
   readonly anchor: Anchor | null;
+  /** At a `v` or suite this library doesn't read: absent, and never replaced, since readers ship first (§10, D-62). */
+  readonly unknownVersion?: boolean;
 }
 
 const stateKey = (accountId: string, teamId: string): TeamStateKey => ({ type: "team-state", accountId, teamId });
 
-/** The server's `team-state`, opened with any of this account's team state keys; one none opens has no anchor (D-62). */
+/**
+ * The server's `team-state` (§4.4). With a floor, it counts only under the newest bundle's key, and one that
+ * doesn't open there is absent (D-62, D-63). With no floor it is a root: opened with any bundle held, and
+ * any failure is thrown.
+ */
 export async function readServerState(
   ports: Pick<TeamPorts, "store" | "suite">,
   accountId: string,
@@ -24,16 +30,26 @@ export async function readServerState(
 ): Promise<ServerState | null> {
   const json = await callPort(() => ports.store.get(stateKey(accountId, teamId)));
   if (json === null || json === undefined) return null;
-  const record = parseTeamState(json, { accountId, teamId });
-  for (const bundle of bundles) {
+  // Read before the version, so the anchor advance can replace what doesn't open (D-62).
+  const revision = readTeamStateRevision(json);
+  const floored = bundles[0]?.floor !== undefined;
+  let record;
+  try {
+    record = parseTeamState(json, { accountId, teamId });
+  } catch (error) {
+    if (!floored) throw error;
+    return { revision, anchor: null, unknownVersion: isConvoyError(error, "UNSUPPORTED_VERSION") };
+  }
+  // Keys being replaced don't count: a state written under them stops nothing once the account re-keys (D-63).
+  for (const bundle of floored ? bundles.slice(0, 1) : bundles) {
     try {
-      return { revision: record.revision, anchor: openTeamState(record, bundle.pairs.teamStateKey) };
+      return { revision, anchor: openTeamState(record, bundle.pairs.teamStateKey) };
     } catch {
-      // Another bundle may have written it (after a re-key).
+      // With no floor, another bundle may have written it (after a re-key).
     }
   }
-  // Its revision is readable without the key, so the anchor advance can replace it (D-62).
-  return { revision: record.revision, anchor: null };
+  if (!floored) throw trustFailure("state_unreadable");
+  return { revision, anchor: null };
 }
 
 /** Advances the anchor to the newest verified version, locally and on the server (§6.1 step 7), written under the newest bundle's key. */
@@ -58,7 +74,7 @@ export async function advanceAnchor(
   );
   for (let attempt = 0; attempt < 3; attempt++) {
     if (server?.anchor && server.anchor.version >= anchor.version) return;
-    if (server && !server.anchor && !held) return;
+    if (server && !server.anchor && (!held || server.unknownVersion)) return;
     const revision = (server?.revision ?? 0) + 1;
     const record = createTeamState(ports.suite, { accountId, teamId }, revision, bundle.pairs.teamStateKey, anchor);
     try {
@@ -70,7 +86,7 @@ export async function advanceAnchor(
       return;
     } catch (error) {
       if (!(error instanceof StoreConflictError)) throw error;
-      // Another device of this account wrote first, under any of its bundles: its anchor must be in our chain too.
+      // Another device of this account wrote first: its anchor must be in our chain too; a newer one is left to the next open.
       server = await readServerState(ports, accountId, teamId, bundles);
       if (server?.anchor && server.anchor.version <= anchor.version) {
         const hash = chain.hashes.get(server.anchor.version);

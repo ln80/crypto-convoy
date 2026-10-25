@@ -105,10 +105,15 @@ describe("SP-07: a client never goes back", () => {
 
   it("a corrupted team-state stops keys with no floor, where it is a root (state_unreadable); with a floor it is absent (D-62)", async () => {
     const { bob } = await threeVersions();
-    const state = (await bob.store.get(stateKey)) as Record<string, unknown>;
     const b64 = (n: number) => Buffer.from(cc1.randomBytes(n)).toString("base64url");
-    bob.store.replace(stateKey, { ...state, wrappedState: { nonce: b64(24), ciphertext: b64(56) } });
+    // Written through the session, as a thief would: each write is the next revision.
+    const write = async (wrappedState: Record<string, string>) => {
+      const state = (await bob.store.get(stateKey)) as Record<string, unknown> & { revision: number };
+      await bob.store.commit([{ op: "compare-and-set", key: stateKey, expectedRevision: state.revision, record: { ...state, revision: state.revision + 1, wrappedState } }]);
+    };
+    await write({ nonce: b64(24), ciphertext: b64(56) });
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    await write({ nonce: b64(24), ciphertext: b64(56) });
     // Keys with no floor (written before D-48): the team state is a root, so an unreadable one stops the team.
     const held = await bundleOf(bob.vault);
     const { ports, account } = vaultInternals(bob.vault);
@@ -116,6 +121,9 @@ describe("SP-07: a client never goes back", () => {
     const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey };
     await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("state_unreadable"));
+    // A malformed one fails too there, before any key is tried (D-62).
+    await write({ nonce: b64(3), ciphertext: b64(3) });
+    await expect(bob.vault.openTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
   });
 
   it("a joiner's invite anchor is checked at join: a chain without it is refused before any key is written (D-48)", async () => {

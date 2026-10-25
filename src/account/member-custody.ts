@@ -2,7 +2,6 @@
 import type { Anchor } from "../encoding/link.js";
 import { ConvoyError, StoreConflictError, isConvoyError } from "../errors.js";
 import { decodeRequest, sealTransfer } from "../records/transfer.js";
-import { readServerState } from "../team/anchors.js";
 import { loadChain } from "../team/load.js";
 import { callPort, type WriteOp } from "../ports.js";
 import { createMemberKeys, keysHash, memberKeysToJson, parseMemberKeys, type MemberKeysProofs } from "../records/member-keys.js";
@@ -18,7 +17,6 @@ import {
   type MemberKeysWrap,
 } from "../records/member-keys-wrap.js";
 import { createTeamKeyVersion, recordHash, teamKeyVersionToJson, type TeamKeyVersion } from "../records/team-key-version.js";
-import { createTeamState, teamStateToJson } from "../records/team-state.js";
 import type { MemberBundle, TeamPorts } from "../team/context.js";
 import { TeamSession, sessionInternals } from "../team/session.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
@@ -296,17 +294,8 @@ async function maintainBundles(
     );
     const cleanUp = older.length > 0 && held;
     if (cleanUp) {
-      const server = await readServerState(ports, accountId, teamId, bundles);
-      // The same anchor, under the newest keys: advancing it here would hide owner changes the session reports (§6.1 step 3).
-      // Only a readable one keeps its anchor; an unreadable one the next advance replaces (D-62).
-      if (server?.anchor) {
-        ops.push({
-          op: "compare-and-set",
-          key: { type: "team-state", accountId, teamId },
-          expectedRevision: server.revision,
-          record: teamStateToJson(createTeamState(suite, { accountId, teamId }, server.revision + 1, newest.pairs.teamStateKey, server.anchor)),
-        });
-      }
+      // The newest keys hold a floor after this batch, so a team-state under the older ones is absent and the
+      // next anchor advance rewrites it (D-63).
       ops.push(
         ...older.map((b): WriteOp => ({
           op: "delete",

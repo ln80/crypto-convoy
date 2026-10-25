@@ -168,4 +168,15 @@ describe("SP-18: a malformed member keys record stops nothing (D-58, review 016 
     expect((await requestOf(fresh.owner(), "mallory")).keys).toMatchObject({ memberKeysVersion: 1 });
     expect(await aliceTeam.owner().reconcile(["alice", "bob", "mallory"])).toMatchObject({ needsHuman: [expect.objectContaining({ accountId: "mallory" })] });
   });
+
+  it("Limit: a team key version with a bad signature, which an owner's session can publish, stops the chain for every member (TH-25)", async () => {
+    const { members, w } = await team("bob");
+    // The caller holds the owner capability and is the signer, so the server's check passes (rule 8).
+    const current = (await w.server.as("alice").get({ type: "team-key-version", teamId: "team-1", version: 2 })) as Record<string, unknown>;
+    await w.server.as("alice").commit([
+      { op: "create", key: { type: "team-key-version", teamId: "team-1", version: 3 }, record: { ...current, version: 3, signature: Buffer.alloc(64, 1).toString("base64url") } },
+    ]);
+    expect((await members.bob!.vault.openTeam("team-1")).failure).toEqual(trust("bad_signature"));
+    expect((await members.alice!.vault.openTeam("team-1")).failure).toEqual(trust("bad_signature"));
+  });
 });

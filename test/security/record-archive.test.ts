@@ -33,6 +33,25 @@ describe("SP-26: a session can't destroy an account's private records", () => {
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
   });
 
+  it("TH-46: a malformed team-state is absent where the keys hold a floor, and replaced; one at an unknown version is left alone (D-62)", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    (await bob.vault.openTeam("team-1")).close();
+    const write = async (record: (state: Record<string, unknown>) => Record<string, unknown>) => {
+      const state = (await bob.store.get(stateKey)) as Record<string, unknown> & { revision: number };
+      await bob.store.commit([{ op: "compare-and-set", key: stateKey, expectedRevision: state.revision, record: { ...record(state), revision: state.revision + 1 } }]);
+      return state.revision + 1;
+    };
+    // A ciphertext too short for its suite: a known version that fails its shape is absent and replaced.
+    const short = await write((state) => ({ ...state, wrappedState: { nonce: b64(3), ciphertext: b64(3) } }));
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    expect(((await bob.store.get(stateKey)) as { revision: number }).revision).toBe(short + 1);
+    // A version this library doesn't read: absent, never replaced, since readers ship first (§10).
+    const newer = await write((state) => ({ ...state, v: 2 }));
+    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
+    expect(await bob.store.get(stateKey)).toMatchObject({ v: 2, revision: newer });
+  });
+
   it("TH-46: a deleted member keys wrap is restored", async () => {
     const { members, w } = await team("bob");
     const bob = members.bob!;
