@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 025 (`adversarial`) and 026 (`design`); plan 020 fixed 024-A (= 025-A) and 025-B (D-62 amended, D-63), accepted 025-C, and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F. Next: a `change` review of plan 020, then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 027 (`change`, plan 020, nothing to fix) and 028 (`adversarial`, fresh context, no critical or high). Open findings to fix: 028-A (one bad record stops `warnings()` and `confirmRecoveryPhrase` for the account). Edits: 027-A, 028-B, 028-D, 028-E. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a plan for 028-A and the edits, then a `change` review and a fresh `adversarial` review.
 
 ## Findings
 
@@ -149,6 +149,12 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 026-D | Hardening | Low | Dropped | Moot: plan 020 has no write |
 | 026-E | Spec gap | Low | Fixed | Scope rule 4: revision + 1, relied on (plan 020) |
 | 026-F | Simplification | — | Open | Next `complexity` review: `team-state` conflicts as reports |
+| 027-A | Hardening (test coverage) | Low | Open | `test/support/parsers.ts`: fuzz the revision reader (edit) |
+| 028-A | Spec → code, overclaim | Medium | Open | Needs a D-58 line: a team whose bundles fail is reported, never stops the warnings or `confirmRecoveryPhrase` |
+| 028-B | Missing threat | Low | Open | D-63 accepted risk: a withheld newest wrap (edit) |
+| 028-C | Simplification | — | Open | Next `complexity` review, with 026-F |
+| 028-D | Stale text | Low | Open | `member-custody.ts` comment (edit) |
+| 028-E | Overclaim | Low | Open | TH-20 (edit) |
 
 ## Residuals
 
