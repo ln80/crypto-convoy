@@ -160,7 +160,8 @@ export function newTeamOps(
     roster: [
       {
         accountId: account.accountId,
-        memberKeysVersion: 1,
+        // The version the keys were numbered with: 1 unless keys were already published under the account (§6.3, §5.9).
+        memberKeysVersion,
         keysHash: keysHash(suite, bundle.published),
         encryptionPublicKey: bundle.pairs.encryption.publicKey,
       },

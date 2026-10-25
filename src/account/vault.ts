@@ -86,9 +86,11 @@ export interface DeviceEntry {
 export interface VaultWarning {
   readonly code: "recovery-not-set-up" | "pin-not-set-up" | "rekey-needed" | "foreign-member-keys" | "pin-upgrade-failed" | "recovery-key-mismatch";
   /**
-   * For `rekey-needed`: teams whose member keys don't carry the current recovery key. For
-   * `foreign-member-keys`: teams with keys published under the account that this vault didn't make
-   * (D-43): someone may hold the session; end other sessions, then re-key.
+   * For `rekey-needed`: teams whose member keys don't carry the current recovery key; re-key each with
+   * the phrase, whose key is taken as typed, never the stored one (D-56). For `foreign-member-keys`:
+   * teams with keys published under the account that this vault didn't make, or whose keys fail their
+   * checks, which a withheld record causes too (D-43, D-58): someone likely holds the session; end other
+   * sessions, then `secureAccount`. Only teams where the vault holds keys are listed (TH-37).
    */
   readonly teamIds: readonly string[];
   /**
@@ -216,11 +218,13 @@ export class Vault {
     const signer = old && typeof currentPhrase === "string" ? (await typedPhrase(this.#ports, account, currentPhrase)).signing : undefined;
     try {
       const wrap = recoveryWrap(this.#ports, account, pending);
+      const next = openRecoveryPublicKey(wrap, account.key);
+      // Listed before anything is written: a store error then writes nothing, and the pending phrase is kept (§5.6).
+      const teams = await teamsWithOldRecoveryKey(this.#ports, account, next);
       await commit(this.#ports, old ? replaceWrap(wrap) : [createWrap(wrap)]);
       this.#pendingPhrase = null;
       this.#recoveryMismatch = false;
-      const next = openRecoveryPublicKey(wrap, account.key);
-      return await rekeyTeams(this.#ports, account, await teamsWithOldRecoveryKey(this.#ports, account, next), next, signer);
+      return await rekeyTeams(this.#ports, account, teams, next, signer);
     } finally {
       if (signer) this.#ports.suite.wipe(signer.secretKey);
     }
@@ -389,6 +393,8 @@ export class Vault {
       if (input.newPhrase !== undefined && (pending === null || !samePhrase(input.newPhrase, pending))) throw new ConvoyError("WRONG_CREDENTIAL");
       const anchors = new Map(Object.entries(input.anchors ?? {}).map(([teamId, anchor]) => [teamId, decodeAnchor(anchor)]));
       const listed = productTeams(input.teamIds);
+      // Listed before anything is written, so a store error writes nothing; a rotation re-wraps the same teams (§5.11, D-58).
+      const teams = await accountTeams(this.#ports, current);
       if (input.newPin !== undefined) await this.#refuseCurrentPin(current, input.newPin);
       const pin = input.newPin !== undefined ? { newPin: input.newPin } : {};
       const phrases = input.newPhrase !== undefined ? { phrase: input.phrase, newPhrase: pending! } : { phrase: input.phrase };
@@ -399,7 +405,6 @@ export class Vault {
       // The new keys carry the typed phrase's key, the new one if given, never one read back; the proof is by the current one (D-45, D-56).
       const next = input.newPhrase !== undefined ? phrasePublicKey(this.#ports, this.accountId, pending!) : signer.publicKey;
       // Floors only where every root agrees, or from an owner's anchor: a planted floor fails its team (D-54).
-      const teams = await accountTeams(this.#ports, account);
       // Teams the product lists with no wrap that opens: their keys were removed; reported, never skipped (D-60).
       const missing = listed.filter((teamId) => !teams.includes(teamId));
       return await rekeyTeams(this.#ports, account, teams, next, signer, anchors, missing);
@@ -448,9 +453,10 @@ export class Vault {
     }
     const recovery = await currentRecoveryKey(this.#ports, account);
     if (!recovery) return [{ code: "recovery-not-set-up", teamIds: [], action: "beginRecoverySetup" }, ...warnings];
-    const stale = await teamsWithOldRecoveryKey(this.#ports, account, recovery);
-    if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
     const foreign = await teamsWithForeignKeys(this.#ports, account);
+    // A team whose keys fail is answered with secureAccount, not rekey: listed once, under foreign keys (D-58).
+    const stale = (await teamsWithOldRecoveryKey(this.#ports, account, recovery)).filter((teamId) => !foreign.includes(teamId));
+    if (stale.length > 0) warnings.push({ code: "rekey-needed", teamIds: stale, action: "rekey" });
     // Keys this vault didn't make: someone holds the session or the old account key (D-54).
     if (foreign.length > 0) warnings.push({ code: "foreign-member-keys", teamIds: foreign, action: "secureAccount" });
     if (this.#upgradeFailure) {

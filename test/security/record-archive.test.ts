@@ -245,8 +245,20 @@ describe("SP-26: a record that fails its checks stops nothing (D-58, review 016 
     it("a published record the server withholds", async () => {
       const bob = await setup();
       bob.store.drop({ type: "member-keys", teamId: "team-2", accountId: "bob" });
-      expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "foreign-member-keys", teamIds: ["team-2"] }));
+      const warnings = await bob.vault.warnings();
+      expect(warnings).toContainEqual(expect.objectContaining({ code: "foreign-member-keys", teamIds: ["team-2"] }));
+      // Listed once, with the advice that fits it, not also as a team to re-key (review 029 A).
+      expect(warnings).not.toContainEqual(expect.objectContaining({ code: "rekey-needed" }));
       expect(await replacePhraseReport(bob)).toEqual({ rekeyed: ["team-1"], failed: ["team-2"] });
+    });
+
+    it("a store error while listing the teams writes nothing: the old phrase still works, and a retry re-keys (review 030 A)", async () => {
+      const bob = await setup();
+      const { recoveryPhrase } = bob.vault.beginRecoverySetup();
+      bob.store.failOn({ type: "member-keys", teamId: "team-2" });
+      await expect(bob.vault.confirmRecoveryPhrase(recoveryPhrase, { currentPhrase: bob.recoveryPhrase })).rejects.toEqual(code("STORE_ERROR"));
+      bob.store.reset();
+      expect(await bob.vault.confirmRecoveryPhrase(recoveryPhrase, { currentPhrase: bob.recoveryPhrase })).toEqual({ rekeyed: ["team-1", "team-2"], failed: [] });
     });
   });
 });

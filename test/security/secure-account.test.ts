@@ -16,6 +16,7 @@ import { team } from "../support/teams.js";
 import { createTeamKeyReceiver } from "../../src/team/receiver.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { createTeamState, teamStateToJson } from "../../src/records/team-state.js";
+import { createMemberKeys, memberKeysToJson } from "../../src/records/member-keys.js";
 
 const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as const;
 
@@ -233,6 +234,34 @@ describe("SP-11 / SP-23: secureAccount reports the product's teams whose keys we
     // The server replays the forged revision: the old keys are gone, so it is absent and replaced again.
     alice.store.replace(aliceState, w.server.archived(aliceState).at(-1)!);
     expect((await alice.vault.openTeam("team-1")).state).toBe("ready");
+  });
+
+  it("lists the teams before rotating: a store error afterwards fails that team, reported, never the whole call (review 030 A)", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    // Every read of the wraps fails once the rotation is written.
+    bob.store.onCommit((ops) => {
+      if (ops.some((op) => op.op === "set-account-key-version")) bob.store.failOn({ type: "member-keys-wrap" });
+    });
+    expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" })).toEqual({ rekeyed: [], failed: ["team-1"] });
+    bob.store.reset();
+    expect(await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase })).toBeUndefined();
+  });
+
+  it("a team created after keys were published for its id names the version its keys took (§6.3, review 030 B)", async () => {
+    const { members } = await team("bob");
+    const bob = members.bob!;
+    // A session publishes keys under bob's account for an id bob will use.
+    const keys = strangerKeys();
+    const record = createMemberKeys(cc1, {
+      teamId: "team-9", accountId: "bob", memberKeysVersion: 1, signingPublicKey: keys.signing.publicKey,
+      encryptionPublicKey: keys.encryption.publicKey, recoveryPublicKey: keys.signing.publicKey, createdAt: 1,
+    }, keys.signing.secretKey);
+    await bob.store.commit([{ op: "create", key: { type: "member-keys", teamId: "team-9", accountId: "bob", memberKeysVersion: 1 }, record: memberKeysToJson(record) }]);
+    await bob.vault.createTeam("team-9");
+    const session = await bob.vault.openTeam("team-9");
+    expect(session.state).toBe("ready");
+    expect((await bundleOf(bob.vault, "team-9")).memberKeysVersion).toBe(2);
   });
 
   it("refuses teamIds that aren't ids, before anything is written", async () => {

@@ -11,6 +11,7 @@ const recordMatches = (record: unknown, match: Record<string, unknown>) =>
 export class TamperingStore implements RecordStore {
   #replacements: { match: Match; value: () => unknown }[] = [];
   #dropped: Match[] = [];
+  #failing: Match[] = [];
   #chainCuts = new Map<string, number>();
   #forks: { teamId: string; version: number; record: unknown }[] = [];
   #listSwaps: { query: Match; match: Record<string, unknown>; value: () => unknown }[] = [];
@@ -31,6 +32,12 @@ export class TamperingStore implements RecordStore {
   /** Withholds matching records: `get` returns null and `list` leaves them out. */
   drop(match: Match): this {
     this.#dropped.push(match);
+    return this;
+  }
+
+  /** Fails reads of matching records, as a network error would (`get`, and `list` queries that match). */
+  failOn(match: Match): this {
+    this.#failing.push(match);
     return this;
   }
 
@@ -73,6 +80,7 @@ export class TamperingStore implements RecordStore {
   reset(): this {
     this.#replacements = [];
     this.#dropped = [];
+    this.#failing = [];
     this.#chainCuts.clear();
     this.#forks = [];
     this.#listSwaps = [];
@@ -97,10 +105,12 @@ export class TamperingStore implements RecordStore {
   }
 
   async get(key: RecordKey) {
+    if (this.#failing.some((m) => matches(key, m))) throw new Error("network");
     return this.#tamper(await this.inner.get(key), key);
   }
 
   async list(query: RecordQuery) {
+    if (this.#failing.some((m) => matches(query, m))) throw new Error("network");
     const records = await this.inner.list(query);
     const out = records
       .map((record) => this.#tamper(record, { ...(record as object), type: query.type }))

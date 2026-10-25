@@ -215,6 +215,23 @@ describe("SP-07: a client never goes back", () => {
       expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
     });
 
+    it("a replayed team-state below the chain, re-read after a write conflict, isn't followed (§6.1 step 7, review 030 D)", async () => {
+      const { members, aliceTeam, w } = await team("bob");
+      const bob = members.bob!;
+      const old = await bob.store.get(stateKey);
+      await aliceTeam.owner().rotate({ keep: ["bob"] });
+      await (await members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
+      (await bob.vault.openTeam("team-1")).close();
+      expect((await bundleOf(bob.vault)).floor?.version).toBe(4);
+      // A new device; the server serves the old revision, readable under bob's keys, below the floor: the write conflicts.
+      const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
+      await phone.vault.unlockWithPin("1234");
+      phone.store.replace(stateKey, old);
+      const session = await phone.vault.openTeam("team-1");
+      expect(session.failure).toBeUndefined();
+      expect(session.currentVersion).toBe(4);
+    });
+
     it("Limit (TH-04): without an invite anchor, the join is the first contact: a forged chain served then is trusted", async () => {
       const { w } = await team();
       const mallory = await w.account("mallory");

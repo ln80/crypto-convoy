@@ -88,7 +88,9 @@ export async function advanceAnchor(
       if (!(error instanceof StoreConflictError)) throw error;
       // Another device of this account wrote first: its anchor must be in our chain too; a newer one is left to the next open.
       server = await readServerState(ports, accountId, teamId, bundles);
-      if (server?.anchor && server.anchor.version <= anchor.version) {
+      // Below the chain's first record it isn't followed (§6.1 step 2).
+      const first = chain.records[0]!.version;
+      if (server?.anchor && server.anchor.version >= first && server.anchor.version <= anchor.version) {
         const hash = chain.hashes.get(server.anchor.version);
         if (!hash || !ports.suite.equal(hash, server.anchor.hash)) throw trustFailure("chain_conflict");
       }
