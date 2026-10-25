@@ -95,4 +95,30 @@ Reach: unchanged. API: no change.
 
 ## Execution notes
 
-(empty)
+- **030-A, as built:**
+  - `confirmRecoveryPhrase` derives the new key from the pending wrap and lists the teams (`teamsWithOldRecoveryKey`), then commits the recovery wrap and clears the pending phrase.
+  - `secureAccount` lists `accountTeams` before the PIN check and the rotation.
+  - After the rotation, a store error fails only the team it hits, through `rekeyTeams`. The test shows `{ rekeyed: [], failed: ["team-1"] }` instead of an exception.
+- **030-B:** `newTeamOps` writes the roster entry with the numbered `memberKeysVersion`.
+- **030-D:** `advanceAnchor`'s conflict path checks a re-read anchor only from the chain's first record to its tip.
+- **029-A:** `warnings()` computes `foreign-member-keys` first and leaves those teams out of `rekey-needed`.
+- **030-E, F:** the `VaultWarning` comment and the using guide.
+- **030-C, G:** text only:
+  - TH-37's Attack and Disposition;
+  - TH-47;
+  - SP-12's property and a new Limit;
+  - scope rule 3's identity check.
+- **Test support:** `TamperingStore.failOn(match)` fails matching `get` and `list` calls, as a network error does.
+- **Tests:**
+  - `record-archive.test.ts`:
+    - a store error while listing writes nothing, and the retry re-keys both teams;
+    - `rekey-needed` doesn't list a withheld team.
+  - `secure-account.test.ts`:
+    - `secureAccount` reports a store error after the rotation;
+    - `createTeam` after keys were published for its id opens `ready` at version 2.
+  - `rollback.test.ts`: a replayed state below the floor, re-read after a conflict, is left alone.
+- **Guards:** each of the five fixes reverted fails its test.
+- **Checks:** `typecheck`, `check:spec`, `npm test` (768), `test:browser` (10), `build`, `test:package` and fuzz (30) pass.
+- **Integration (doconvoy e2eev2):** no API change.
+  - Answer `rekey-needed` with the phrase.
+  - The Go key store should already refuse a record stored under a key its identity fields don't name (scope rule 3).

@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 029 (`change`, plan 021, nothing to fix) and 030 (`adversarial`, fresh context, no critical or high). Open findings to fix: 030-A (writes before listing teams), 030-B (`createTeam` roster version); to accept: 030-C. Edits: 029-A, 030-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 022 (`.agents/plans/022-list-before-writing.plan.md`) fixes 030-A and B, accepts 030-C and does the edits. Next: implement it, then a `change` review and a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 029 (`change`) and 030 (`adversarial`); plan 022 fixed 030-A and B, accepted 030-C, and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a `change` review of plan 022, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -155,14 +155,14 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 028-C | Simplification | — | Open | Next `complexity` review, with 026-F |
 | 028-D | Stale text | Low | Fixed | `member-custody.ts` comment (plan 021) |
 | 028-E | Overclaim | Low | Fixed | TH-20 (plan 021) |
-| 029-A | Spec → code | Low | Open | `warnings()`: foreign teams left out of `rekey-needed` (edit) |
-| 030-A | Spec → code | Medium | Open | Needs a decision: `confirmRecoveryPhrase` and `secureAccount` list teams before writing |
-| 030-B | Spec → code | Low | Open | Needs a decision: `createTeam`'s roster takes the numbered version; §6.3 |
-| 030-C | Overclaim | Medium | Open | To accept: TH-37, TH-47, SP-12 (reported only where the vault holds keys) |
-| 030-D | Spec → code | Low | Open | `advanceAnchor` conflict path: below the chain isn't checked (edit) |
-| 030-E | Wrong claim | Low | Open | `foreign-member-keys` text (edit) |
-| 030-F | Wrong claim | Low | Open | `rekey-needed`: pass the phrase (edit) |
-| 030-G | Spec gap | Low | Open | Scope: identity check (edit) |
+| 029-A | Spec → code | Low | Fixed | `warnings()` (plan 022) |
+| 030-A | Spec → code | Medium | Fixed | List before writing (plan 022) |
+| 030-B | Spec → code | Low | Fixed | `createTeam`'s roster version; §6.3 (plan 022) |
+| 030-C | Overclaim | Medium | Accepted | TH-37, TH-47, SP-12 Limit (plan 022) |
+| 030-D | Spec → code | Low | Fixed | `advanceAnchor` conflict path (plan 022) |
+| 030-E | Wrong claim | Low | Fixed | Using guide, `VaultWarning` (plan 022) |
+| 030-F | Wrong claim | Low | Fixed | Using guide, `VaultWarning` (plan 022) |
+| 030-G | Spec gap | Low | Fixed | Scope rule 3 (plan 022) |
 
 ## Residuals
 
@@ -207,5 +207,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-25 | A11 on an owner's account, or a holder of the owner capability | A team key version that fails its checks, at the next version, stops the team for every member, for good (review 025 C) | Availability; a chain can't leave a version out, and both fixes are costly (a server signature check, or support freeing a version identity) | A server-side signature check, or support freeing a version identity |
 
 | TH-28 | A2, with a forged `team-state` written earlier under keys the account replaced (A7, A9) | Withholding the newest wrap makes the older keys read `team-state`, so the replayed forged record gives `state_conflict` | Availability; the floor and the vault's anchor still bound the chain (D-63, review 028 B) | — |
+
+| TH-37 | A11 | Keys published, or a team created, under the account in a team where the vault holds no keys go unreported; members joining such a team see the account as its owner (review 030 C) | A session acts as the user in the product; listing an account's keys across teams needs a new store query; `secureAccount` with `teamIds` reports a listed team with no keys (D-60) | A store query for an account's published keys across teams |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
