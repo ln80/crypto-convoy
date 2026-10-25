@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 034 (`change`, plan 023, nothing to fix) and 035 (`adversarial`, fresh context, no break of confidentiality or integrity). Open findings to fix: 035-A (owner's-anchor repair keeps the local anchor), 035-B (unparsable private wrap stops status, warnings and repairs). Edits: 034-A, 034-B, 035-C, D, E. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 024 (`.agents/plans/024-repair-local-anchor-unreadable-wraps.plan.md`) fixes 035-A, B (D-54, D-58 amended) and does the edits. Next: implement it, then a `change` review and a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 034 (`change`) and 035 (`adversarial`); plan 024 fixed 035-A, B (D-54, D-58 amended) and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a `change` review of plan 024, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -172,13 +172,13 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 032-F | Missing threat | Low | Accepted | D-58, TH-28 (plan 023) |
 | 032-G | Note | Low | Fixed | TH-25 (plan 023) |
 | 033-1 to 7 | Design | — | Fixed | Taken in plan 023's spec (D-56 amended, D-64, D-65) |
-| 034-A | Stale text | Low | Open | Scope, §5.9: a listed owner (edit) |
-| 034-B | Stale text | Low | Open | §6.7, `owner.ts` comments: `MALFORMED_RECORD` (edit) |
-| 035-A | Spec → code, wrong claim | Medium | Open | Needs a decision: the owner's-anchor repair replaces the local anchor too |
-| 035-B | Spec → code | Medium | Open | Needs a decision: a private wrap read by identity that doesn't parse is present but unreadable |
-| 035-C | Wrong claim | Low | Open | Unparsable recovery wrap: action `beginRecoverySetup`; rethrow `UNSUPPORTED_VERSION` (edit) |
-| 035-D | Spec → code | Low | Open | §6.7, §12: an owner approved in the same rotation (edit) |
-| 035-E | Wrong premise | Low | Open | §4.1: a replayed recovery public key (edit) |
+| 034-A | Stale text | Low | Fixed | Scope, §5.9 (plan 024) |
+| 034-B | Stale text | Low | Fixed | §6.7, §12, `owner.ts` comments (plan 024) |
+| 035-A | Spec → code, wrong claim | Medium | Fixed | D-54 amended: the repair replaces the local anchor (plan 024) |
+| 035-B | Spec → code | Medium | Fixed | D-58 amended: a wrap read by identity that doesn't parse costs only its method (plan 024) |
+| 035-C | Wrong claim | Low | Fixed | Recovery warning action; `UNSUPPORTED_VERSION` (plan 024) |
+| 035-D | Spec → code | Low | Fixed | §6.7, §12 (plan 024) |
+| 035-E | Wrong premise | Low | Fixed | §4.1 (plan 024) |
 
 ## Residuals
 

@@ -105,4 +105,37 @@ Consequence: a session's garbage in one of these wraps costs that method, never 
 
 ## Execution notes
 
-(empty)
+- **035-A, as built:** `rekeyTeam` with an owner's anchor sets this context's local anchor (`ports.anchors`) to the new floor after recording the vault's anchor. This covers both `rekey` and `secureAccount` with `anchors`.
+- **035-B, as built:**
+  - `readWrap` (`unlock-methods.ts`) returns `absent`, `readable` or `unreadable`.
+    - `UNSUPPORTED_VERSION` and `STORE_ERROR` are rethrown.
+    - Any other `ConvoyError` from the parse is `unreadable`.
+  - Its callers:
+    - `status()`: the method reads as set up; this device reads as registered only when its wrap is readable.
+    - `warnings()`: `pin-not-set-up` unless the PIN wrap is readable.
+    - `unlock`: `DEVICE_NOT_REGISTERED`.
+    - `unlockWithPin`, `verifyPin`, `verifyPhrase`, `typedPhrase` and `recover`: `WRONG_CREDENTIAL`, with no OPRF evaluation for the PIN.
+    - `changePin`: replaces any live wrap.
+    - `#refuseCurrentPin`: skips its check.
+    - `#registration`: registers a new device unless the wrap is readable.
+  - `storedRecoveryKey` gains `parsed`.
+- **Spec adjusted while coding:**
+  - A device whose wrap can't be read registers again under a new id; its wrap isn't replaced in place. D-58 and §4.1 say so.
+  - `secureAccount` with a recovery wrap that doesn't parse is `WRONG_CREDENTIAL`, since the phrase can't be checked against it.
+- **035-C:** `warnings()` gives `recovery-key-mismatch` with action `beginRecoverySetup` for a recovery wrap that doesn't parse, and `secureAccount` when only its key can't be read. An unknown `v` is `UNSUPPORTED_VERSION`.
+- **Text edits:**
+  - 034-A: scope, §5.9.
+  - 034-B, 035-D: §6.7, §12, and the `owner.ts` comments.
+  - 035-E: §4.1.
+- **Tests:**
+  - `rollback.test.ts`: after a forged first contact and the server turning honest, the repair with an owner's anchor opens the real chain (`pending`).
+  - `record-archive.test.ts`:
+    - a PIN wrap that doesn't parse: status, warnings, `changePin` with the phrase, `secureAccount` with a new PIN, and `unlockWithPin` → `WRONG_CREDENTIAL`;
+    - this device's wrap: `recover` registers again;
+    - a recovery wrap: status, the warning's action, `secureAccount` → `WRONG_CREDENTIAL`, and an unknown version → `UNSUPPORTED_VERSION`.
+  - `owner-continuity.test.ts`: an owner approved in the same rotation.
+- **Guards:** each of the six fixes, reverted, fails its test.
+- **Checks:** `typecheck`, `check:spec`, `npm test` (782), `test:browser` (10), `build`, `test:package` and fuzz (30) pass.
+- **Integration (doconvoy e2eev2):**
+  - `status().deviceRegistered` is false for a device wrap that can't be read: offer to unlock with the PIN or the phrase, which registers again.
+  - The owner-repair flow is unchanged.
