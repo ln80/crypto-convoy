@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 027 (`change`, plan 020, nothing to fix) and 028 (`adversarial`, fresh context, no critical or high). Open findings to fix: 028-A (one bad record stops `warnings()` and `confirmRecoveryPhrase` for the account). Edits: 027-A, 028-B, 028-D, 028-E. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 021 (`.agents/plans/021-bad-team-stops-only-its-team.plan.md`) fixes 028-A and does the edits. Next: implement it, then a `change` review and a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 027 (`change`, plan 020) and 028 (`adversarial`); plan 021 fixed 028-A (D-58 amended), accepted 028-B, and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a `change` review of plan 021, then a fresh `adversarial` review.
 
 ## Findings
 
@@ -149,12 +149,12 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 026-D | Hardening | Low | Dropped | Moot: plan 020 has no write |
 | 026-E | Spec gap | Low | Fixed | Scope rule 4: revision + 1, relied on (plan 020) |
 | 026-F | Simplification | — | Open | Next `complexity` review: `team-state` conflicts as reports |
-| 027-A | Hardening (test coverage) | Low | Open | `test/support/parsers.ts`: fuzz the revision reader (edit) |
-| 028-A | Spec → code, overclaim | Medium | Open | Needs a D-58 line: a team whose bundles fail is reported, never stops the warnings or `confirmRecoveryPhrase` |
-| 028-B | Missing threat | Low | Open | D-63 accepted risk: a withheld newest wrap (edit) |
+| 027-A | Hardening (test coverage) | Low | Fixed | Fuzz parser reads the revision (plan 021) |
+| 028-A | Spec → code, overclaim | Medium | Fixed | D-58 amended: a team whose bundles fail stops only that team (plan 021) |
+| 028-B | Missing threat | Low | Accepted | D-63 accepted risk (plan 021) |
 | 028-C | Simplification | — | Open | Next `complexity` review, with 026-F |
-| 028-D | Stale text | Low | Open | `member-custody.ts` comment (edit) |
-| 028-E | Overclaim | Low | Open | TH-20 (edit) |
+| 028-D | Stale text | Low | Fixed | `member-custody.ts` comment (plan 021) |
+| 028-E | Overclaim | Low | Fixed | TH-20 (plan 021) |
 
 ## Residuals
 
@@ -197,5 +197,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-04 | A2 | An existing member re-joining without an anchor, on a device with no vault anchor, while the server withholds its wraps, is a first contact (review 019 A, review 020) | The vault has no root there; the integration re-joins members only with an owner's anchor (D-59) | Owner fingerprints (D-11) or key transparency |
 
 | TH-25 | A11 on an owner's account, or a holder of the owner capability | A team key version that fails its checks, at the next version, stops the team for every member, for good (review 025 C) | Availability; a chain can't leave a version out, and both fixes are costly (a server signature check, or support freeing a version identity) | A server-side signature check, or support freeing a version identity |
+
+| TH-28 | A2, with a forged `team-state` written earlier under keys the account replaced (A7, A9) | Withholding the newest wrap makes the older keys read `team-state`, so the replayed forged record gives `state_conflict` | Availability; the floor and the vault's anchor still bound the chain (D-63, review 028 B) | — |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.

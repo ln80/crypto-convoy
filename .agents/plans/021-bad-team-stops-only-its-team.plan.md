@@ -80,4 +80,20 @@ Rejected:
 
 ## Execution notes
 
-(empty)
+- **D-58 amended, as built:** `teamBundles` (`recovery.ts`) wraps `openBundles` and returns null on any `ConvoyError` except `STORE_ERROR`.
+  - `teamsWithForeignKeys` lists such a team.
+  - `teamsWithOldRecoveryKey` lists it too, so `rekeyTeams` reports it `failed`.
+  - `secureAccount` already caught errors per team, and is unchanged.
+- **Text:**
+  - D-58's status and amendment; D-63's accepted risk (028-B); TH-20, its planted bundle with no floor (028-E) and its account-wide wording.
+  - §5.6, §12's `warnings()` line, the using guide, and SP-26's verification.
+- **028-D:** the `maintainBundles` comment.
+- **027-A:** the fuzz parser for `team-state` reads the revision first, as `readServerState` does; the fuzz project passes (30).
+- **Tests:** `record-archive.test.ts`, two cases. In each, the account's other team is re-keyed, `warnings()` lists the failing team under `foreign-member-keys`, and `confirmRecoveryPhrase` reports it `failed`.
+  - A planted mismatched wrap in `team-1`: that team still opens `key_mismatch`.
+  - A withheld published record in `team-2`.
+- **Guard:** removing the catch fails both tests.
+- **Checks:**
+  - `typecheck`, `check:spec`, `test:browser` (10), `build`, `test:package` and the fuzz project pass.
+  - `npm test` passes (764). Its first run had two unit smoke tests time out near 5 s while the machine was loaded. Both pass alone, in the unit project, and in a full rerun.
+- **Integration (doconvoy e2eev2):** no change. `foreign-member-keys` may now name a team whose published record the server didn't serve.
