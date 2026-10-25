@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 031 (`change`, plan 022, nothing to fix) and 032 (`adversarial`, fresh context, no critical). Open findings to fix: 032-A (garbled recovery key refuses the phrase), 032-B (`reconcile` blocked by stale approvals), 032-C (`LAST_OWNER` counts listed owners). Edits: 031-A, 032-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a plan for 032-A, B, C and the edits.
+**Now:** 0 of 2. Last reviews: 031 (`change`, plan 022, nothing to fix) and 032 (`adversarial`, fresh context, no critical). Open findings to fix: 032-A (garbled recovery key refuses the phrase), 032-B (`reconcile` blocked by stale approvals), 032-C (`LAST_OWNER` counts listed owners). Edits: 031-A, 032-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 023 (`.agents/plans/023-recovery-key-mismatch-reconcile-owners-leaving.plan.md`) fixes 032-A, B, C (D-56 amended, D-64, D-65), accepts 032-F and does the edits. Next: implement it, with a `design` review of D-64 and D-65 after its spec phase.
 
 ## Findings
 
