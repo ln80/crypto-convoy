@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 027 (`change`, plan 020) and 028 (`adversarial`); plan 021 fixed 028-A (D-58 amended), accepted 028-B, and did the edits. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a `change` review of plan 021, then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 029 (`change`, plan 021, nothing to fix) and 030 (`adversarial`, fresh context, no critical or high). Open findings to fix: 030-A (writes before listing teams), 030-B (`createTeam` roster version); to accept: 030-C. Edits: 029-A, 030-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a plan for 030-A, B, C and the edits, then a `change` review and a fresh `adversarial` review.
 
 ## Findings
 
@@ -155,6 +155,14 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 028-C | Simplification | — | Open | Next `complexity` review, with 026-F |
 | 028-D | Stale text | Low | Fixed | `member-custody.ts` comment (plan 021) |
 | 028-E | Overclaim | Low | Fixed | TH-20 (plan 021) |
+| 029-A | Spec → code | Low | Open | `warnings()`: foreign teams left out of `rekey-needed` (edit) |
+| 030-A | Spec → code | Medium | Open | Needs a decision: `confirmRecoveryPhrase` and `secureAccount` list teams before writing |
+| 030-B | Spec → code | Low | Open | Needs a decision: `createTeam`'s roster takes the numbered version; §6.3 |
+| 030-C | Overclaim | Medium | Open | To accept: TH-37, TH-47, SP-12 (reported only where the vault holds keys) |
+| 030-D | Spec → code | Low | Open | `advanceAnchor` conflict path: below the chain isn't checked (edit) |
+| 030-E | Wrong claim | Low | Open | `foreign-member-keys` text (edit) |
+| 030-F | Wrong claim | Low | Open | `rekey-needed`: pass the phrase (edit) |
+| 030-G | Spec gap | Low | Open | Scope: identity check (edit) |
 
 ## Residuals
 
