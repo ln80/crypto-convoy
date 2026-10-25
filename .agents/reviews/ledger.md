@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 029 (`change`, plan 021, nothing to fix) and 030 (`adversarial`, fresh context, no critical or high). Open findings to fix: 030-A (writes before listing teams), 030-B (`createTeam` roster version); to accept: 030-C. Edits: 029-A, 030-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a plan for 030-A, B, C and the edits, then a `change` review and a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 029 (`change`, plan 021, nothing to fix) and 030 (`adversarial`, fresh context, no critical or high). Open findings to fix: 030-A (writes before listing teams), 030-B (`createTeam` roster version); to accept: 030-C. Edits: 029-A, 030-D, E, F, G. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 022 (`.agents/plans/022-list-before-writing.plan.md`) fixes 030-A and B, accepts 030-C and does the edits. Next: implement it, then a `change` review and a fresh `adversarial` review.
 
 ## Findings
 
