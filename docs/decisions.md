@@ -758,7 +758,7 @@ Consequence: a device or context reports every change since it last verified the
 
 ## D-58: A record that fails its own checks is absent
 
-Status: Accepted.
+Status: Accepted; amended so a team whose bundles fail stops only that team (review 028 A).
 
 Problem: one record could stop everything around it. A session created a garbage `member-keys-wrap` under a new identity: every account-wide operation failed (`secureAccount`, `rotate`, the warnings), and no restore removed a record with no archived generation. An account-key holder could do the same with a wrap that opens but whose published keys don't match. A joiner published a `member-keys` record with a bad signature, and every member's team became `unverified`, with no way to delete it (review 016 B, C; review 017 A–C, F, G).
 
@@ -774,6 +774,8 @@ Rejected:
 - Requiring servers to verify `member-keys` signatures: defence in depth only (rule 8).
 
 Consequence: a session or a joiner can no longer stop an account's or a team's operations with one record; what the server could already withhold, they can make absent, and nothing more. Accepted: an account-key holder can still plant a wrap that opens with keys its published record doesn't match, which fails that team for the account, its repairs included, until support archives that wrap (TH-20, review 022 A); a garbage replacement of a live wrap now looks like a deletion, restorable from the archive (TH-46).
+
+Amendment (review 028 A): the account-wide lists still opened every team's bundles unguarded, so one team whose wrap opens but doesn't match its published record, or whose published record fails its checks or is withheld, made `warnings()` throw and `confirmRecoveryPhrase` throw after replacing the phrase, with no team re-keyed. Now, wherever the vault goes through every team of the account, a team whose bundles fail (any error but `STORE_ERROR`) stops only that team: `warnings()` lists it under `foreign-member-keys`, since only keys or a wrap this vault didn't make, or a withheld record, get it there, and every re-key across teams counts it among the teams to re-key, so it is reported `failed`. Rejected: a new warning code (new API for the case `foreign-member-keys` already names, with the same remedy); leaving the team out (the user would never learn of it, and a phrase replacement would leave it on the old recovery key unreported).
 
 ## D-59: The vault's own anchor roots every vault verification
 
@@ -839,4 +841,4 @@ Rejected:
 - The re-key writing `team-state` under the new keys (review 026 A, C, D): the server replays the archived forged revision, a holder of the old key with a session rewrites it, a failed write is silent, and the write could move an anchor back.
 - A support step in the remedy: a documented procedure would leave the user compromised until someone acts.
 
-Consequence: after a re-key, a `team-state` under the old keys stops nothing, whoever wrote or replayed it; the owner's own `reconcile` approves and the next open replaces it. Contexts never take turns: while a re-key is pending, a context holding only the old keys may write under them, which contexts holding the new keys ignore; after approval the old keys aren't in the roster and never write. Accepted: while a re-key is pending, a `team-state` under the old keys neither bounds rollback nor shows a split view to contexts with the new keys; the floor (D-50) and the local anchor still bound them. A forged record under the newest keys still fails with `state_conflict` or `rollback` (D-52).
+Consequence: after a re-key, a `team-state` under the old keys stops nothing, whoever wrote or replayed it; the owner's own `reconcile` approves and the next open replaces it. Contexts never take turns: while a re-key is pending, a context holding only the old keys may write under them, which contexts holding the new keys ignore; after approval the old keys aren't in the roster and never write. Accepted: while a re-key is pending, a `team-state` under the old keys neither bounds rollback nor shows a split view to contexts with the new keys; the floor (D-50) and the local anchor still bound them. A server withholding the newest wrap chooses the older keys, and can replay a forged `team-state` written under them: availability only, like TH-28, since the floor and the vault's anchor still bound the chain (review 028 B). A forged record under the newest keys still fails with `state_conflict` or `rollback` (D-52).

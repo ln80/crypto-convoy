@@ -560,7 +560,7 @@ A PIN change takes the current PIN or the phrase (only the phrase when the curre
 - if the user entered the **current** phrase, each re-key carries a `recoverySignature` by the recovery key derived from it: proven, and approved by owners' `reconcile` (SP-23); where the account is an owner, by its own `reconcile` (D-47);
 - with the current PIN instead, the re-keys carry no proof, and an owner approves each by hand.
 
-Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed; a failed team is retried with the re-key of §6.8, with the new phrase as `phrase` and the old one as `oldPhrase`, to keep it proven (D-49, D-56).
+Each team is re-keyed in its own write. The operation reports the teams re-keyed and those that failed, a team whose bundles fail their checks included (D-58); a failed team is retried with the re-key of §6.8, with the new phrase as `phrase` and the old one as `oldPhrase`, to keep it proven (D-49, D-56).
 
 ### 5.7 Rotating the account key (D-10)
 
@@ -882,7 +882,7 @@ Operations are asynchronous. An expected failure (§9) is thrown as a `ConvoyErr
 vault.status()                            → { account: "not-set-up" | "locked" | "unlocked", deviceRegistered, deviceId,
                                           //   recovery: "not-set-up" | "set-up", pin: "not-set-up" | "set-up" }
 vault.warnings()                          → recovery not set up; no PIN (D-40); teams whose keys need re-keying;
-                                          //   teams with keys this vault didn't make (`foreign-member-keys`, D-43; answer: secureAccount, D-54);
+                                          //   teams with keys this vault didn't make, or whose bundles fail (`foreign-member-keys`, D-43, D-58; answer: secureAccount, D-54);
                                           //   a PIN upgrade that failed (`pin-upgrade-failed`; a failed proof: report it, TH-51);
                                           //   a recovery wrap naming another key than the typed phrase's (`recovery-key-mismatch`; answer: secureAccount, D-56)
 vault.setup(pin)                          // then set up recovery before any team work
