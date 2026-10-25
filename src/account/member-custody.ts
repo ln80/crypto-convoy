@@ -263,8 +263,8 @@ export async function currentOwners(ports: AccountPorts, account: OpenAccount, t
  * Vault upkeep after the chain was verified up to `tip` (§5.8 step 3), in one batch. The floor
  * follows the chain verified from every root: the newest bundle's wrap is replaced with `tip` as its floor (D-52, D-54).
  * Once the tip's roster holds the newest keys, older bundles open nothing the chain doesn't
- * (§6.8 step 4): their wraps are deleted, and the team state is rewritten under the newest keys,
- * so it never stays readable only by a deleted bundle. Best effort: on any failure nothing is written.
+ * (§6.8 step 4): their wraps are deleted; a team state under them is absent, and the next advance
+ * replaces it (D-63). Best effort: on any failure nothing is written.
  */
 async function maintainBundles(
   ports: AccountPorts,

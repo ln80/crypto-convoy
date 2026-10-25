@@ -1,12 +1,13 @@
 // The recovery phrase as the account's root: setting it up, proving re-keys, securing the account (§5.6, §5.10, §5.11).
 import type { Anchor } from "../encoding/link.js";
-import { ConvoyError } from "../errors.js";
+import { ConvoyError, isConvoyError } from "../errors.js";
 import { checkId } from "../encoding/json.js";
 import { verifiedChain } from "../team/load.js";
 import { callPort } from "../ports.js";
 import { openAccountKeyWrap, openRecoveryPublicKey } from "../records/account-key-wrap.js";
 import { parseMemberKeysWrap } from "../records/member-keys-wrap.js";
 import type { KeyPair } from "../suites/suite.js";
+import type { MemberBundle } from "../team/context.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
 import { newMemberKeys, nextMemberKeysVersion, openBundles, openedWraps, recordVaultAnchor, vaultAnchorOf } from "./member-custody.js";
 import { deriveRecoveryKeys } from "./recovery-key.js";
@@ -166,7 +167,13 @@ export async function rekeyTeams(
 export async function teamsWithForeignKeys(ports: AccountPorts, account: OpenAccount): Promise<string[]> {
   const foreign: string[] = [];
   for (const teamId of await accountTeams(ports, account)) {
-    const [newest] = await openBundles(ports, account, teamId);
+    const bundles = await teamBundles(ports, account, teamId);
+    // Keys or a wrap this vault didn't make, or a withheld record: that team alone is reported (D-58).
+    if (!bundles) {
+      foreign.push(teamId);
+      continue;
+    }
+    const [newest] = bundles;
     const published = await callPort(() => ports.store.list({ type: "member-keys", teamId, accountId: account.accountId }));
     const newer = published.some((json) => {
       const version = (json as { memberKeysVersion?: unknown }).memberKeysVersion;
@@ -181,8 +188,20 @@ export async function teamsWithForeignKeys(ports: AccountPorts, account: OpenAcc
 export async function teamsWithOldRecoveryKey(ports: AccountPorts, account: OpenAccount, recoveryPublicKey: Uint8Array): Promise<string[]> {
   const stale: string[] = [];
   for (const teamId of await accountTeams(ports, account)) {
-    const [newest] = await openBundles(ports, account, teamId);
-    if (newest && !ports.suite.equal(newest.published.recoveryPublicKey, recoveryPublicKey)) stale.push(teamId);
+    const bundles = await teamBundles(ports, account, teamId);
+    // A team whose bundles fail is listed, so its re-key is tried and reported failed (D-58).
+    const newest = bundles?.[0];
+    if (!bundles || (newest && !ports.suite.equal(newest.published.recoveryPublicKey, recoveryPublicKey))) stale.push(teamId);
   }
   return stale;
+}
+
+/** A team's bundles, or null when they fail their checks: across the account's teams, that team alone fails (D-58). */
+async function teamBundles(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<MemberBundle[] | null> {
+  try {
+    return await openBundles(ports, account, teamId);
+  } catch (error) {
+    if (isConvoyError(error) && !isConvoyError(error, "STORE_ERROR")) return null;
+    throw error;
+  }
 }

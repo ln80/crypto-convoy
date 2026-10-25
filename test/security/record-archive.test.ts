@@ -213,4 +213,40 @@ describe("SP-26: a record that fails its checks stops nothing (D-58, review 016 
     // The rotation re-wraps it without checking, so securing the account still runs; that team is reported.
     expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" })).toEqual({ rekeyed: [], failed: ["team-1"] });
   });
+
+  describe("a team whose bundles fail stops only that team, not the warnings or a phrase replacement (D-58, review 028 A)", () => {
+    const setup = async () => {
+      const { members } = await team("bob");
+      const bob = members.bob!;
+      await bob.vault.createTeam("team-2");
+      return bob;
+    };
+    const replacePhraseReport = async (bob: Awaited<ReturnType<typeof setup>>) => {
+      const { recoveryPhrase } = bob.vault.beginRecoverySetup();
+      return bob.vault.confirmRecoveryPhrase(recoveryPhrase, { currentPhrase: bob.recoveryPhrase });
+    };
+
+    it("a wrap planted with the account key that its published keys don't match", async () => {
+      const bob = await setup();
+      const held = await bundleOf(bob.vault);
+      const { ports, account } = vaultInternals(bob.vault);
+      const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: 2, accountKeyVersion: account().version };
+      const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey };
+      await ports.store.commit([
+        { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) },
+        { op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) },
+      ]);
+      expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("key_mismatch"));
+      expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "foreign-member-keys", teamIds: ["team-1"] }));
+      expect(await replacePhraseReport(bob)).toEqual({ rekeyed: ["team-2"], failed: ["team-1"] });
+      expect((await bundleOf(bob.vault, "team-2")).memberKeysVersion).toBe(2);
+    });
+
+    it("a published record the server withholds", async () => {
+      const bob = await setup();
+      bob.store.drop({ type: "member-keys", teamId: "team-2", accountId: "bob" });
+      expect(await bob.vault.warnings()).toContainEqual(expect.objectContaining({ code: "foreign-member-keys", teamIds: ["team-2"] }));
+      expect(await replacePhraseReport(bob)).toEqual({ rekeyed: ["team-1"], failed: ["team-2"] });
+    });
+  });
 });
