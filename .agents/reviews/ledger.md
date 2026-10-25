@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 034 (`change`, plan 023, nothing to fix) and 035 (`adversarial`, fresh context, no break of confidentiality or integrity). Open findings to fix: 035-A (owner's-anchor repair keeps the local anchor), 035-B (unparsable private wrap stops status, warnings and repairs). Edits: 034-A, 034-B, 035-C, D, E. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: a plan for 035-A, B and the edits.
+**Now:** 0 of 2. Last reviews: 034 (`change`, plan 023, nothing to fix) and 035 (`adversarial`, fresh context, no break of confidentiality or integrity). Open findings to fix: 035-A (owner's-anchor repair keeps the local anchor), 035-B (unparsable private wrap stops status, warnings and repairs). Edits: 034-A, 034-B, 035-C, D, E. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Plan 024 (`.agents/plans/024-repair-local-anchor-unreadable-wraps.plan.md`) fixes 035-A, B (D-54, D-58 amended) and does the edits. Next: implement it, then a `change` review and a fresh `adversarial` review.
 
 ## Findings
 
