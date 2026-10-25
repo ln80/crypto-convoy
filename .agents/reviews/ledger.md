@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
 
-**Now:** 0 of 2. Last reviews: 022 (`adversarial`, no critical or high) and 023 (`design`); plan 019 fixed 022-B (D-62) and the text of A, C, D. Open findings to fix: none. Still open, low: 011-A. Next: a review in another mode (`change` on plan 019), then a fresh `adversarial` review.
+**Now:** 0 of 2. Last reviews: 024 (`change`, plan 019) and 025 (`adversarial`, fresh context, no critical or high). Open findings to fix: 024-A (= 025-A, a malformed `team-state` with a floor) and 025-B (a forged readable `team-state` blocks the owner's own approval); to decide: 025-C. Edits: 024-B, 024-C, 025-D, 025-E. Still open, low: 011-A. Plan 020 (`.agents/plans/020-malformed-state-rekey-writes-state.plan.md`) fixes 024-A and 025-B, accepts 025-C and does the edits. Next: its `design` review, then after it a `change` review and a fresh `adversarial` review.
 
 ## Findings
 
@@ -135,6 +135,14 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 023-D | Simplification | — | Dropped | Rejected in D-62 |
 | 023-E | Spec gap | Low | Fixed | §6.1 step 1, D-62 |
 | 023-F | Spec gap | Low | Fixed | Clean-up; revision cap |
+| 024-A | Overclaim, spec → code | Medium (025-A) | Open | Needs a D-62 amendment: a malformed `team-state` is absent with a floor |
+| 024-B | Spec → code | Low | Open | Scope rule 4, §11: revision current + 1 (edit) |
+| 024-C | Stale text | Low | Open | `team-state.ts` comment, course (edit); ledger residual narrowed |
+| 025-A | Overclaim, spec → code | Medium | Open | Same as 024-A; wider impact |
+| 025-B | Wrong premise | Medium | Open | Needs a decision: the re-key writes `team-state` under the new keys, or a support step in the remedy |
+| 025-C | Overclaim, missing threat | Medium | Open | Needs a decision: accept and document (TH-25, SP-18, integration guide), or the server verifies version signatures |
+| 025-D | Overclaim | Low | Open | TH-20, §5.11 (edit) |
+| 025-E | Spec → code | Low | Open | §6.1 step 7 (edit) |
 
 ## Residuals
 
@@ -159,7 +167,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-37 | A11 | An owner approving an unproven request without the out-of-band check | Needs a human (AS-06); invite proofs deferred (D-32) | D-32 |
 | TH-38 | A6 with A2 | Two records for one version, shown to different members | Needs key transparency | Key transparency |
 | TH-41 | A8 | A phrase thief proves re-keys and races the member, until an owner removes the account or approves one set by hand | The phrase is the proof (D-33); securing with a new phrase ends it (D-45) | — |
-| TH-46 | A11 | Garbage or deleted private records make a team unavailable until support acts | Availability, like TH-28 | — |
+| TH-46 | A11 | Garbage or deleted wraps, and an unreadable `team-state` for keys with no floor, make a team unavailable until support acts; with a floor, an unreadable `team-state` is replaced at the next open (D-62) | Availability, like TH-28 | — |
 | TH-47 | A11 | Bait keys keep a member's keys unapprovable while the thief keeps the session | Only the newest keys are approved | — |
 | TH-48 | A8, A7, A2 | A support restore brings back what an attacker can open | Restores are the integration's to authenticate | — |
 | TH-49 | A2, A9 | A forged transfer opens a forged team in a receiving context | The two contexts share no secret; the channel is the integration's (D-29) | A shared secret between contexts |
