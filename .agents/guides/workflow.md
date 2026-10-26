@@ -23,4 +23,4 @@
 
 ## Learning notes
 
-When a change teaches a new pattern, concept or lesson, record it in `learning/` (local, not tracked) with [capture-learning](../skills/capture-learning/SKILL.md). When a decision or a public operation changes, update `learning/course/` with [maintain-course](../skills/maintain-course/SKILL.md). The short notes stay design history. The course says when one describes a deferred or superseded decision.
+When a change teaches a new pattern, concept or lesson, record it in `learning/` (local, not tracked) with [capture-learning](../skills/capture-learning/SKILL.md). When a decision or a public operation changes, update `learning/course/` with [maintain-course](../skills/maintain-course/SKILL.md). The short notes stay design history. The course says when one describes a deferred or superseded decision, and a concept the protocol stopped using is marked "no longer used" with what replaced it, never deleted.
