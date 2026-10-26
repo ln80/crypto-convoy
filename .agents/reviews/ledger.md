@@ -4,9 +4,9 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 ## Stop rule
 
-Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix, and no finding to fix is open. (Until review 013 the rule was "nothing medium or above"; findings accepted and documented, or text corrected, no longer count.)
+Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 1 of 2. Last reviews: 035 (`adversarial`) and 036 (`change`, plan 024, nothing to fix; edits 036-A, B). Open findings to fix: none. Still open, low: 011-A, 036-A, 036-B; for the next `complexity` review: 026-F, 028-C. Next: a fresh `adversarial` review (037), with a different model in Cursor.
+**Now:** 2 of 2: freeze candidate. Last reviews: 036 (`change`, plan 024) and 037 (`adversarial`, fresh-context reviewer), neither with a fix beyond availability. To do before the first release: availability fixes 037-B, C (small). Still open, low: 011-A, 036-A, 036-B, 037-A, D, E (text); for the next `complexity` review: 026-F, 028-C. Next: a plan for 037 B to E and 036 A, B, then its `change` review (a fix beyond availability found there resets the count); then the formal model and the external audit.
 
 ## Findings
 
@@ -181,6 +181,11 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 035-E | Wrong premise | Low | Fixed | §4.1 (plan 024) |
 | 036-A | Stale text | Low | Open | §5.4: an unreadable wrap at unlock (edit) |
 | 036-B | Stale text | Low | Open | Using guide: `status()` with an unreadable wrap (edit) |
+| 037-A | Missing threat | Low | Open | Accept, owner compromise group: TH-17/TH-25 text on a wrong previous-key link (edit) |
+| 037-B | Spec → code, wrong claim | Low | Open | D-58: same-PIN check skipped when the live PIN wrap can't be used (edit) |
+| 037-C | Spec → code | Low | Open | D-58, §4.1: a device wrap that doesn't open is unreadable; the device registers again (edit) |
+| 037-D | Wrong claim | Medium | Open | Accept: TH-20, SP-07 text; the open vault sets an owner's anchor with no credential (edit) |
+| 037-E | Wrong premise, combined attack | Medium | Open | Accept: TH-20, D-54, SP-07 text; a planted wrap kept by the server roots new devices after the repair (edit) |
 
 ## Residuals
 
@@ -231,5 +236,8 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-28 | A2 | A wrap withheld while the account rotates stays with the retired version: the team reads `not-joined` after `rotate()` until support restores it (review 032 F) | Withholding is the server's; the archive restores it (SP-26) | — |
 | TH-46 | A11 | A recovery wrap that doesn't parse, or whose `wrappedAccountKey` is garbled, disables the phrase until a setup with the PIN or a support restore; with no PIN, support only (review 033 1) | A garbled `wrappedAccountKey` can't be told from a wrong phrase; the mismatch is reported where it can be (D-56) | — |
 | SP-16 | Another owner, A2, A11 | A team can end with listed owners and no keys: a departed account named owner again, a chain served from before an account became owner, wraps a session deletes (review 033 2) | Nothing in the chain says who deleted their wraps (D-65) | Owners' key custody in the chain |
+| TH-17 | A6 | An owner key signs a version whose previous-key link wraps the wrong key: older items stop opening for every member, with no change reported, for good (review 037 A) | Write-once records; detection would only stop the team (TH-25); owner compromise group | Multi-owner approval |
+| TH-20 | A7 or A9 with the open vault, with A2 | `rekey({ anchor })` through the open vault replaces the vault's anchor, the local anchor and the floor with no credential; a later `secureAccount` there carries the forged root (review 037 D) | A credential check stops nothing: the holder of the open vault writes the store directly (TH-45); server-controlled history | Owner fingerprints (D-11) or key transparency |
+| TH-20 | A7 or A9 once, then A2 | A planted wrap survives `secureAccount` and the owner's-anchor repair (re-wrapped, then archived); a new device served it, with the repaired wrap withheld, opens the forged team `ready` (review 037 E) | Dropping a failed team's wraps at rotation is a new failure needing a human, for a combined attack; server-controlled history | Owner fingerprints (D-11) or key transparency |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.

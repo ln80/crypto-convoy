@@ -113,7 +113,7 @@ Simplifications and hardening without a current attack take the severity of the 
 
 ## Stop rule
 
-The protocol is a **freeze candidate** when two reviews in a row, in different modes, at least one of them `adversarial` with a fresh-context reviewer, find nothing the [action rule](../../guides/direction.md#the-action-rule) says to fix (findings accepted and documented, or text corrected, don't count), and the ledger has no open finding to fix. Then: a formal model of the transfer, the roster seals and the recovery proof (for example in Tamarin or ProVerif), and an external audit, before the first release freezes the vectors (§13). The ledger keeps the current count.
+The protocol is a **freeze candidate** when two reviews in a row, in different modes, at least one of them `adversarial` with a fresh-context reviewer, find nothing the [action rule](../../guides/direction.md#the-action-rule) says to fix beyond availability, and the ledger has no such finding open. Findings accepted and documented, text corrected, and availability-only fixes (a small change the action rule takes for availability) don't count: they are still done, before the first release, but don't reset the count. Then: a formal model of the transfer, the roster seals and the recovery proof (for example in Tamarin or ProVerif), and an external audit, before the first release freezes the vectors (§13). The ledger keeps the current count.
 
 ## Done when
 
