@@ -587,7 +587,7 @@ export class Vault {
   }
 
   /**
-   * Deletes this account's keys and state for a team (§5.9), after verifying the chain here.
+   * Deletes this account's keys for a team (§5.9), after verifying the chain here.
    * Throws `LAST_OWNER` for a listed owner, who steps down first (D-65), `TRUST_FAILURE` if the chain doesn't verify.
    */
   async leaveTeam(teamId: string): Promise<void> {
