@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate. Last reviews: 037 (`adversarial`, fresh-context reviewer) and 038 (`change`, plan 025), neither with a fix beyond availability. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: the formal model (transfer, roster seals, recovery proof) and the external audit, before the vectors freeze (§13).
+**Now:** 2 of 2: freeze candidate. Last reviews: 037 (`adversarial`), 038 (`change`, plan 025) and 039 (`complexity`): no fix beyond availability. Open findings to fix: none. Open simplifications: 039-A (require the floor and retire `team-state`; merges 011-A, 026-F, 028-C; needs a decision), 039-B (D-58's current rule, after 039-A). Next: decide 039-A; then the formal model and the external audit.
 
 ## Findings
 
@@ -70,7 +70,7 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 010-F | Forgeable input | Medium | Fixed | Export refuses (plan 015) |
 | 010-G | Residual | Medium | Accepted | Owner's anchor repair (plan 015) |
 | 010-H | Hardening | Low | Fixed | §5.5 (plan 015) |
-| 011-A | Simplification | Low | Open | |
+| 011-A | Simplification | Low | Open | Merged into 039-A (decision pending) |
 | 011-B | Stale text | Low | Fixed | Forgeability rows (with review 012) |
 | 011-C | Stale text, simplification | Low | Fixed | D-54 restates the rules; D-48, D-50, D-52 point to it (with review 012) |
 | 012-A | Stale text | Low | Fixed | Scope interface table (edit, with review 015) |
@@ -148,11 +148,11 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 026-C | Spec gap | Low | Dropped | Moot: plan 020 has no write |
 | 026-D | Hardening | Low | Dropped | Moot: plan 020 has no write |
 | 026-E | Spec gap | Low | Fixed | Scope rule 4: revision + 1, relied on (plan 020) |
-| 026-F | Simplification | — | Open | Next `complexity` review: `team-state` conflicts as reports |
+| 026-F | Simplification | — | Open | Merged into 039-A (decision pending) |
 | 027-A | Hardening (test coverage) | Low | Fixed | Fuzz parser reads the revision (plan 021) |
 | 028-A | Spec → code, overclaim | Medium | Fixed | D-58 amended: a team whose bundles fail stops only that team (plan 021) |
 | 028-B | Missing threat | Low | Accepted | D-63 accepted risk (plan 021) |
-| 028-C | Simplification | — | Open | Next `complexity` review, with 026-F |
+| 028-C | Simplification | — | Open | Merged into 039-A (decision pending) |
 | 028-D | Stale text | Low | Fixed | `member-custody.ts` comment (plan 021) |
 | 028-E | Overclaim | Low | Fixed | TH-20 (plan 021) |
 | 029-A | Spec → code | Low | Fixed | `warnings()` (plan 022) |
@@ -188,6 +188,8 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 037-E | Wrong premise, combined attack | Medium | Accepted | TH-20, SP-07, D-54 consequence (plan 025) |
 | 038-A | Wrong claim | Low | Fixed | §5.5, using guide: `listDevices()`'s `current` (edit after review 038) |
 | 038-B | Stale text | Low | Fixed | SP-26 Verification (edit after review 038) |
+| 039-A | Simplification | Low | Open | Require the floor and retire `team-state` (D-66 to decide) |
+| 039-B | Simplification | — | Open | D-58: a current-rule paragraph (edit, after 039-A) |
 
 ## Residuals
 
