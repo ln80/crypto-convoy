@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate. Last reviews: 037 (`adversarial`, fresh-context reviewer) and 038 (`change`, plan 025), neither with a fix beyond availability. Open findings to fix: none. Still open, low: 011-A, 037-A (text, owner compromise group); for the next `complexity` review: 026-F, 028-C. Next: the formal model (transfer, roster seals, recovery proof) and the external audit, before the vectors freeze (§13).
+**Now:** 2 of 2: freeze candidate. Last reviews: 037 (`adversarial`, fresh-context reviewer) and 038 (`change`, plan 025), neither with a fix beyond availability. Open findings to fix: none. Still open, low: 011-A; for the next `complexity` review: 026-F, 028-C. Next: the formal model (transfer, roster seals, recovery proof) and the external audit, before the vectors freeze (§13).
 
 ## Findings
 
@@ -181,7 +181,7 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 035-E | Wrong premise | Low | Fixed | §4.1 (plan 024) |
 | 036-A | Stale text | Low | Fixed | §5.4 (plan 025) |
 | 036-B | Stale text | Low | Fixed | Using guide, `status()` (plan 025) |
-| 037-A | Missing threat | Low | Open | Accept, owner compromise group: TH-17/TH-25 text on a wrong previous-key link (edit) |
+| 037-A | Missing threat | Low | Accepted | TH-17 (owner compromise group) |
 | 037-B | Spec → code, wrong claim | Low | Fixed | D-58 amended: the same-PIN check skips a PIN wrap whose `kdf` is refused (plan 025) |
 | 037-C | Spec → code | Low | Fixed | D-58 amended, §4.1, §5.4: this device's wrap that doesn't open is unreadable (plan 025) |
 | 037-D | Wrong claim | Medium | Accepted | TH-20, SP-07, D-54 consequence (plan 025) |
