@@ -43,6 +43,7 @@ import {
   acceptVersion,
   commit,
   currentVersion,
+  openDeviceWrap,
   readWrap,
   newDevice,
   openWithPin,
@@ -52,6 +53,7 @@ import {
   verifyPhrase,
   verifyPin,
 } from "./unlock-methods.js";
+import { refusedKdf } from "./pin-key.js";
 
 export interface VaultOptions {
   readonly store: RecordStore;
@@ -237,10 +239,10 @@ export class Vault {
     if (!device) throw new ConvoyError("DEVICE_NOT_REGISTERED");
     const version = await currentVersion(this.#ports, this.accountId);
     if (version === null) throw new ConvoyError("DEVICE_NOT_REGISTERED");
-    // A device wrap that can't be read is no registration: the device registers again (D-58).
-    const read = await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId });
-    if (read.state !== "readable") throw new ConvoyError("DEVICE_NOT_REGISTERED");
-    await this.#open({ accountId: this.accountId, version, key: openAccountKeyWrap(read.wrap, device.deviceKey) });
+    // A device wrap that can't be read, or doesn't open, is no registration: the device registers again (D-58).
+    const key = await openDeviceWrap(this.#ports, this.accountId, version, device);
+    if (!key) throw new ConvoyError("DEVICE_NOT_REGISTERED");
+    await this.#open({ accountId: this.accountId, version, key });
   }
 
   /**
@@ -431,11 +433,15 @@ export class Vault {
    * A new PIN that opens the current PIN wrap would leave the retired version opening with it
    * (SP-19): `MALFORMED_RECORD`. One evaluation, from the `enroll` share the new PIN wrap draws on too:
    * when it is spent the check is skipped, and setting the new PIN fails as well (D-40, TH-44).
+   * A wrap whose `kdf` the reader refuses can't be opened either: no check (D-58).
    */
   async #refuseCurrentPin(account: OpenAccount, newPin: string): Promise<void> {
     // No wrap, or one that can't be read: nothing the new PIN could open, so no check (D-58).
     const read = await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: account.version, method: "pin" });
     if (read.state !== "readable") return;
+    // One whose `kdf` the reader refuses (an unpinned key id, a cost below the minimum) can't be opened either (D-58).
+    const { settings } = this.#ports;
+    if (refusedKdf(read.wrap.kdf!, settings.argon2.min, settings.oprf.keys)) return;
     try {
       this.#ports.suite.wipe(await openWithPin(this.#ports, read.wrap, newPin, "enroll"));
     } catch (error) {
@@ -454,9 +460,7 @@ export class Vault {
       (await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method })).state !== "absent" ? "set-up" : "not-set-up";
     const [recovery, pin] = await Promise.all([has("recovery"), has("pin")]);
     const device = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
-    const registered = device
-      ? (await readWrap(this.#ports, { accountId: this.accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId })).state === "readable"
-      : false;
+    const registered = device ? await this.#registered(version, device) : false;
     return { account: this.#account ? "unlocked" : "locked", deviceRegistered: registered, deviceId: device?.deviceId ?? null, recovery, pin };
   }
 
@@ -607,12 +611,18 @@ export class Vault {
   async #registration(account: OpenAccount): Promise<{ ops: WriteOp[]; device: LocalDevice | null }> {
     const local = await callPort(() => this.#ports.deviceKeys.getDevice(this.accountId));
     if (local) {
-      const expected = { accountId: this.accountId, accountKeyVersion: account.version, method: "device", deviceId: local.deviceId } as const;
-      // One that can't be read is no registration: a new device registers (D-58).
-      if ((await readWrap(this.#ports, expected)).state === "readable") return { ops: [], device: null };
+      // One that can't be read, or doesn't open, is no registration: a new device registers (D-58).
+      if (await this.#registered(account.version, local)) return { ops: [], device: null };
     }
     const { device, op } = newDevice(this.#ports, account);
     return { ops: [op], device };
+  }
+
+  /** Whether this device's wrap at `version` opens under its key (D-58). */
+  async #registered(version: number, device: LocalDevice): Promise<boolean> {
+    const key = await openDeviceWrap(this.#ports, this.accountId, version, device);
+    if (key) this.#ports.suite.wipe(key);
+    return key !== null;
   }
 
   /** Kept only once its wrap is stored. */

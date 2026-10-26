@@ -57,6 +57,21 @@ export async function readWrap(
   }
 }
 
+/**
+ * This device's account key at `version`, or `null` when its wrap is absent, can't be read, or doesn't
+ * open under the device key: a random key never fails honestly, so it is no registration (D-58).
+ */
+export async function openDeviceWrap(ports: AccountPorts, accountId: string, version: number, device: LocalDevice): Promise<Uint8Array | null> {
+  const read = await readWrap(ports, { accountId, accountKeyVersion: version, method: "device", deviceId: device.deviceId });
+  if (read.state !== "readable") return null;
+  try {
+    return openAccountKeyWrap(read.wrap, device.deviceKey);
+  } catch (error) {
+    if (isConvoyError(error, "DECRYPTION_FAILED")) return null;
+    throw error;
+  }
+}
+
 /** The wrap the caller asked for, or `null` if the server doesn't serve it. */
 export async function fetchWrap(
   ports: AccountPorts,

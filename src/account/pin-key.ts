@@ -7,6 +7,12 @@ import { callPort, type Argon2Cost, type OprfPurpose, type OprfService } from ".
 import type { Kdf } from "../records/account-key-wrap.js";
 import type { Suite } from "../suites/suite.js";
 
+/** Why a reader refuses a wrap's `kdf` before any work, or `null`: below `min`, or a key id with no pinned public key (D-53). */
+export function refusedKdf(kdf: Kdf, min: Argon2Cost, oprfKeys: ReadonlyMap<number, Uint8Array>): "MALFORMED_RECORD" | "UNSUPPORTED_VERSION" | null {
+  if (kdf.opslimit < min.opslimit || kdf.memlimit < min.memlimit) return "MALFORMED_RECORD";
+  return oprfKeys.has(kdf.oprfKeyId) ? null : "UNSUPPORTED_VERSION";
+}
+
 /**
  * Throws `MALFORMED_RECORD` below `min` or for a malformed answer, `UNSUPPORTED_VERSION` for a key id
  * with no pinned public key, `TRUST_FAILURE` (`bad_signature`) for a proof that doesn't verify,
@@ -18,10 +24,11 @@ export async function derivePinKey(
   input: { accountId: string; pin: string; kdf: Kdf; purpose: OprfPurpose; min: Argon2Cost; oprfKeys: ReadonlyMap<number, Uint8Array> },
 ): Promise<Uint8Array> {
   const { accountId, kdf, min } = input;
-  if (kdf.opslimit < min.opslimit || kdf.memlimit < min.memlimit) throw malformed();
   // Before any work: only a key the client's code pins can answer (D-53).
-  const publicKey = input.oprfKeys.get(kdf.oprfKeyId);
-  if (!publicKey) throw new ConvoyError("UNSUPPORTED_VERSION");
+  const refused = refusedKdf(kdf, min, input.oprfKeys);
+  if (refused === "MALFORMED_RECORD") throw malformed();
+  if (refused) throw new ConvoyError(refused);
+  const publicKey = input.oprfKeys.get(kdf.oprfKeyId)!;
   const pin = utf8(input.pin.normalize("NFKC"));
   const a = suite.passwordHash(pin, kdf.salt, kdf.opslimit, kdf.memlimit);
   const info = labelled("pin-oprf", string(accountId));

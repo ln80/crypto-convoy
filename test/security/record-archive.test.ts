@@ -3,7 +3,8 @@
  * Threats: TH-10, TH-11, TH-36, TH-45, TH-46, TH-48.
  */
 import { describe, expect, it } from "vitest";
-import { replacePhrase } from "../support/fixtures.js";
+import { FAST, replacePhrase } from "../support/fixtures.js";
+import { FakeOprfServer } from "../../src/testing/index.js";
 import { team } from "../support/teams.js";
 import { forgeMemberKeys, strangerKeys, bundleOf } from "../support/forge.js";
 import { vaultInternals } from "../../src/account/vault.js";
@@ -106,6 +107,58 @@ describe("SP-26: a session can't destroy an account's private records", () => {
       await expect(bob.vault.secureAccount({ phrase: bob.recoveryPhrase })).rejects.toEqual(code("WRONG_CREDENTIAL"));
       await garble(bob as never, "recovery", { extra: undefined, v: 99 });
       await expect(bob.vault.warnings()).rejects.toEqual(code("UNSUPPORTED_VERSION"));
+    });
+  });
+
+  describe("a PIN wrap whose kdf is refused, or this device's wrap that doesn't open, costs only its method (D-58, review 037 B, C)", () => {
+    const pinKey = { type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "pin" } as const;
+
+    it("a PIN wrap naming an unpinned OPRF key id: unlocking with it stays UNSUPPORTED_VERSION; secureAccount with a new PIN runs", async () => {
+      const { members, w } = await team("bob");
+      const bob = members.bob!;
+      const live = (await bob.store.get(pinKey)) as { kdf: Record<string, unknown> };
+      await bob.store.commit([{ op: "replace", key: pinKey, record: { ...live, kdf: { ...live.kdf, oprfKeyId: 999 } } }]);
+      await expect((await w.device("bob")).vault.unlockWithPin("1234")).rejects.toEqual(code("UNSUPPORTED_VERSION"));
+      expect(await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" })).toEqual({ rekeyed: ["team-1"], failed: [] });
+      await (await w.device("bob")).vault.unlockWithPin("5678");
+    });
+
+    it("a PIN wrap with a cost below the reader's minimum: secureAccount with a new PIN runs", async () => {
+      const { members, w } = await team("bob");
+      const bob = members.bob!;
+      const strict = { ...FAST, argon2: { write: { opslimit: 3, memlimit: 64 * 1024 * 1024 }, min: { opslimit: 3, memlimit: 64 * 1024 * 1024 } } };
+      const device = await w.device("bob", { settings: strict, localKeys: bob.localKeys });
+      await device.vault.unlock();
+      await expect(device.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" })).resolves.toEqual({ rekeyed: ["team-1"], failed: [] });
+    });
+
+    it("a bad proof is the OPRF service's, not the wrap's: the same-PIN check still refuses with it", async () => {
+      const { members, w } = await team("bob");
+      const bob = members.bob!;
+      const device = await w.device("bob", { oprf: new FakeOprfServer(), localKeys: bob.localKeys });
+      await device.vault.unlock();
+      await expect(device.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" })).rejects.toEqual(trust("bad_signature"));
+      expect(await bob.store.getAccountKeyVersion("bob")).toBe(1);
+    });
+
+    it("this device's wrap that parses but doesn't open: DEVICE_NOT_REGISTERED, not registered, and the PIN registers it again", async () => {
+      const { members } = await team("bob");
+      const bob = members.bob!;
+      const local = (await bob.localKeys.getDevice("bob"))!;
+      const key = { type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method: "device", deviceId: local.deviceId } as const;
+      const live = (await bob.store.get(key)) as { wrappedAccountKey: { nonce: string; ciphertext: string } };
+      const ct = live.wrappedAccountKey.ciphertext;
+      const flipped = (ct[0] === "A" ? "B" : "A") + ct.slice(1);
+      await bob.store.commit([{ op: "replace", key, record: { ...live, wrappedAccountKey: { ...live.wrappedAccountKey, ciphertext: flipped } } }]);
+      bob.vault.lock();
+      await expect(bob.vault.unlock()).rejects.toEqual(code("DEVICE_NOT_REGISTERED"));
+      expect(await bob.vault.status()).toMatchObject({ deviceRegistered: false });
+      await bob.vault.unlockWithPin(bob.pin);
+      expect(await bob.vault.status()).toMatchObject({ deviceRegistered: true });
+      expect((await bob.localKeys.getDevice("bob"))!.deviceId).not.toBe(local.deviceId);
+      bob.vault.lock();
+      await bob.vault.unlock();
+      expect(bob.vault.isUnlocked).toBe(true);
     });
   });
 
