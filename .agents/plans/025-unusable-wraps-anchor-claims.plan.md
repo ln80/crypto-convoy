@@ -97,3 +97,15 @@ This device's wrap is present but unreadable also when it parses but doesn't ope
 3. **Notes.** Execution notes; then the `change` review (038). A fix beyond availability found there resets the stop rule's count.
 
 ## Execution notes
+
+- **037-B, as built:** the check skips the wrap on a test of its `kdf` before any evaluation, not on the derivation's errors. `refusedKdf` (`pin-key.ts`) gives the reason a reader refuses a `kdf` (a cost below `min`: `MALFORMED_RECORD`; a key id with no pinned key: `UNSUPPORTED_VERSION`), and `derivePinKey` throws from it, so the check and the derivation share one rule. Catching the derivation's errors would also have skipped the check on a malformed OPRF answer (`MALFORMED_RECORD` too), which is the service's, not the wrap's.
+- **037-C, as built:** `openDeviceWrap` (`unlock-methods.ts`) gives this device's account key, or `null` for a wrap that is absent, unreadable or doesn't open (`DECRYPTION_FAILED`). `unlock()` throws `DEVICE_NOT_REGISTERED` on `null`; `status()` and `#registration` count the wrap through `#registered`, which wipes the key it opened.
+- **Spec:** unchanged while coding. §5.11's "one whose `kdf` the reader refuses" is the `refusedKdf` test.
+- **Tests** (`record-archive.test.ts`, "a PIN wrap whose kdf is refused, or this device's wrap that doesn't open, costs only its method"):
+  - an unpinned key id: `unlockWithPin` stays `UNSUPPORTED_VERSION`, `secureAccount` with a new PIN runs, and the new PIN unlocks;
+  - a cost below the reader's minimum: `secureAccount` with a new PIN runs;
+  - a bad proof: the check still throws `TRUST_FAILURE` (`bad_signature`) and nothing is rotated;
+  - this device's wrap that parses but doesn't open: `DEVICE_NOT_REGISTERED`, not registered in `status()`, the PIN registers a new device id, and the same-device unlock works.
+- **Guards:** the `kdf` skip, `openDeviceWrap`'s `null` on `DECRYPTION_FAILED`, and `#registration`'s open, each reverted, fail their tests.
+- **Checks:** `typecheck`, `check:spec`, `npm test` (786), `test:browser` (10), `build`, `test:package` and fuzz (30) pass.
+- **Integration (doconvoy e2eev2):** no API change. A device whose wrap a session garbled now reads `deviceRegistered: false`, as for one that doesn't parse: offer the PIN or the phrase.
