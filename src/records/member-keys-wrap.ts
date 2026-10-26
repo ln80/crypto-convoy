@@ -1,6 +1,6 @@
 // member-keys-wrap (§4.3): a member's private keys for one team, under the account key.
 import { unwrap, wrap, type Wrapped } from "../blocks/wrap.js";
-import { Reader, bytes, optional, string, u32, type Field } from "../encoding/canonical.js";
+import { Reader, bytes, string, u32, type Field } from "../encoding/canonical.js";
 import type { Anchor } from "../encoding/link.js";
 import type { JsonRecord } from "../encoding/json.js";
 import { decryptionFailed, malformed, trustFailure } from "../errors.js";
@@ -26,31 +26,28 @@ export interface MemberKeysWrap extends RecordHeader, MemberKeysWrapContext {
 export interface MemberKeyBundle {
   readonly signingSeed: Uint8Array;
   readonly encryptionSecretKey: Uint8Array;
-  readonly teamStateKey: Uint8Array;
-  /** The account's root of trust for the team: an anchor this vault built or verified (§4.3, D-52). */
-  readonly floor?: Anchor;
+  /** The account's root of trust for the team: an anchor this vault built or verified; every bundle holds one (§4.3, D-52, D-66). */
+  readonly floor: Anchor;
 }
 
 /** The bundle's key pairs, computed from the seed and secret key. */
 export interface MemberKeyPairs {
   readonly signing: KeyPair;
   readonly encryption: KeyPair;
-  readonly teamStateKey: Uint8Array;
 }
 
 const PART = 32;
-/** `optional<u32 version, bytes recordHash>`: absent, or present with a 32-byte hash. */
-const SIZES = [3 * PART + 1, 3 * PART + 1 + 4 + 4 + PART];
+/** `signingSeed ‖ encryptionSecretKey ‖ enc(u32 version, bytes recordHash)`: 104 bytes (§4.3, D-66). */
+const SIZE = 2 * PART + 4 + 4 + PART;
 
 /** The anchor floor's encoding, in a bundle and in a transfer entry (§3.8, §4.3). */
-export function encodeFloor(floor: Anchor | undefined): Field {
-  return optional(floor, (f) => new Uint8Array([...u32(f.version), ...bytes(f.hash)]));
+export function encodeFloor(floor: Anchor): Field {
+  return concat(u32(floor.version), bytes(floor.hash));
 }
 
 /** Throws `MALFORMED_RECORD` for a version below 1 or a hash that isn't 32 bytes. */
-export function readFloor(reader: Reader): Anchor | undefined {
-  const floor = reader.optional((r) => ({ version: r.u32(), hash: r.bytes() }));
-  if (floor === null) return undefined;
+export function readFloor(reader: Reader): Anchor {
+  const floor = { version: reader.u32(), hash: reader.bytes() };
   if (floor.version < 1 || floor.hash.length !== PART) throw malformed();
   return floor;
 }
@@ -62,19 +59,15 @@ const adFields = (c: MemberKeysWrapContext): Field[] => [
   u32(c.accountKeyVersion),
 ];
 
-export function generateBundle(suite: Suite): MemberKeyBundle {
-  return {
-    signingSeed: suite.generateSigningSeed(),
-    encryptionSecretKey: suite.generateEncryptionKeyPair().secretKey,
-    teamStateKey: suite.randomBytes(suite.sizes.key),
-  };
+/** New keys; the floor is added when the wrap is written, since team creation hashes them into it (§6.3). */
+export function generateBundle(suite: Suite): Omit<MemberKeyBundle, "floor"> {
+  return { signingSeed: suite.generateSigningSeed(), encryptionSecretKey: suite.generateEncryptionKeyPair().secretKey };
 }
 
-export function bundleKeyPairs(suite: Suite, bundle: MemberKeyBundle): MemberKeyPairs {
+export function bundleKeyPairs(suite: Suite, bundle: Pick<MemberKeyBundle, "signingSeed" | "encryptionSecretKey">): MemberKeyPairs {
   return {
     signing: suite.signingKeyPair(bundle.signingSeed),
     encryption: { publicKey: suite.encryptionPublicKey(bundle.encryptionSecretKey), secretKey: bundle.encryptionSecretKey },
-    teamStateKey: bundle.teamStateKey,
   };
 }
 
@@ -84,7 +77,7 @@ export function createMemberKeysWrap(
   accountKey: Uint8Array,
   bundle: MemberKeyBundle,
 ): MemberKeysWrap {
-  const plaintext = concat(bundle.signingSeed, bundle.encryptionSecretKey, bundle.teamStateKey, encodeFloor(bundle.floor));
+  const plaintext = concat(bundle.signingSeed, bundle.encryptionSecretKey, encodeFloor(bundle.floor));
   try {
     return { v: 1, suite, ...context, wrappedKeys: wrap(suite, accountKey, "member-keys-wrap", adFields(context), plaintext) };
   } finally {
@@ -109,7 +102,7 @@ export function parseMemberKeysWrap(
     teamId: fields.id("teamId"),
     memberKeysVersion: fields.u32("memberKeysVersion", 1),
     accountKeyVersion: fields.u32("accountKeyVersion", 1),
-    wrappedKeys: readWrapped(fields, "wrappedKeys", header.suite, SIZES[1]! + header.suite.sizes.tag),
+    wrappedKeys: readWrapped(fields, "wrappedKeys", header.suite, SIZE + header.suite.sizes.tag),
   };
   expectContext({ ...expected }, { ...record });
   return record;
@@ -132,16 +125,12 @@ export function unwrapMemberKeys(record: MemberKeysWrap, accountKey: Uint8Array)
   const plaintext = unwrap(suite, accountKey, "member-keys-wrap", adFields(record), record.wrappedKeys);
   let bundle: MemberKeyBundle;
   try {
-    if (!SIZES.includes(plaintext.length)) throw decryptionFailed();
-    const reader = new Reader(plaintext.subarray(3 * PART));
+    // The layout without a floor, or any other length, doesn't open (D-66).
+    if (plaintext.length !== SIZE) throw decryptionFailed();
+    const reader = new Reader(plaintext.subarray(2 * PART));
     const floor = readFloor(reader);
     reader.end();
-    bundle = {
-      signingSeed: plaintext.slice(0, PART),
-      encryptionSecretKey: plaintext.slice(PART, 2 * PART),
-      teamStateKey: plaintext.slice(2 * PART, 3 * PART),
-      ...(floor ? { floor } : {}),
-    };
+    bundle = { signingSeed: plaintext.slice(0, PART), encryptionSecretKey: plaintext.slice(PART, 2 * PART), floor };
   } catch {
     // An authenticated plaintext of the wrong shape is a broken record, never a partial bundle (§4.3).
     throw decryptionFailed();

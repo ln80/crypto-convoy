@@ -33,7 +33,7 @@ export async function rotateAccount(
   for (const { wrap, bundle } of await openedWraps(ports, current)) {
     const context = { accountId, teamId: wrap.teamId, memberKeysVersion: wrap.memberKeysVersion, accountKeyVersion: next.version };
     const rewrapped = createMemberKeysWrap(suite, context, next.key, bundle);
-    suite.wipe(bundle.signingSeed, bundle.encryptionSecretKey, bundle.teamStateKey);
+    suite.wipe(bundle.signingSeed, bundle.encryptionSecretKey);
     ops.push({ op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(rewrapped) });
   }
 

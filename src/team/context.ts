@@ -19,8 +19,8 @@ export interface MemberBundle {
   readonly memberKeysVersion: number;
   readonly published: MemberKeys;
   readonly pairs: MemberKeyPairs;
-  /** The anchor floor the bundle carries: used when a device has no other anchor (§6.1 step 1, D-48). */
-  readonly floor?: Anchor;
+  /** The anchor floor every bundle carries: a root of every open (§6.1 step 1, D-48, D-66). */
+  readonly floor: Anchor;
 }
 
 /** Commits; a refused write is `STALE_VERSION` (§6.6 step 5, §12). */

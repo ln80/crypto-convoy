@@ -318,14 +318,7 @@
           "D-63",
           "D-66"
         ]
-      },
-      "known": [
-        {
-          "file": "protocol.md",
-          "text": "`state_unreadable`",
-          "gap": "plan 026 phase 2 removes the reasons from src/errors.ts and §9 together"
-        }
-      ]
+      }
     },
     {
       "pattern": "\\bcompareAndSet\\b|compare-and-set on `revision`|\\bcompare-and-set\\b",

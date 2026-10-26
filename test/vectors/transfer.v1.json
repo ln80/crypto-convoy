@@ -13,13 +13,12 @@
   "valid": [
     {
       "name": "two bundles, newest first",
-      "transfer": "1XhGelYlj7FxItT6frHDl9Ons6S9Y5MIFVaySuWXQ6WMIiufpp90csbfUFKD9JYB0UasQkxskpL1vA9QlqCAoBBDsvivZims7zpo4iUD2Rfb7SngUBFwyxjqKX4xCHpPVZC3L0r7wrsFKsYgw1cjsZ-q7SX_71IpeitroRlOthb87wjDzs76d8tLtxNb-jtcsuaxymttNQ5W4eg06_jCdBvIa-UeVzFsPqVhu_DmH4Hs84EMXnAUfb1Nqhq2EBYqTxmwOW56BTAmoGMBZXgjZqZ_2IpaBox5mzwon6UB1Gw3r-7Ooy0FpS_0GMkUh4xxtTcNexvTQpkMwpjkvyxgX-VYDterKBWARNZjducuociYgMnN1niD_jT8ZTMJyTNxebkdEjpTL_ydgpCwtUt4xhiPQZxWBtkGGwaGsBpWf5snn_jCoz7gBfcAIsvY9ie33gq_z8pFBCDaaxxlS6cZ55Y-5Chd2SbqaDkGhTR51KfvpubBwY9x85WHAImk",
+      "transfer": "1Sg9_gkzWcNZDoZzX1msGGz2aXM-3EjCCSYLXDfvn2hd2NFPXFv5fBmI_iv2twc9OfhjCBuJcFBlZuTF6RWasABK--3l1GBZ1KV5hhi8KNH1MiaNpv7Hwa5QrEDNz9pMT2Ph6Ic9EbCtBzov0Y7bTiDapQl5eP9VOCpsXvxqlyHilKajCXCMttJttvBxHxC-SQayr-2f7WmJrCji7rkU7h9afKH_dWebkrZ72FX9eAWSJcRp_8djfnWUfdCx8SUgWONxViHFb--XusSjZGI8wIbwHu3bf8gXZh_1lLj2GsMNSkOJlh9lQr9VAzfEoHT59wZJ1ZZ00ug6YDKrWot-u6pkPsJFb02wbBCbl3imR-QwMMk_VD22StFqyQEeJeHdO3JgUDsw7CrdxM4UOm-vREjJROcig-In9IbheWE6Wd2BLQrm7KiORqioLgD-J1wv2bFfQsIwiSNHWeA",
       "bundles": [
         {
           "memberKeysVersion": 2,
           "signingSeed": "36dd93eaf6c45790745bb977e6085555c7c40bf4290a0258941dcde21c376a67",
           "encryptionSecretKey": "785ac8d9b2160e19304b56352994fc565adcafed7b753f57156757362edca39d",
-          "teamStateKey": "dcf2bf82832ed6c368b6fc78bb6dee388d1e8bb87b08632afba157b50aabed60",
           "floor": {
             "version": 3,
             "hash": "0ec5e20741e357c728d413e2798ed88de6202c937b369364f32044d897409554"
@@ -29,7 +28,10 @@
           "memberKeysVersion": 1,
           "signingSeed": "7f2f43843d27b87b9bda475982864d6a68fde412827f66fbcce487a7b81bf908",
           "encryptionSecretKey": "39e9d70e85f9a6e347362a8397c4f8fb9504fb6b331256b05bdfd6a0b4e4fbf4",
-          "teamStateKey": "2afd3473fb5afa9460335499b8394e31a3a1efc9d2c16fbb8b9db171802ebb88"
+          "floor": {
+            "version": 1,
+            "hash": "c6159ce13ad81adc48cca2dedcc74bc8428d64991da76eaadf41cc8dee312811"
+          }
         }
       ]
     }
@@ -37,42 +39,47 @@
   "refused": [
     {
       "name": "for another team",
-      "transfer": "1MMB5al7P6IUsDRomm2xrtt-zNn_i30EbNJK6uz7RLw7vRBHPlxfy6csCTFNcPIyCYrlk6bj1TKkSlsgZ2mJ5AqMPQWV9e0qVCvqFIxnixY5XAjGNVsbs5RjmUehCg8pSzyYj_EtiHHxlFof_tVKLXredD2lXEwWSnZIB3hbarne31AMyPgzDFOkOW6aGwsm_uDxma0TMTWmQqo7hJjaI20Hann9L6YYMNdPa-LrVj3Put3IS_j-z1cVwg8_Daepld_UkIOisxxmmukDZlPusMaN1PkEK9WHHAS_QRCMcNE39CfiuYl44cU3Bqr-V8G5eqmTCGgN82hykroezPPqmi4caAqjjgXyy4Ro7GEMr7sQYHoJyGLEDXSzRubKkqXM8kgcItywnScNSHc03Tvxxeq21Pgu8y11F41PC0XJPn5ThBaaiRNsSvaNluRV3-Py3cMkmZX9ZrPw6rXjnxbHKcOL-HphmDQtYM_z04kNIZ2zeGswXsmTsgly_bm0",
+      "transfer": "1vXlLzhwpeayaNYopKGAapCN2PsN6ZzFgNGIHSMcHYglkZklaxIcMPH4IFlOZy5H9tIMEOjhzBMPt7BTnp3ULeQNg5l8BVETw59GEwhPajyt86iLvEZp1kuH2aX3L_BTDMtauyszY6oF3lKy3iuJrosedku6U4p2q_cp4Mnld_h5X8CcIZGZQpTfVQjRiOiAio2vj5zdbp76C_QQjVLhnbjdHbQTAJOjNX-R8m63GkuY1BTo--68T8pW2pwfTQgEAiE_etH12pdX3NZSre3WqSHG3mgLh-Be43KaGqbeG5QJIJVqmobLR11BmyvtQ91zbR4sCSbgoMi4111Vap-nIEDin8r0Rov6PjYwFN5bUgED0lbj5r7GTkTemUAr0BT5mbAk9_H3Q6ywRLvvChFPY5X07xXDuK-b8-esfYyuHwuIGtyeEym5imPseXebxTPFtmYhTyLqhYzDBGg",
       "error": "DECRYPTION_FAILED"
     },
     {
       "name": "for another account",
-      "transfer": "1ZxB5etVEL7M3JHnJUfIjyqyR3c5rjF2SuUQxHjP-rRtsWQbPI1Y9iTCwLUdoPRORE1HhMhDR95m6d_cOSth4xvOvYTYKjgfFgWNFUMlYkMBM4INfR2Q0VtdwrncMZjCrAFFqUZWs60DHk7fdrxAASBH6CVcMBqc8EYniykxUMCKnE5fGi2r_aIxkcfqj5beFhEzKM6v5qjPZdBW4gdVol4loD9I5U4LEq3iyG8eBawTb6ca_8NByOPYc2wcgVaqyWu5FfO8hiCioYfcvYPzuezPw1wakmDNA-ggZw9FVealER1mZdkhPeYXMYkLHiZDa0mfsU-2dz3eY-db9QBe7SZHLZIAkDaKKLGCRjpcT9nY1RLerPhcbOsK_ifKAkF_ywSYtJAjG3aq2J18m0kmBJF3V05d58cxyk3YqDwtKvAaxkiiPqBwGvs-xE26XdjVn1kc9nrBjKqqT1NuoDESqRl9e5OFGiWf0ZEd5YBtNbJXBs7ACD9jMESDAEpvJFA",
+      "transfer": "1DpbPOpN63TRzQ0OxE2BvdJZ4jUg7F0VpxVZddNY0q2gatnSy-y1Xene7l41cbQ4inEfJf13Bc49lPpHPTrMAKI89dqFdOk0lmvpGx9sinG0_0TmyKkBjYVGYMXHDiwWMETUbY_SIAqkj2ooOkAjk2yAA-NmCVfS7bEkskJnzjyGN_0xkxkBDXatWV-5Nh00USmDKh8ZgzV4XlZBQMRkGM9ufm4RDuTfpZuqIG1KfpBLBHc33GpAgB0gg3o-QXHV7g63rMR7rkF3A9Ay8iPnwgJaWfnICn_Q_gvRbLgC0mlK4i4uGQ7CuZ2oy5ldh5PjHtQywUP132TGYF2k-KXu5pBx-VKvvPFNmeG69bMLBMNsfHlAvs_25TTiKQDHwaVehZ_kyM8FhXQz-5kNc-mCIszBiaB2FLKv8QFu2PwTgcBhMX9Dv1bPpJ4lyhBh1PoJzTKdSozoQaOXaFre_",
       "error": "DECRYPTION_FAILED"
     },
     {
       "name": "sealed to another receiver",
-      "transfer": "1y0F0IT6oAwBmh67qqLgVK12Jzme5HhTPvSdJ6A61dh5fuimoHCOJOoQOLK8J2F_R4abAGFJMw1xgWg",
+      "transfer": "1VbjIc9Z9IBVFChSX3sr4oO1LOZVaIo7-7EtgcvUguniYqrjlK_pQbSCiScc1Wdb_KNS8rm6jwbbxhA",
       "error": "DECRYPTION_FAILED"
     },
     {
       "name": "bundles oldest first",
-      "transfer": "1p3OCzaLOvcgWBqzQc0CDS3DPPdJp3vAT4RK1XkQKgx--GexXxTMo-1_I2T6od9X5n3ylaTtsci2V4ibUi_anyJeSzHEUqAjlFux035dy-zCBfWxiHPNjKgMDH44eRu6HTWRUSwH57_kpuTbySXiccAm0giloaaw9Yle427baah0S0ZaWQQ2AXz9AdU4CfWsR-ediiwKrgnfmm9hcUcv97IHzQr7gxO967T8gBWCIfXghwb-3QiXVvTr-F9A8_tKBK_w66U3GnFEy8by-j3av5Yv_d2M5qlFcqocusFHXuAXLve3B-11PurZhffoHg24wxgagmLH5-mvlaV_FvFatJ_mDxH8cFCEKZv1azWpVw3mnnM1o0vOfn4VkH3Oc9tH9IMrul2D1usPzWPZk3FBGqWxpbuB-3CHLS15QEL2kWZJkYQJ0b9tas8HokzDpklgy6Ttw6A",
+      "transfer": "1BwhVL-DhZHaPcgKvfrOqKoReS-Yb5WkA6tG1DVullSr7Y3fn-_49Dl7KRdfA0wZA8ehh4JnEzI6v9t3bQkz6lXXYbO28TXIQtxeNHhF20BBGfem5svM9Fohu-Eul72humFfZqiaREPUVci92xByEANE1xVmU8XpfHPtN2UYinFOndjkejvTKL6xofkRFxyiqMc3BC0mpKl5fBANxVL89ZYUB81RxZ3n_-wDMGrvA428cl2EDvOiWhaliMLc1hVpoe_rkk_pyu4RorKonWpOwSeNt9i1LH0gkhQBrKz5oce1abshVXcP7j2kl4AE68s6tkh09ClGaFTBC3MHwhBJrK7riBYrM4lmzZZ4c2-T745j1B__QekZmD6fmUga-Au2iPWVqAstVSLhZuANbE6RDmVFkKUmftZPXc2K8ysOz6BucdGbx-yzffvrRbvP6AOnoYYqrU5P-oAWSzg",
+      "error": "MALFORMED_RECORD"
+    },
+    {
+      "name": "an entry in the retired layout, without a floor",
+      "transfer": "17is5i088c22rYtRC2TIxF7sIB89iVHnZ6DyYTkwYBHShoPqoL2pH2wlXWXw7lu40fx-7YSLjoQzsfCDZrttojEPYivpyGDKPSVt7rHGBA9nWG69bxQGibIJAa_tDj27mKSwNnz3RAZH2ULBNARuTtdztPy88l35j0faN1HBtx3ynytjYb7agE2IEb0F5QqDthVNwpkkfzLbXaq-YmcKfXslD9pZrpy1RiB-IYpuXbR3xxBq6juFhQKQ0l-nWZxXRqUHKJjpTKFZ0uvs4vKACUrFFqdYXzYrT38_eyOMBmXE_pTc",
       "error": "MALFORMED_RECORD"
     },
     {
       "name": "no bundle",
-      "transfer": "1mqrm50S_89Ti3-OsxwEYt7yvpXPkqQDxidXwxLAWGgzSuVmYPSdnFtYLrOwxaegEK8zGdbEjD3VzbL8INyYhQS1XApyoRLBL-sfB65L2b_wPUmHYzWEK-S8f1DAY0Rt_2G9Mw1tTJ1c274C_vGcpcQS3",
+      "transfer": "1DsjZyhnpb8TLBj-3kHWxdwpngfyhtHwODCY2rALhcBS3WKiC0lw-2Y6Yr0if9-uCwxvUk9rUKj5DsqKA55iw1tlKPxYdJd6jD0Dm10T6jO6lTK9QAvazUYh_4_w_CiABh5kJWNv2aLpHS4csUOoGGWj7",
       "error": "MALFORMED_RECORD"
     },
     {
       "name": "floor hash of 31 bytes",
-      "transfer": "1kNhdXdwoT_Fw12y_Qyuqz6-uIDdfbV3ZiqF3OtC6nnCJKbCIGk6lHm8ZF7k4Ve59ejYaKGXtv9UVsfr86zcvBj5S9y0QKqMi8c_XOXWXTGjCjwPGVqXRpudDuz3TBvtJOd3HjHKt64z2MevfCxjqMwzGSJ--DQNn5An-q9zuOHFNIvgy6tdzdKhVAdro8WTutlV90CSCSDqfQ_AcMzlR1MZM5owCW_E3Gmyqfie5YEk3rFsaU1rqpmhFK7hiKxt9V1vb65nECDDN0g8BsKJu47vtijFS6Ojbt96jIIIJTCj1suTW4IxpgEp1NkvgRKHWRS1efrZwgqXbQ5BDaV2sRPMcaCH7cYiRQGI",
+      "transfer": "1G2vU5ldASbmqUVRhpC8LEESNHCT908OpREUlDKbpOkyanTrhs5ovBwCV-DrgGMi2B6VVaoiEA8K08I9iwLzHdjlZFkKb_-vRmeDHgMTHtEK8OlgiLn7pqwGFYiP-i13sSWTzVdnKpov0fqGr0Thk5WMpghZiELEAQRh91NHDZm-aee7aoIVaFQE2V_z8cx5wkme24bu3dwd6UiaByPveeKSN90V8A_PB4qcR_LAwEr1PTK15YEP_FuX-WoKWlKlPK8Pa7ve-Bf2JhTV2J2_PqnpPcuAktphpC3vMdYLczM3G49Fyyg",
       "error": "MALFORMED_RECORD"
     },
     {
       "name": "floor at version 0",
-      "transfer": "1v0888uJ0Lg5WFdt4Y6OLIZ1t7h2w8Rh02D9CAHNK-1dYYysQxDL4hgDtJOLPyoOouryw2YcJko4dnd6Nho_zmQtr7mOO0YdvpfKCDyeQ9-9SzhrfIZsOWmBLscDivoe9NDMetXeqrt9ahb1Oso3_FTiLynyzyXvzTeNZ6KCdEwfuxomzf1AH1SitxNyz0CVN5ouwWfPs4xpVA0UpiXeBeiwpX-Urp-MHydU01qXvbnnxi5yvzHDYsc07Vr60J1Ie9sfl-CKL4ms3tmD492k9m0bcCxENtn2YNWR581m5kXbAuWTnq-rRE285-aBXMiIv1b_70530B5nE8_EdelaGszqaPa2y80l-HriV",
+      "transfer": "1HW1Wuin5BuWDkcMofgwDpKAhDDqdsua6xERqAFvmESiQ6n63r321HrgwT7ItGlz8p9euvvg0lGkfAKUxcDfjSPzqOdrVgv4xoejPqrZrzcGwGd8WAQy8J2M08s5e-BGCqohgkVAeesAGXlKZP_wPBDCh8WhL6611izGiqLnngFkBMuG8rpiwKWnfkXgxNQ4xsQnqhluiRu1Y_bRnd53wLZ0Z_BlRJMqIs1rjQL3yLDLrm1Ob5LKYWP6qJnF4mt1ezaubNhG4rDuhEqtl-ulHyDEgCr-bFWgPPZRTCBilq49uj12Dixw",
       "error": "MALFORMED_RECORD"
     },
     {
       "name": "prefix 2",
-      "transfer": "2IU670N2XwcapJ2Ac3iw66iTnYiB4ePWBiaUm5TJMNllKYkWtyiZr8OqwwCnGO6sMUzT7wGRy7LMA-GWmDAJxQlYv1NSSvKM4bxgyzBbFZ63YI_u5vFt7C7pRmQyreg3GaCVytKAilIg9Fp2r7VqaKJRHQlONnYIavGTmYP0qsBPKG72aWOpvjtINLwPkP9vkYc7svJu_6-P94Otb4Z5ODn_24J49DMc5QyjMSa16vDOd2mhdXJZFko64enTxFJQ2IE2M9QXzsu9tPzGEqoryjY7b09irfKhM8s6RRemPqtpUCOiybe89AFTMtolkOy_0tR5dLXESFMHrHBrnqlTNinbbANAYzj-PlL61_nRNZrX5woJc7CWMAZ8XcGaUpEfxqzhkSZwDWHuEyXlwMX5gotlgnki8Xz8qq8b5h3pTGfHbi0FGRGG2l0HCN6AQhDqfOLEDLGsMIfxIZplsm3eyLolwcKo19t6SoZfGTSmAds3WFZkcSSfzeCyHWcA",
+      "transfer": "247cxslDQWEhqMNihcWFYWSmeouqZPJWbWTDCewtBJFh-JJ3hagWn-6xWgYiv1W9f5-8LE2PIEKfPrJADvLswCMinxtUG5OmlYTudYCLJPRr_sZRcc8pWbDGh1wQSzBueaPVY4h4tr2crle2BHlB9U76R1ZvwEU73prBQ4ocHXb4sPnaNd0bRTNNsQiMZbWBBDAt3QnOp3xs9jP0qkfupeDFgKm8pJpdSaIzFDuGCqlEsJem381BTaVpMvVMCjYsC7JolidLrkyMKvSvyHZPex-1TgJ7xPf1MHAOMds2h-P9uvav5gR1DnR2haYkggZUfShJ-rtMEoffwQ0JshWfsH9G864EbWIFyjmzYzvfF3NbW_U5YORnjM7JMG4xq5tZYXwxXQC_m4CAdZWOSlJPv9CFgMTGEV1SVndOrKNkr9i-hulJjHKAfPGcokS1gVYkEhry7P2r7BCPT4w",
       "error": "UNSUPPORTED_VERSION"
     }
   ],

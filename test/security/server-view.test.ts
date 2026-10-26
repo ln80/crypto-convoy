@@ -54,7 +54,7 @@ describe("SP-01: no key that opens items, and no plaintext, in the key store or 
     ];
     for (const who of [alice, members.bob!]) {
       const { pairs } = await bundleOf(who.vault);
-      secrets.push(pairs.signing.secretKey.subarray(0, 32), pairs.encryption.secretKey, pairs.teamStateKey);
+      secrets.push(pairs.signing.secretKey.subarray(0, 32), pairs.encryption.secretKey);
     }
     const stored = { records: [...w.server.dump(), ...content.all().records], parts: content.all().parts };
     for (const secret of secrets) expect(contains(stored, secret)).toBe(false);

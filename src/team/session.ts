@@ -300,7 +300,7 @@ export class TeamSession {
   }
 
   async #verify(): Promise<void> {
-    const { chain, server } = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles, this.#extraRoots);
+    const chain = await loadChain(this.#ports, this.accountId, this.teamId, this.#bundles, this.#extraRoots);
     const own = await openOwnAccess(this.#ports, this.accountId, chain, (v) => chainFrom(this.#ports, this.teamId, chain, v), this.#bundles);
 
     this.#chain = own?.chain ?? chain;
@@ -313,7 +313,7 @@ export class TeamSession {
     this.#own = own ?? undefined;
     if (own) this.#keys.set(own.teamKeyVersion, own.teamKey);
     this.#state = own && own.teamKeyVersion === this.currentVersion ? "ready" : "pending";
-    await advanceAnchor(this.#ports, this.accountId, this.teamId, chain, this.#bundles, server);
+    await advanceAnchor(this.#ports, this.accountId, this.teamId, chain);
   }
 
   #markUnverified(error: ConvoyError): ConvoyError {

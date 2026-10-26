@@ -23,7 +23,6 @@ interface BundleCase {
   name: string;
   signingSeed: string;
   encryptionSecretKey: string;
-  teamStateKey: string;
   floor?: { version: number; hash: string };
   plaintext: string;
   wrapped: { nonce: string; ciphertext: string };
@@ -95,10 +94,9 @@ describe("wrap.v1: member keys bundles (§4.3)", () => {
     wrappedKeys: { nonce: unhex(wrapped.nonce), ciphertext: unhex(wrapped.ciphertext) },
   });
 
-  it.each(cases)("opens a $name", ({ wrapped, teamStateKey, floor }) => {
+  it.each(cases)("opens a $name", ({ wrapped, floor }) => {
     const bundle = openMemberKeysWrap(record(wrapped), unhex(key), published);
-    expect(tohex(bundle.teamStateKey)).toBe(teamStateKey);
-    expect(bundle.floor ? { version: bundle.floor.version, hash: tohex(bundle.floor.hash) } : undefined).toEqual(floor);
+    expect({ version: bundle.floor.version, hash: tohex(bundle.floor.hash) }).toEqual(floor);
   });
 
   it.each(refused)("refuses a $name", ({ wrapped, error }) => {

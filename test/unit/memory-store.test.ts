@@ -93,14 +93,12 @@ describe("server contract (§11)", () => {
     await expect(alice.commit([{ op: "create", key: { type: "member-keys", teamId: "team-2", accountId: "alice", memberKeysVersion: 1 }, record: r["member-keys"] }])).rejects.toEqual(conflict);
   });
 
-  it("compares and sets team states on their revision", async () => {
+  it("refuses a compare-and-set and a team-state record, retired by D-66", async () => {
     const { alice } = teamStore();
-    const key = { type: "team-state", accountId: "alice", teamId: "team-1" } as const;
-    const state = r["team-state"];
-    await alice.commit([{ op: "compare-and-set", key, expectedRevision: null, record: state }]);
-    await expect(alice.commit([{ op: "compare-and-set", key, expectedRevision: null, record: state }])).rejects.toEqual(conflict);
-    await expect(alice.commit([{ op: "compare-and-set", key, expectedRevision: 1, record: state }])).rejects.toEqual(conflict);
-    await alice.commit([{ op: "compare-and-set", key, expectedRevision: 1, record: { ...state, revision: 2 } }]);
+    const key = { type: "team-state", accountId: "alice", teamId: "team-1" };
+    const record = { type: "team-state", accountId: "alice", teamId: "team-1", revision: 1 };
+    await expect(alice.commit([{ op: "compare-and-set", key, expectedRevision: null, record } as unknown as WriteOp])).rejects.toThrow();
+    await expect(alice.commit([{ op: "create", key, record } as unknown as WriteOp])).rejects.toThrow();
   });
 
   it("serves private records only to their account", async () => {
@@ -165,10 +163,8 @@ describe("server contract (§11)", () => {
     const { alice } = teamStore();
     const wrap = r["account-key-wrap"];
     await expect(alice.commit([replace(wrap)])).rejects.toEqual(conflict);
-    const state = r["team-state"];
-    await expect(
-      alice.commit([{ op: "replace", key: { type: "team-state", accountId: "alice", teamId: "team-1" }, record: state } as unknown as WriteOp]),
-    ).rejects.toThrow();
+    const keys = r["member-keys"];
+    await expect(alice.commit([{ op: "replace", key: { type: "member-keys", teamId: "team-1", accountId: "alice", memberKeysVersion: 1 }, record: keys } as unknown as WriteOp])).rejects.toThrow();
   });
 
   it("refuses a batch that touches one key twice, and leaves the archive unchanged", async () => {
@@ -224,17 +220,6 @@ describe("member-keys (§11, D-43)", () => {
 });
 
 describe("archive of private records (rule 7, D-42)", () => {
-  it("each team-state write archives the previous revision", async () => {
-    const server = new MemoryRecordStore();
-    const key = { type: "team-state", accountId: "a", teamId: "t" } as const;
-    const record = (revision: number) => ({ ...key, revision }) as WireRecord;
-    await server.as("a").commit([{ op: "compare-and-set", key, expectedRevision: null, record: record(1) }]);
-    await server.as("a").commit([{ op: "compare-and-set", key, expectedRevision: 1, record: record(2) }]);
-    expect(server.archived(key)).toEqual([record(1)]);
-    server.restore(key);
-    expect(await server.as("a").get(key)).toEqual(record(1));
-  });
-
   it("restoreVersion makes an archived account key version current again, archiving later ones", async () => {
     const server = new MemoryRecordStore();
     const wrap = (accountKeyVersion: number) => ({ type: "account-key-wrap", accountId: "a", accountKeyVersion, method: "pin" }) as RecordKey;

@@ -14,7 +14,6 @@ export const LABELS = [
   "member-keys-recovery",
   "member-keys-hash",
   "member-keys-wrap",
-  "team-state",
   "team-key-version",
   "team-key-link",
   "roster-seal",

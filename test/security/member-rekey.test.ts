@@ -66,7 +66,7 @@ describe("SP-12: compromised member keys can be replaced", () => {
     const session = await bob.vault.openTeam("team-1");
     expect(session.state).toBe("ready");
     expect(await wraps()).toEqual([2]);
-    // The team state was rewritten under the remaining keys: every later open still verifies.
+    // Every later open still verifies from the remaining keys' floor.
     expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
     const phone = await w.device("bob");
     await phone.vault.unlockWithPin("1234");

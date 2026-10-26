@@ -21,8 +21,6 @@ export type TrustReason =
   | "not_an_owner"
   | "chain_conflict"
   | "rollback"
-  | "state_unreadable"
-  | "state_conflict"
   | "context_mismatch"
   | "key_mismatch";
 

@@ -7,20 +7,22 @@ import { describe, expect, it } from "vitest";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { createTeamKeyReceiver } from "../../src/team/receiver.js";
 import { MemoryLocalKeyStore } from "../../src/testing/index.js";
-import { openBundles } from "../../src/account/member-custody.js";
 import { vaultInternals, type Vault } from "../../src/account/vault.js";
-import { StoreConflictError } from "../../src/errors.js";
 import { createTeamKeyVersion, parseTeamKeyVersion, recordHash, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
 import { keysHash } from "../../src/records/member-keys.js";
-import { createTeamState, teamStateToJson } from "../../src/records/team-state.js";
-import { createMemberKeysWrap, memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
+import { memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
+import { openTransfer } from "../../src/records/transfer.js";
+import { wrap } from "../../src/blocks/wrap.js";
+import { seal } from "../../src/blocks/seal.js";
+import { bytes, list, optional, string, u32 } from "../../src/encoding/canonical.js";
+import { toBase64url } from "../../src/encoding/base64url.js";
+import { concat } from "../../src/internal/bytes.js";
 import type { TamperingStore } from "../support/fake-store.js";
-import { bundleOf, forgeFirstVersion, forgeVersion, versionRecord } from "../support/forge.js";
+import { bundleOf, forgeFirstVersion, forgeVersion } from "../support/forge.js";
 import { team } from "../support/teams.js";
 import { ContentStore, addParts, read } from "../support/content-store.js";
 
 const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
-const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as const;
 
 async function threeVersions() {
   // Version 1 (alice), 2 (bob approved), 3 (a rotation).
@@ -85,7 +87,7 @@ describe("SP-07: a client never goes back", () => {
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
   });
 
-  it("a new device starts from the server's encrypted state, not first-contact trust", async () => {
+  it("a new device starts from its keys' floor, not first-contact trust (D-66)", async () => {
     const { w } = await threeVersions();
     const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
     await phone.vault.unlockWithPin("1234");
@@ -93,37 +95,34 @@ describe("SP-07: a client never goes back", () => {
     expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
   });
 
-  it("an older team-state revision doesn't move the client back", async () => {
-    const { bob, members } = await threeVersions();
-    const old = await bob.store.get(stateKey);
-    await (await members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
-    expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(4);
-    bob.store.replace(stateKey, old);
-    bob.store.rollback("team-1", 3);
-    expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
-  });
+  describe("D-66: every bundle holds a floor", () => {
+    // The layouts before D-66: a team state key, then an optional floor (97 or 137 bytes).
+    const retired = (seed: Uint8Array, secretKey: Uint8Array, floor: { version: number; hash: Uint8Array } | null) =>
+      concat(seed, secretKey, cc1.randomBytes(32), optional(floor, (f) => concat(u32(f.version), bytes(f.hash))));
 
-  it("a corrupted team-state stops keys with no floor, where it is a root (state_unreadable); with a floor it is absent (D-62)", async () => {
-    const { bob } = await threeVersions();
-    const b64 = (n: number) => Buffer.from(cc1.randomBytes(n)).toString("base64url");
-    // Written through the session, as a thief would: each write is the next revision.
-    const write = async (wrappedState: Record<string, string>) => {
-      const state = (await bob.store.get(stateKey)) as Record<string, unknown> & { revision: number };
-      await bob.store.commit([{ op: "compare-and-set", key: stateKey, expectedRevision: state.revision, record: { ...state, revision: state.revision + 1, wrappedState } }]);
-    };
-    await write({ nonce: b64(24), ciphertext: b64(56) });
-    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
-    await write({ nonce: b64(24), ciphertext: b64(56) });
-    // Keys with no floor (written before D-48): the team state is a root, so an unreadable one stops the team.
-    const held = await bundleOf(bob.vault);
-    const { ports, account } = vaultInternals(bob.vault);
-    const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: held.memberKeysVersion, accountKeyVersion: account().version };
-    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey };
-    await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
-    expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("state_unreadable"));
-    // A malformed one fails too there, before any key is tried (D-62).
-    await write({ nonce: b64(3), ciphertext: b64(3) });
-    await expect(bob.vault.openTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    it.each([
+      ["without a floor (97 bytes)", false],
+      ["with a floor (137 bytes)", true],
+    ])("a bundle in the retired layout %s, planted with the account key, doesn't open: the team reads not-joined", async (_, withFloor) => {
+      const { members } = await team("bob");
+      const bob = members.bob!;
+      const held = await bundleOf(bob.vault);
+      const { ports, account } = vaultInternals(bob.vault);
+      const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: held.memberKeysVersion, accountKeyVersion: account().version };
+      const plaintext = retired(held.pairs.signing.secretKey.subarray(0, 32), held.pairs.encryption.secretKey, withFloor ? held.floor : null);
+      const ad = [string(context.accountId), string(context.teamId), u32(context.memberKeysVersion), u32(context.accountKeyVersion)];
+      const record = { v: 1, suite: cc1, ...context, wrappedKeys: wrap(cc1, account().key, "member-keys-wrap", ad, plaintext) };
+      await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(record) }]);
+      expect((await bob.vault.openTeam("team-1")).state).toBe("not-joined");
+    });
+
+    it("a transfer entry without a floor, in the retired layout, is refused", () => {
+      const receiver = cc1.generateEncryptionKeyPair();
+      const entry = { version: 1, seed: cc1.randomBytes(32), secretKey: cc1.randomBytes(32) };
+      const body = list([entry], (e) => concat(u32(e.version), bytes(e.seed), bytes(e.secretKey), bytes(cc1.randomBytes(32)), optional(null, () => new Uint8Array())));
+      const transfer = "1" + toBase64url(seal(cc1, receiver.publicKey, "team-keys-transfer", [string("bob"), string("team-1")], body));
+      expect(() => openTransfer(cc1, receiver, { accountId: "bob", teamId: "team-1" }, transfer)).toThrow(expect.objectContaining({ code: "MALFORMED_RECORD" }));
+    });
   });
 
   it("a joiner's invite anchor is checked at join: a chain without it is refused before any key is written (D-48)", async () => {
@@ -159,20 +158,9 @@ describe("SP-07: a client never goes back", () => {
       const forged = forgeFirstVersion({ owner, roster: [owner, { accountId, keys: v.pairs, published: v.published }] });
       victim.store.rollback("team-1", 1).fork("team-1", 1, forged);
     }
-    const stateOf = (accountId: string) => ({ type: "team-state", accountId, teamId: "team-1" }) as const;
 
-    it("withheld team-state: an existing member's new device refuses a forged team", async () => {
+    it("an existing member's new device refuses a forged team", async () => {
       const { w } = await team("bob");
-      const fresh = await w.device("alice");
-      await fresh.vault.unlockWithPin("1234");
-      fresh.store.drop(stateOf("alice"));
-      await forgedTeam(w, fresh, "alice");
-      expect((await fresh.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
-    });
-
-    it("a team-state a session thief deleted: the new device refuses a forged team", async () => {
-      const { members, w } = await team("bob");
-      await members.alice!.store.commit([{ op: "delete", key: stateOf("alice") }]);
       const fresh = await w.device("alice");
       await fresh.vault.unlockWithPin("1234");
       await forgedTeam(w, fresh, "alice");
@@ -185,7 +173,6 @@ describe("SP-07: a client never goes back", () => {
       await fresh.vault.unlockWithPin("1234");
       const receiver = await createTeamKeyReceiver("alice", "team-1");
       const transfer = await fresh.vault.exportTeamKeys("team-1", receiver.request);
-      fresh.store.drop(stateOf("alice"));
       await forgedTeam(w, fresh, "alice");
       const page = { store: fresh.store, anchors: new MemoryLocalKeyStore(), clock: w.clock };
       expect((await receiver.openTeam(page, transfer)).failure).toEqual(trust("rollback"));
@@ -195,41 +182,8 @@ describe("SP-07: a client never goes back", () => {
       const { w } = await team("bob");
       const fresh = await w.device("bob");
       await fresh.vault.unlockWithPin("1234");
-      fresh.store.drop(stateOf("bob"));
       await forgedTeam(w, fresh, "bob");
       expect((await fresh.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
-    });
-
-    it("an archived team-state below the floor isn't followed (D-50)", async () => {
-      const { members, aliceTeam, w } = await team("bob");
-      const bob = members.bob!;
-      const old = await bob.store.get(stateKey);
-      await aliceTeam.owner().rotate({ keep: ["bob"] });
-      await (await members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
-      expect((await bob.vault.openTeam("team-1")).currentVersion).toBe(4);
-      await bob.vault.rekey("team-1");
-      expect((await bundleOf(bob.vault)).floor?.version).toBe(4);
-      const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
-      await phone.vault.unlockWithPin("1234");
-      phone.store.replace(stateKey, old).rollback("team-1", 3);
-      expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
-    });
-
-    it("a replayed team-state below the chain, re-read after a write conflict, isn't followed (§6.1 step 7, review 030 D)", async () => {
-      const { members, aliceTeam, w } = await team("bob");
-      const bob = members.bob!;
-      const old = await bob.store.get(stateKey);
-      await aliceTeam.owner().rotate({ keep: ["bob"] });
-      await (await members.alice!.vault.openTeam("team-1")).owner().rotate({ keep: ["bob"] });
-      (await bob.vault.openTeam("team-1")).close();
-      expect((await bundleOf(bob.vault)).floor?.version).toBe(4);
-      // A new device; the server serves the old revision, readable under bob's keys, below the floor: the write conflicts.
-      const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
-      await phone.vault.unlockWithPin("1234");
-      phone.store.replace(stateKey, old);
-      const session = await phone.vault.openTeam("team-1");
-      expect(session.failure).toBeUndefined();
-      expect(session.currentVersion).toBe(4);
     });
 
     it("Limit (TH-04): without an invite anchor, the join is the first contact: a forged chain served then is trusted", async () => {
@@ -288,24 +242,6 @@ describe("SP-07: a client never goes back", () => {
     expect(await dave.store.list({ type: "member-keys", teamId: "team-2", accountId: "dave" })).toEqual([]);
   });
 
-  it("§6.1 step 7: a concurrent team-state written under the older bundle's key is reloaded, not refused", async () => {
-    const { members, aliceTeam } = await team("bob");
-    const bob = members.bob!;
-    await bob.vault.rekey("team-1");
-    await aliceTeam.owner().rotate({ keep: ["bob"] });
-    const [, older] = await openBundles(vaultInternals(bob.vault).ports, vaultInternals(bob.vault).account(), "team-1");
-    const hash = recordHash(await versionRecord(bob.store, "team-1", aliceTeam.currentVersion));
-    let injected = false;
-    bob.store.onCommit((ops) => {
-      if (injected || !ops.some((op) => op.op === "compare-and-set")) return;
-      injected = true;
-      // Another device, holding only the older bundle, wrote first.
-      const record = createTeamState(cc1, { accountId: "bob", teamId: "team-1" }, 9, older!.pairs.teamStateKey, { version: aliceTeam.currentVersion, hash });
-      bob.store.replace(stateKey, teamStateToJson(record));
-      throw new StoreConflictError();
-    });
-    expect((await bob.vault.openTeam("team-1")).failure).toBeUndefined();
-  });
 });
 
 describe("SP-07: anchors written outside the vault can't choose the chain (D-52)", () => {
@@ -330,36 +266,18 @@ describe("SP-07: anchors written outside the vault can't choose the chain (D-52)
     return { json, anchor: { version: 9, hash: recordHash(parseTeamKeyVersion(json, { teamId: "team-1" })) } };
   }
 
-  it("a forged local anchor above the floor is refused, and doesn't spread through team-state (review 006 B)", async () => {
+  it("a forged local anchor above the floor is refused (review 006 B)", async () => {
     const t = await team("bob");
     const bob = t.members.bob!;
     const forged = await forgedNine(t);
     await bob.localKeys.setAnchor("bob", "team-1", forged.anchor);
-    await bob.store.commit([{ op: "delete", key: stateKey }]);
     bob.store.fork("team-1", 9, forged.json);
     expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("chain_conflict"));
-    expect(await bob.store.get(stateKey)).toBeNull();
-  });
-
-  it("a readable team-state whose anchor the chain contradicts is state_conflict; above the chain, rollback; support restores it (review 006 C)", async () => {
-    const t = await team("bob");
-    const bob = t.members.bob!;
-    (await bob.vault.openTeam("team-1")).close();
-    const stolen = (await bundleOf(bob.vault)).pairs.teamStateKey; // A9 in a context that holds the team, A7
-    const write = async (anchor: { version: number; hash: Uint8Array }) => {
-      const json = (await bob.store.get(stateKey)) as { revision: number };
-      const record = createTeamState(cc1, { accountId: "bob", teamId: "team-1" }, json.revision + 1, stolen, anchor);
-      await bob.store.commit([{ op: "compare-and-set", key: stateKey, expectedRevision: json.revision, record: teamStateToJson(record) }]);
-    };
+    // It stays on this device: nothing on the server carries it, so another device of bob opens the real chain (D-66).
     const phone = await t.w.device("bob", { localKeys: new MemoryLocalKeyStore() });
     await phone.vault.unlockWithPin("1234");
-    await write({ version: 2, hash: cc1.randomBytes(32) });
-    expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("state_conflict"));
-    expect((await bob.vault.openTeam("team-1")).failure).toEqual(trust("state_conflict"));
-    t.w.server.restore(stateKey);
-    expect((await phone.vault.openTeam("team-1")).failure).toBeUndefined();
-    await write({ version: 50, hash: cc1.randomBytes(32) });
-    expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
+    const session = await phone.vault.openTeam("team-1");
+    expect(session.failure).toBeUndefined();
+    expect(session.currentVersion).toBe(2);
   });
 });
-

@@ -52,7 +52,6 @@ export type {
   RecordQuery,
   RecordStore,
   Settings,
-  TeamStateKey,
   WireRecord,
   WriteOp,
 } from "./ports.js";

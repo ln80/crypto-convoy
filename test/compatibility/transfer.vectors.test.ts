@@ -32,8 +32,7 @@ describe("transfer.v1", () => {
       ...b,
       signingSeed: tohex(b.signingSeed),
       encryptionSecretKey: tohex(b.encryptionSecretKey),
-      teamStateKey: tohex(b.teamStateKey),
-      ...(floor ? { floor: { version: floor.version, hash: tohex(floor.hash) } } : {}),
+      floor: { version: floor.version, hash: tohex(floor.hash) },
     }));
     expect(hexed).toEqual(bundles);
   });

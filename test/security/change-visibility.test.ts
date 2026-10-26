@@ -175,7 +175,7 @@ describe("SP-15: each device and context reports what it hasn't seen (D-57, revi
     (await phone.vault.openTeam("team-1")).close();
     await admitAndRemove(w, aliceTeam);
     expect((await phone.vault.openTeam("team-1")).memberChanges).toEqual(carolInAndOut);
-    // The phone moved the floor and the team state; the laptop still reports from its own anchor.
+    // The phone moved the floor; the laptop still reports from its own anchor.
     expect((await bob.vault.openTeam("team-1")).memberChanges).toEqual(carolInAndOut);
     expect((await bob.vault.openTeam("team-1")).memberChanges).toEqual([]);
   });

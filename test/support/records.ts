@@ -6,14 +6,13 @@ import { createMemberKeys, keysHash, memberKeysToJson } from "../../src/records/
 import { bundleKeyPairs, createMemberKeysWrap, generateBundle, memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
 import { createSubmission, submissionToJson } from "../../src/records/submission.js";
 import { createTeamKeyVersion, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
-import { createTeamState, teamStateToJson } from "../../src/records/team-state.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 
 export function sampleRecords() {
   const suite = cc1;
   const accountKey = suite.randomBytes(32);
   const teamKey = suite.randomBytes(32);
-  const bundle = generateBundle(suite);
+  const bundle = { ...generateBundle(suite), floor: { version: 1, hash: new Uint8Array(32).fill(5) } };
   const pairs = bundleKeyPairs(suite, bundle);
   const signer = { accountId: "alice", signingPublicKey: pairs.signing.publicKey };
   const recovery = suite.signingKeyPair(suite.randomBytes(32));
@@ -48,9 +47,6 @@ export function sampleRecords() {
       "member-keys": memberKeysToJson(memberKeys),
       "member-keys-wrap": memberKeysWrapToJson(
         createMemberKeysWrap(suite, { accountId: "alice", teamId: "team-1", memberKeysVersion: 1, accountKeyVersion: 1 }, accountKey, bundle),
-      ),
-      "team-state": teamStateToJson(
-        createTeamState(suite, { accountId: "alice", teamId: "team-1" }, 1, bundle.teamStateKey, { version: 1, hash: new Uint8Array(32) }),
       ),
       "team-key-version": teamKeyVersionToJson(version),
       item: itemToJson(item.record),

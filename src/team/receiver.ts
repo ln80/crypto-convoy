@@ -64,7 +64,7 @@ export async function createTeamKeyReceiver(accountId: string, teamId: string): 
             suite.equal(pairs.signing.publicKey, published.signingPublicKey) &&
             suite.equal(pairs.encryption.publicKey, published.encryptionPublicKey);
           if (!matches) throw trustFailure("key_mismatch");
-          bundles.push({ memberKeysVersion: bundle.memberKeysVersion, published, pairs, ...(bundle.floor ? { floor: bundle.floor } : {}) });
+          bundles.push({ memberKeysVersion: bundle.memberKeysVersion, published, pairs, floor: bundle.floor });
         }
       } catch (error) {
         if (isConvoyError(error, "TRUST_FAILURE")) return TeamSession.failed(teamPorts, accountId, teamId, error);

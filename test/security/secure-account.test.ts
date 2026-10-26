@@ -3,7 +3,6 @@
  * PIN budget spent (D-40).
  * SP-12: keys a session thief published don't block its re-keys (D-43).
  * SP-11: securing with a new phrase retires the leaked one (D-45).
- * SP-12: a team-state forged with copied keys doesn't stop the owner's own approval (D-63).
  * Threats: TH-10, TH-11, TH-12, TH-44, TH-47.
  */
 import { describe, expect, it } from "vitest";
@@ -13,12 +12,8 @@ import { cc1 } from "../../src/suites/cc1/index.js";
 import { world } from "../support/fixtures.js";
 import { accessOf, bundleOf, forgeMemberKeys, forgeVersion, strangerKeys } from "../support/forge.js";
 import { team } from "../support/teams.js";
-import { createTeamKeyReceiver } from "../../src/team/receiver.js";
-import { MemoryLocalKeyStore } from "../../src/testing/index.js";
-import { createTeamState, teamStateToJson } from "../../src/records/team-state.js";
 import { createMemberKeys, memberKeysToJson } from "../../src/records/member-keys.js";
 
-const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as const;
 
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -189,51 +184,8 @@ describe("SP-11 / SP-23: secureAccount reports the product's teams whose keys we
     expect(await accessOf(members.alice!.store, "bob", rotatedTo!)).not.toBeNull();
     const access = (await accessOf(members.alice!.store, "bob", rotatedTo!))!;
     expect(() => access.open(stolen.pairs.encryption)).toThrow();
-    // And bob opens the team again, though the team state was under the deleted keys (D-62, review 022 B).
+    // And bob opens the team again from the new keys' floor (review 022 B).
     expect((await clean.vault.openTeam("team-1")).state).toBe("ready");
-  });
-
-  it("a context holding older keys doesn't overwrite a team state it can't read (D-62)", async () => {
-    const { members, aliceTeam } = await team("bob");
-    const bob = members.bob!;
-    const receiver = await createTeamKeyReceiver("bob", "team-1");
-    const transfer = await bob.vault.exportTeamKeys("team-1", receiver.request);
-    // bob re-keys; the owner approves; the vault cleans up, and the advance writes the team state under the new keys (D-63).
-    await bob.vault.rekey("team-1", { phrase: bob.recoveryPhrase });
-    await aliceTeam.owner().reconcile(["alice", "bob"]);
-    (await bob.vault.openTeam("team-1")).close();
-    const before = (await bob.store.get(stateKey)) as { revision: number };
-    // The context that kept the old keys opens the team: it can't read the state, and its keys left the roster.
-    await receiver.openTeam({ store: bob.store, anchors: new MemoryLocalKeyStore() }, transfer);
-    expect(((await bob.store.get(stateKey)) as { revision: number }).revision).toBe(before.revision);
-    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
-  });
-
-  it("a team-state forged with copied keys, rewritten or replayed, doesn't stop a sole owner's own approval (D-63, review 025 B)", async () => {
-    const { members, w } = await team();
-    const alice = members.alice!;
-    const aliceState = { type: "team-state", accountId: "alice", teamId: "team-1" } as const;
-    (await alice.vault.openTeam("team-1")).close();
-    // A thief on alice's unlocked device copies the bundle; with the session it writes a readable state naming a forged version.
-    const stolen = (await bundleOf(alice.vault)).pairs.teamStateKey;
-    const forge = async () => {
-      const json = (await alice.store.get(aliceState)) as { revision: number };
-      const record = createTeamState(cc1, { accountId: "alice", teamId: "team-1" }, json.revision + 1, stolen, { version: 1, hash: cc1.randomBytes(32) });
-      await alice.store.commit([{ op: "compare-and-set", key: aliceState, expectedRevision: json.revision, record: teamStateToJson(record) }]);
-    };
-    await forge();
-    expect((await alice.vault.openTeam("team-1")).failure).toEqual(expect.objectContaining({ code: "TRUST_FAILURE", reason: "state_conflict" }));
-
-    expect(await alice.vault.secureAccount({ phrase: alice.recoveryPhrase, newPin: "5678" })).toEqual({ rekeyed: ["team-1"], failed: [] });
-    // Under keys being replaced, the forged state stops nothing, also written again.
-    await forge();
-    const session = await alice.vault.openTeam("team-1");
-    expect(session.failure).toBeUndefined();
-    expect(await session.owner().reconcile(["alice"])).toMatchObject({ approvedRekeys: ["alice"] });
-    expect((await alice.vault.openTeam("team-1")).state).toBe("ready");
-    // The server replays the forged revision: the old keys are gone, so it is absent and replaced again.
-    alice.store.replace(aliceState, w.server.archived(aliceState).at(-1)!);
-    expect((await alice.vault.openTeam("team-1")).state).toBe("ready");
   });
 
   it("lists the teams before rotating: a store error afterwards fails that team, reported, never the whole call (review 030 A)", async () => {

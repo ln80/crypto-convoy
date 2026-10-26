@@ -49,7 +49,7 @@ export function sealTransfer(
 ): string {
   checkBundles(bundles);
   const payload = list(bundles, (b) =>
-    concat(u32(b.memberKeysVersion), bytes(b.signingSeed), bytes(b.encryptionSecretKey), bytes(b.teamStateKey), encodeFloor(b.floor)),
+    concat(u32(b.memberKeysVersion), bytes(b.signingSeed), bytes(b.encryptionSecretKey), encodeFloor(b.floor)),
   );
   try {
     return PREFIX + toBase64url(seal(suite, receiverPublicKey, "team-keys-transfer", context(ctx), payload));
@@ -69,10 +69,8 @@ export function openTransfer(suite: Suite, receiver: KeyPair, ctx: TransferConte
     const reader = new Reader(payload);
     const bundles = reader.list(
       (r) => {
-        const entry = { memberKeysVersion: r.u32(), signingSeed: r.bytes(), encryptionSecretKey: r.bytes(), teamStateKey: r.bytes() };
-        // The bundle's anchor floor (§3.8 step 2, D-48).
-        const floor = readFloor(r);
-        return floor ? { ...entry, floor } : entry;
+        // Each entry carries the bundle's anchor floor (§3.8 step 2, D-66).
+        return { memberKeysVersion: r.u32(), signingSeed: r.bytes(), encryptionSecretKey: r.bytes(), floor: readFloor(r) };
       },
       MAX_BUNDLES,
     );
@@ -87,7 +85,7 @@ export function openTransfer(suite: Suite, receiver: KeyPair, ctx: TransferConte
 function checkBundles(bundles: readonly TransferBundle[]) {
   if (bundles.length < 1 || bundles.length > MAX_BUNDLES) throw malformed();
   bundles.forEach((b, i) => {
-    const sizes = [b.signingSeed, b.encryptionSecretKey, b.teamStateKey].every((k) => k.length === KEY);
+    const sizes = [b.signingSeed, b.encryptionSecretKey].every((k) => k.length === KEY);
     const ordered = i === 0 || b.memberKeysVersion < bundles[i - 1]!.memberKeysVersion;
     if (!sizes || !ordered || b.memberKeysVersion < 1) throw malformed();
   });

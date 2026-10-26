@@ -13,46 +13,9 @@ import { cc1 } from "../../src/suites/cc1/index.js";
 
 const code = (c: string) => expect.objectContaining({ code: c });
 const trust = (reason: string) => expect.objectContaining({ code: "TRUST_FAILURE", reason });
-const stateKey = { type: "team-state", accountId: "bob", teamId: "team-1" } as const;
 const b64 = (n: number) => Buffer.alloc(n, 7).toString("base64url");
 
 describe("SP-26: a session can't destroy an account's private records", () => {
-  it("TH-46: a garbage team-state is absent where the keys hold a floor; the next open replaces it (D-62)", async () => {
-    const { members, w } = await team("bob");
-    const bob = members.bob!;
-    (await bob.vault.openTeam("team-1")).close();
-    const state = (await bob.store.get(stateKey)) as { revision: number };
-    // Someone holding bob's session writes a well-formed team-state holding garbage.
-    await bob.store.commit([
-      { op: "compare-and-set", key: stateKey, expectedRevision: state.revision, record: { ...state, revision: state.revision + 1, wrappedState: { nonce: b64(24), ciphertext: b64(56) } } },
-    ]);
-    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
-    // Replaced under bob's current keys, the garbage revision archived (D-42).
-    const replaced = (await bob.store.get(stateKey)) as { revision: number };
-    expect(replaced.revision).toBe(state.revision + 2);
-    expect(w.server.archived(stateKey)).toHaveLength(state.revision + 1);
-    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
-  });
-
-  it("TH-46: a malformed team-state is absent where the keys hold a floor, and replaced; one at an unknown version is left alone (D-62)", async () => {
-    const { members } = await team("bob");
-    const bob = members.bob!;
-    (await bob.vault.openTeam("team-1")).close();
-    const write = async (record: (state: Record<string, unknown>) => Record<string, unknown>) => {
-      const state = (await bob.store.get(stateKey)) as Record<string, unknown> & { revision: number };
-      await bob.store.commit([{ op: "compare-and-set", key: stateKey, expectedRevision: state.revision, record: { ...record(state), revision: state.revision + 1 } }]);
-      return state.revision + 1;
-    };
-    // A ciphertext too short for its suite: a known version that fails its shape is absent and replaced.
-    const short = await write((state) => ({ ...state, wrappedState: { nonce: b64(3), ciphertext: b64(3) } }));
-    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
-    expect(((await bob.store.get(stateKey)) as { revision: number }).revision).toBe(short + 1);
-    // A version this library doesn't read: absent, never replaced, since readers ship first (§10).
-    const newer = await write((state) => ({ ...state, v: 2 }));
-    expect((await bob.vault.openTeam("team-1")).state).toBe("ready");
-    expect(await bob.store.get(stateKey)).toMatchObject({ v: 2, revision: newer });
-  });
-
   describe("a wrap read by its identity that doesn't parse costs only its method (D-58, review 035 B)", () => {
     const wrapKey = (method: "pin" | "recovery") => ({ type: "account-key-wrap", accountId: "bob", accountKeyVersion: 1, method }) as const;
     const garble = async (bob: { store: { get: (k: never) => Promise<unknown>; commit: (ops: never) => Promise<void> } }, method: "pin" | "recovery", change: Record<string, unknown>) => {
@@ -274,7 +237,7 @@ describe("SP-26: a session can't destroy an account's private records", () => {
 describe("SP-26: a record that fails its checks stops nothing (D-58, review 016 B)", () => {
   const garbageWrap = (teamId: string, memberKeysVersion: number) => ({
     v: 1, suite: "cc1", type: "member-keys-wrap", accountId: "bob", teamId, memberKeysVersion, accountKeyVersion: 1,
-    wrappedKeys: { nonce: b64(24), ciphertext: b64(97 + 16) },
+    wrappedKeys: { nonce: b64(24), ciphertext: b64(104 + 16) },
   });
   const plant = (teamId: string, memberKeysVersion: number) => [
     { op: "create", key: { type: "member-keys", teamId, accountId: "bob", memberKeysVersion }, record: { ...forgeMemberKeys("bob", memberKeysVersion, strangerKeys()), teamId } },
@@ -314,7 +277,7 @@ describe("SP-26: a record that fails its checks stops nothing (D-58, review 016 
     const { ports, account } = vaultInternals(bob.vault);
     // An account-key holder wraps bob's own bundle at a new version, under keys someone else published.
     const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: 2, accountKeyVersion: account().version };
-    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey };
+    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, floor: held.floor };
     await ports.store.commit([
       { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) },
       { op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) },
@@ -341,7 +304,7 @@ describe("SP-26: a record that fails its checks stops nothing (D-58, review 016 
       const held = await bundleOf(bob.vault);
       const { ports, account } = vaultInternals(bob.vault);
       const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: 2, accountKeyVersion: account().version };
-      const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey };
+      const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, floor: held.floor };
       await ports.store.commit([
         { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) },
         { op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) },

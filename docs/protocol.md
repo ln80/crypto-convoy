@@ -809,7 +809,7 @@ What a team session reports to the integration after loading (§6.1):
 | --- | --- | --- |
 | `MALFORMED_RECORD` | A record or link value has the wrong shape, or an argument is invalid (for example an owner left out of a rotation's `keep`). | No |
 | `UNSUPPORTED_VERSION` | Unknown `v` or `suite`: update the library. | No |
-| `TRUST_FAILURE` | A signature, owner rule, chain or context check failed in a record (a caller who simply isn't an owner gets `NOT_AN_OWNER`). Carries a `reason`: `bad_signature`, `not_an_owner`, `chain_conflict`, `rollback`, `state_unreadable`, `state_conflict`, `context_mismatch`, `key_mismatch`. | No |
+| `TRUST_FAILURE` | A signature, owner rule, chain or context check failed in a record (a caller who simply isn't an owner gets `NOT_AN_OWNER`). Carries a `reason`: `bad_signature`, `not_an_owner`, `chain_conflict`, `rollback`, `context_mismatch`, `key_mismatch`. | No |
 | `DECRYPTION_FAILED` | Authenticated decryption failed: wrong key, tampered or truncated data. | No |
 | `WRONG_CREDENTIAL` | The PIN or recovery phrase didn't open the account key. | Yes, by the user |
 | `PIN_RATE_LIMITED` | The server refused another PIN evaluation. | Later, or use the recovery phrase |

@@ -519,7 +519,7 @@ export class Vault {
     const [held] = await openBundles(this.#ports, account, teamId);
     if (held) {
       // With keys already, only check, against every root the vault holds: the floor too (D-59).
-      const roots = [...anchors, ...(held.floor ? [held.floor] : [])];
+      const roots = [...anchors, held.floor];
       if (roots.length > 0) await verifiedChain(this.#ports, teamId, roots);
       return;
     }
@@ -601,7 +601,6 @@ export class Vault {
         op: "delete" as const,
         key: { type: "member-keys-wrap" as const, accountId: this.accountId, teamId, memberKeysVersion: b.memberKeysVersion, accountKeyVersion: account.version },
       })),
-      { op: "delete", key: { type: "team-state", accountId: this.accountId, teamId } },
     ]);
     if (this.#ports.anchors) await callPort(() => this.#ports.anchors!.deleteAnchor(this.accountId, teamId));
     await callPort(() => this.#ports.deviceKeys.deleteVaultAnchor(this.accountId, teamId));

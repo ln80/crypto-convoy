@@ -5,21 +5,25 @@ const receiverSecret = fixed("receiver secret", 32);
 const receiverPublic = sodium.crypto_scalarmult_base(receiverSecret);
 const accountId = "alice";
 const teamId = "team-1";
-// Each entry carries its bundle's anchor floor (D-48): here the newest has one, the oldest none.
+// Each entry carries its bundle's anchor floor, required (D-66).
 const bundle = (version, floor) => ({
   memberKeysVersion: version,
   signingSeed: hex(fixed(`transfer signing seed ${version}`, 32)),
   encryptionSecretKey: hex(fixed(`transfer encryption secret ${version}`, 32)),
-  teamStateKey: hex(fixed(`transfer team state key ${version}`, 32)),
-  ...(floor ? { floor } : {}),
+  floor,
 });
 const floor = { version: 3, hash: hex(fixed("transfer floor hash", 32)) };
-const bundles = [bundle(2, floor), bundle(1)];
-const floorField = (f) => optionalOf(f ? [["u32", f.version], ["bytes", f.hash]] : null);
+const olderFloor = { version: 1, hash: hex(fixed("transfer older floor hash", 32)) };
+const bundles = [bundle(2, floor), bundle(1, olderFloor)];
 const payload = (list) =>
-  listOf(list.map((b) => [["u32", b.memberKeysVersion], ["bytes", b.signingSeed], ["bytes", b.encryptionSecretKey], ["bytes", b.teamStateKey], floorField(b.floor)]));
-const transferOf = (list, ctx = [["string", accountId], ["string", teamId]]) =>
-  "1" + b64u(sodium.crypto_box_seal(encode([label("team-keys-transfer"), ...ctx, ["bytes", hex(encode([payload(list)]))]]), receiverPublic));
+  listOf(list.map((b) => [["u32", b.memberKeysVersion], ["bytes", b.signingSeed], ["bytes", b.encryptionSecretKey], ["u32", b.floor.version], ["bytes", b.floor.hash]]));
+// The entry layout before D-66: a team state key, then an optional floor.
+const retiredPayload = (list) =>
+  listOf(list.map((b) => [["u32", b.memberKeysVersion], ["bytes", b.signingSeed], ["bytes", b.encryptionSecretKey],
+    ["bytes", hex(fixed(`transfer team state key ${b.memberKeysVersion}`, 32))], optionalOf(null)]));
+const sealed = (body, ctx = [["string", accountId], ["string", teamId]]) =>
+  "1" + b64u(sodium.crypto_box_seal(encode([label("team-keys-transfer"), ...ctx, ["bytes", hex(encode([body]))]]), receiverPublic));
+const transferOf = (list, ctx) => sealed(payload(list), ctx);
 
 writeVectors("transfer.v1.json", {
   file: "transfer.v1",
@@ -31,7 +35,8 @@ writeVectors("transfer.v1.json", {
     { name: "for another team", transfer: transferOf(bundles, [["string", accountId], ["string", "team-2"]]), error: "DECRYPTION_FAILED" },
     { name: "for another account", transfer: transferOf(bundles, [["string", "mallory"], ["string", teamId]]), error: "DECRYPTION_FAILED" },
     { name: "sealed to another receiver", transfer: "1" + b64u(sodium.crypto_box_seal(new Uint8Array(10), sodium.crypto_scalarmult_base(fixed("other receiver", 32)))), error: "DECRYPTION_FAILED" },
-    { name: "bundles oldest first", transfer: transferOf([bundle(1), bundle(2)]), error: "MALFORMED_RECORD" },
+    { name: "bundles oldest first", transfer: transferOf([bundle(1, olderFloor), bundle(2, floor)]), error: "MALFORMED_RECORD" },
+    { name: "an entry in the retired layout, without a floor", transfer: sealed(retiredPayload([bundle(2, floor)])), error: "MALFORMED_RECORD" },
     { name: "no bundle", transfer: transferOf([]), error: "MALFORMED_RECORD" },
     { name: "floor hash of 31 bytes", transfer: transferOf([bundle(2, { version: 3, hash: floor.hash.slice(0, 62) })]), error: "MALFORMED_RECORD" },
     { name: "floor at version 0", transfer: transferOf([bundle(2, { version: 0, hash: floor.hash })]), error: "MALFORMED_RECORD" },

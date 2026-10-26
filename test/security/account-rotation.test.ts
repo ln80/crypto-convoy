@@ -146,7 +146,7 @@ describe("SP-11: teams survive an account key rotation", () => {
     const held = await bundleOf(vault);
     const { ports, account } = vaultInternals(vault);
     const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: held.memberKeysVersion, accountKeyVersion: account().version };
-    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey, floor: { version: 50, hash: cc1.randomBytes(32) } };
+    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, floor: { version: 50, hash: cc1.randomBytes(32) } };
     await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
   }
 
@@ -221,7 +221,7 @@ describe("SP-11: teams survive an account key rotation", () => {
     // Plant the forged anchor as the floor, and serve the forged version (A2).
     const { ports, account } = vaultInternals(bob.vault);
     const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: v.memberKeysVersion, accountKeyVersion: account().version };
-    const raw = { signingSeed: v.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: v.pairs.encryption.secretKey, teamStateKey: v.pairs.teamStateKey, floor: forgedAnchor };
+    const raw = { signingSeed: v.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: v.pairs.encryption.secretKey, floor: forgedAnchor };
     await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
     bob.store.fork("team-1", 9, forged);
     const report = await bob.vault.secureAccount({ phrase: bob.recoveryPhrase, newPin: "5678" });
@@ -307,7 +307,7 @@ describe("SP-07: a local anchor changed on the device never reaches the floor (D
 
     const phone = await w.device("bob", { localKeys: new MemoryLocalKeyStore() });
     await phone.vault.unlockWithPin("5678");
-    phone.store.drop({ type: "team-state", accountId: "bob", teamId: "team-1" }).rollback("team-1", 1).fork("team-1", 9, forged);
+    phone.store.rollback("team-1", 1).fork("team-1", 9, forged);
     // Served from the floor, the forged version doesn't link to it.
     expect((await phone.vault.openTeam("team-1")).failure).toEqual(trust("rollback"));
   });
@@ -323,7 +323,7 @@ describe("SP-07: a join verifies from the vault's own anchor too (D-59, review 0
     const held = await bundleOf(phone.vault);
     const { ports, account } = vaultInternals(phone.vault);
     const context = { accountId: "bob", teamId: "team-1", memberKeysVersion: held.memberKeysVersion, accountKeyVersion: account().version };
-    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, teamStateKey: held.pairs.teamStateKey, floor: { version: 50, hash: cc1.randomBytes(32) } };
+    const raw = { signingSeed: held.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: held.pairs.encryption.secretKey, floor: { version: 50, hash: cc1.randomBytes(32) } };
     await ports.store.commit([{ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(cc1, context, account().key, raw)) }]);
     await expect(phone.vault.joinTeam("team-1")).rejects.toEqual(expect.objectContaining({ code: "TRUST_FAILURE" }));
     // With an honest floor, the same join only checks and returns.

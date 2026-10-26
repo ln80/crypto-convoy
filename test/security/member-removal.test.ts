@@ -26,7 +26,7 @@ describe("SP-06: a removed member can't open what comes after the rotation", () 
     await expect(bobSession.openItem("after")).rejects.toEqual(expect.objectContaining({ code: "NOT_GRANTED" }));
     expect((await bob.vault.openTeam("team-1")).state).toBe("pending");
     const item = parseItem(await bob.store.get({ type: "item", teamId: "team-1", itemId: "after" }), { teamId: "team-1", itemId: "after" });
-    for (const key of [held.v1, held.accountKey, held.bundle.pairs.teamStateKey]) {
+    for (const key of [held.v1, held.accountKey]) {
       expect(() => openItemKey(item, key)).toThrow(expect.objectContaining({ code: "DECRYPTION_FAILED" }));
     }
     expect(await accessOf(bob.store, "bob", version)).toBeNull();

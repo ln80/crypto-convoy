@@ -7,7 +7,6 @@ import { parseMemberKeys } from "../../src/records/member-keys.js";
 import { openMemberKeysWrap, parseMemberKeysWrap } from "../../src/records/member-keys-wrap.js";
 import { openEnvelope, openSubmissionPart, parseSubmission } from "../../src/records/submission.js";
 import { createTeamKeyVersion, openRosterEntry, parseTeamKeyVersion, rosterEntryOf, teamKeyVersionToJson } from "../../src/records/team-key-version.js";
-import { openTeamState, parseTeamState } from "../../src/records/team-state.js";
 import { cc1 } from "../../src/suites/cc1/index.js";
 import { parsers } from "../support/parsers.js";
 import { sampleRecords } from "../support/records.js";
@@ -27,10 +26,9 @@ describe("records round-trip", () => {
 
     const published = parseMemberKeys(records["member-keys"], { teamId: "team-1", accountId: "alice" });
     const keysWrap = parseMemberKeysWrap(records["member-keys-wrap"], { accountId: "alice", teamId: "team-1", accountKeyVersion: 1 });
-    expect([...openMemberKeysWrap(keysWrap, secrets.accountKey, published).teamStateKey]).toEqual([...secrets.bundle.teamStateKey]);
-
-    const state = parseTeamState(records["team-state"], { accountId: "alice", teamId: "team-1" });
-    expect(openTeamState(state, secrets.bundle.teamStateKey).version).toBe(1);
+    const opened = openMemberKeysWrap(keysWrap, secrets.accountKey, published);
+    expect([...opened.encryptionSecretKey]).toEqual([...secrets.bundle.encryptionSecretKey]);
+    expect(opened.floor).toEqual(secrets.bundle.floor);
 
     const version = parseTeamKeyVersion(records["team-key-version"], { teamId: "team-1" });
     expect([...openRosterEntry(version, rosterEntryOf(version, "alice")!, secrets.pairs.encryption)]).toEqual([...secrets.teamKey]);
@@ -54,15 +52,9 @@ describe("§8 step 3: context", () => {
     ["item under another id", () => parseItem(records.item, { teamId: "team-1", itemId: "item-2" })],
     ["account wrap of another version", () => parseAccountKeyWrap(records["account-key-wrap"], { accountId: "alice", accountKeyVersion: 2, method: "recovery" })],
     ["account wrap of another method", () => parseAccountKeyWrap({ ...records["account-key-wrap"] }, { accountId: "alice", accountKeyVersion: 1, method: "recovery", deviceId: "x" })],
-    ["team state of another account", () => parseTeamState(records["team-state"], { accountId: "bob", teamId: "team-1" })],
     ["team key version of another team", () => parseTeamKeyVersion(records["team-key-version"], { teamId: "team-2" })],
   ])("refuses the %s", (_, run) => {
     expect(run).toThrow(expect.objectContaining({ code: "TRUST_FAILURE", reason: "context_mismatch" }));
-  });
-
-  it("refuses a state opened with another key as state_unreadable", () => {
-    const state = parseTeamState(records["team-state"], { accountId: "alice", teamId: "team-1" });
-    expect(() => openTeamState(state, secrets.teamKey)).toThrow(expect.objectContaining({ reason: "state_unreadable" }));
   });
 
   it("refuses member keys that don't match the published record", () => {

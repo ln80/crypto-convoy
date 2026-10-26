@@ -6,7 +6,6 @@ const contexts = {
   "account-key-wrap": [["string", "acct-1"], ["u32", 1], ["string", "pin"], ["optional", null],
     ["bytes", hex(fixed("salt", 16))], ["u64", 3], ["u64", 268435456], ["u32", 1]],
   "member-keys-wrap": [["string", "acct-1"], ["string", "team-1"], ["u32", 1], ["u32", 1]],
-  "team-state": [["string", "acct-1"], ["string", "team-1"], ["u64", 1]],
   "team-key-link": [["string", "team-1"], ["u32", 2]],
   "item-key": [["string", "team-1"], ["string", "item-1"], ["u32", 1], ["string", "acct-1"],
     ["u64", 1700000000], ["bytes", hex(fixed("manifest hash", 32))]],
@@ -51,33 +50,36 @@ const tampered = [
   { name: "nonce of 23 bytes", from: base.name, nonce: base.inputs.nonce.slice(0, 46) },
 ].map((c) => ({ ...c, error: "DECRYPTION_FAILED" }));
 
-// Member keys bundles (§4.3): seed ‖ secret key ‖ team state key ‖ optional anchor floor (D-48).
+// Member keys bundles (§4.3): seed ‖ secret key ‖ anchor floor, 104 bytes (D-66).
 const bundleContext = contexts["member-keys-wrap"];
 const bundleKey = fixed("bundle account key", 32);
 const bundleParts = {
   signingSeed: hex(fixed("bundle signing seed", 32)),
   encryptionSecretKey: hex(fixed("bundle encryption secret", 32)),
-  teamStateKey: hex(fixed("bundle team state key", 32)),
 };
+// The layouts before D-66 carried a team state key and an optional floor: they no longer open.
+const retiredTeamStateKey = hex(fixed("bundle team state key", 32));
 const bundleFloor = { version: 4, hash: hex(fixed("bundle floor hash", 32)) };
 const sealBundle = (name, plaintext) => {
   const nonce = fixed(`bundle nonce ${name}`, 24);
   const ad = encode([label("member-keys-wrap"), ...bundleContext]);
   return { nonce: hex(nonce), ciphertext: hex(sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext, ad, null, nonce, bundleKey)) };
 };
-const bundlePlaintext = (floorFields) =>
-  encode([["raw", bundleParts.signingSeed], ["raw", bundleParts.encryptionSecretKey], ["raw", bundleParts.teamStateKey], optionalOf(floorFields)]);
+const bundlePlaintext = (floorFields) => encode([["raw", bundleParts.signingSeed], ["raw", bundleParts.encryptionSecretKey], ...floorFields]);
+const retiredPlaintext = (floorFields) =>
+  encode([["raw", bundleParts.signingSeed], ["raw", bundleParts.encryptionSecretKey], ["raw", retiredTeamStateKey], optionalOf(floorFields)]);
 const bundles = {
   key: hex(bundleKey),
   context: bundleContext,
   cases: [
-    { name: "bundle without a floor", ...bundleParts, plaintext: hex(bundlePlaintext(null)) },
-    { name: "bundle with a floor", ...bundleParts, floor: bundleFloor, plaintext: hex(bundlePlaintext([["u32", bundleFloor.version], ["bytes", bundleFloor.hash]])) },
+    { name: "bundle with its floor", ...bundleParts, floor: bundleFloor, plaintext: hex(bundlePlaintext([["u32", bundleFloor.version], ["bytes", bundleFloor.hash]])) },
   ].map((c) => ({ ...c, wrapped: sealBundle(c.name, Buffer.from(c.plaintext, "hex")) })),
   refused: [
-    { name: "96 bytes, no floor flag", plaintext: bundleParts.signingSeed + bundleParts.encryptionSecretKey + bundleParts.teamStateKey },
+    { name: "64 bytes, no floor", plaintext: bundleParts.signingSeed + bundleParts.encryptionSecretKey },
+    { name: "retired layout without a floor (97 bytes)", plaintext: hex(retiredPlaintext(null)) },
+    { name: "retired layout with a floor (137 bytes)", plaintext: hex(retiredPlaintext([["u32", 4], ["bytes", bundleFloor.hash]])) },
     { name: "floor hash of 31 bytes", plaintext: hex(bundlePlaintext([["u32", 4], ["bytes", bundleFloor.hash.slice(0, 62)]])) },
-    { name: "trailing byte after the floor flag", plaintext: hex(bundlePlaintext(null)) + "00" },
+    { name: "trailing byte after the floor", plaintext: hex(bundlePlaintext([["u32", 4], ["bytes", bundleFloor.hash]])) + "00" },
   ].map((c) => ({ ...c, wrapped: sealBundle(c.name, Buffer.from(c.plaintext, "hex")), error: "DECRYPTION_FAILED" })),
 };
 

@@ -12,7 +12,6 @@ const IDENTITY: Record<RecordKey["type"], readonly string[]> = {
   "account-key-wrap": ["accountId", "accountKeyVersion", "method", "deviceId"],
   "member-keys": ["teamId", "accountId", "memberKeysVersion"],
   "member-keys-wrap": ["accountId", "teamId", "memberKeysVersion", "accountKeyVersion"],
-  "team-state": ["accountId", "teamId"],
   "team-key-version": ["teamId", "version"],
   item: ["teamId", "itemId"],
   inbox: ["teamId", "inboxId"],
@@ -22,7 +21,7 @@ const IDENTITY: Record<RecordKey["type"], readonly string[]> = {
 const VERSION_RECORD_BYTES = 393_216;
 
 /** Records served only to their own account (§11, server contract rule 1). */
-const PRIVATE = new Set<RecordKey["type"]>(["account-key-wrap", "member-keys-wrap", "team-state"]);
+const PRIVATE = new Set<RecordKey["type"]>(["account-key-wrap", "member-keys-wrap"]);
 
 const fieldsOf = (key: object) => key as Record<string, unknown>;
 const keyString = (key: RecordKey) => JSON.stringify(Object.entries(key).sort(([a], [b]) => a.localeCompare(b)));
@@ -34,8 +33,8 @@ class Forbidden extends Error {}
  * The server: one shared state. Each client talks to it through a view bound to the
  * account it is signed in as (`as(accountId)`), or with no account (`anonymous()`).
  *
- * Each identity has at most one live record. Removed and replaced records, retired account key
- * versions and previous team state revisions go to an archive, no longer served and kept for the
+ * Each identity has at most one live record. Removed and replaced records and retired account key
+ * versions go to an archive, no longer served and kept for the
  * restore window (rule 7, TH-36, TH-46, D-39, D-42).
  */
 export class MemoryRecordStore {
@@ -165,6 +164,9 @@ export class MemoryRecordStore {
     const atCurrentVersion: { teamId: string; version: unknown }[] = [];
 
     for (const op of ops) {
+      // An operation or record type the contract doesn't name (a `team-state` before D-66, say) is refused.
+      if (!["create", "replace", "delete", "set-account-key-version"].includes(op.op)) throw new Forbidden("unknown operation");
+      if (op.op !== "set-account-key-version" && !(op.key.type in IDENTITY)) throw new Forbidden("unknown record type");
       if (op.op !== "set-account-key-version") {
         // Integration guide: a batch never touches one key twice.
         const id = keyString(op.key);
@@ -214,18 +216,6 @@ export class MemoryRecordStore {
           if (op.key.type === "item" || op.key.type === "inbox") {
             atCurrentVersion.push({ teamId: op.key.teamId, version: op.record["teamKeyVersion"] });
           }
-          live.set(keyString(op.key), { key: clone(op.key), record: clone(op.record) });
-          break;
-        }
-        case "compare-and-set": {
-          ownOnly(op.key);
-          checkIdentity(op.key, op.record);
-          const entry = live.get(keyString(op.key));
-          const revision = entry ? (entry.record["revision"] as number) : null;
-          if (revision !== op.expectedRevision) throw conflict("revision changed");
-          if (op.record["revision"] !== (revision ?? 0) + 1) throw conflict("revision must increase by one");
-          // Rule 7 (D-42): the previous revision is archived, so a garbage write can be undone.
-          archiveLive(live, archive, keyString(op.key));
           live.set(keyString(op.key), { key: clone(op.key), record: clone(op.record) });
           break;
         }

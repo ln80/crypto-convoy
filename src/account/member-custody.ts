@@ -53,7 +53,7 @@ export async function openBundles(ports: AccountPorts, account: OpenAccount, tea
     const published = parseMemberKeys(json, { teamId, accountId, memberKeysVersion: wrap.memberKeysVersion });
     // A wrap that opens is the account's: one its published keys don't match is a trust failure, not absent.
     checkBundle(suite, bundle, published);
-    bundles.push({ memberKeysVersion: wrap.memberKeysVersion, published, pairs: bundleKeyPairs(suite, bundle), ...(bundle.floor ? { floor: bundle.floor } : {}) });
+    bundles.push({ memberKeysVersion: wrap.memberKeysVersion, published, pairs: bundleKeyPairs(suite, bundle), floor: bundle.floor });
   }
   return bundles;
 }
@@ -63,8 +63,8 @@ export interface NewMemberKeysOptions {
   readonly recoveryPublicKey: Uint8Array;
   /** On a re-key with the phrase: the recovery signing key proves the new keys (D-33). */
   readonly recoverySigningSecretKey?: MemberKeysProofs["recoverySigningSecretKey"];
-  /** The anchor floor the bundle carries (§4.3, D-48). */
-  readonly floor?: Anchor;
+  /** The anchor floor the bundle carries (§4.3, D-48, D-66). */
+  readonly floor: Anchor;
 }
 
 /**
@@ -90,12 +90,12 @@ export function newMemberKeys(
   options: NewMemberKeysOptions,
 ): { ops: WriteOp[]; bundle: MemberBundle } {
   const keys = generateMemberKeys(ports, account, teamId, memberKeysVersion, options);
-  return { ops: memberKeysOps(ports, account, keys, options.floor), bundle: { ...keys.bundle, ...(options.floor ? { floor: options.floor } : {}) } };
+  return { ops: memberKeysOps(ports, account, keys, options.floor), bundle: { ...keys.bundle, floor: options.floor } };
 }
 
 interface GeneratedKeys {
-  readonly raw: MemberKeyBundle;
-  readonly bundle: MemberBundle;
+  readonly raw: Omit<MemberKeyBundle, "floor">;
+  readonly bundle: Omit<MemberBundle, "floor">;
 }
 
 function generateMemberKeys(
@@ -103,7 +103,7 @@ function generateMemberKeys(
   account: OpenAccount,
   teamId: string,
   memberKeysVersion: number,
-  options: NewMemberKeysOptions,
+  options: Omit<NewMemberKeysOptions, "floor">,
 ): GeneratedKeys {
   const { suite, clock } = ports;
   const { accountId } = account;
@@ -127,12 +127,12 @@ function generateMemberKeys(
 }
 
 /** The published record and the wrap, with the floor inside the wrapped bundle (§4.3). */
-function memberKeysOps(ports: AccountPorts, account: OpenAccount, keys: GeneratedKeys, floor: Anchor | undefined): WriteOp[] {
+function memberKeysOps(ports: AccountPorts, account: OpenAccount, keys: GeneratedKeys, floor: Anchor): WriteOp[] {
   const { published } = keys.bundle;
   const { accountId } = account;
   const { teamId, memberKeysVersion } = published;
   const context = { accountId, teamId, memberKeysVersion, accountKeyVersion: account.version };
-  const wrap = createMemberKeysWrap(ports.suite, context, account.key, { ...keys.raw, ...(floor ? { floor } : {}) });
+  const wrap = createMemberKeysWrap(ports.suite, context, account.key, { ...keys.raw, floor });
   return [
     { op: "create", key: { type: "member-keys", teamId, accountId, memberKeysVersion }, record: memberKeysToJson(published) },
     { op: "create", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(wrap) },
@@ -232,7 +232,7 @@ export async function exportBundles(ports: AccountPorts, account: OpenAccount, t
   let bundles = await openBundles(ports, account, teamId);
   if (bundles.length === 0) throw new ConvoyError("NOT_GRANTED");
   const vault = await vaultAnchorOf(ports, account.accountId, teamId);
-  const { chain } = await loadChain(ports, account.accountId, teamId, bundles, vault ? [vault] : []);
+  const chain = await loadChain(ports, account.accountId, teamId, bundles, vault ? [vault] : []);
   const tip = chain.records.at(-1)!;
   const tipHash = chain.hashes.get(tip.version)!;
   await recordVaultAnchor(ports, account.accountId, teamId, { version: tip.version, hash: tipHash });
@@ -246,8 +246,7 @@ export async function exportBundles(ports: AccountPorts, account: OpenAccount, t
       // libsodium's Ed25519 secret key is seed ‖ public key.
       signingSeed: b.pairs.signing.secretKey.subarray(0, 32),
       encryptionSecretKey: b.pairs.encryption.secretKey,
-      teamStateKey: b.pairs.teamStateKey,
-      ...(b.floor ? { floor: b.floor } : {}),
+      floor: b.floor,
     })),
   );
 }
@@ -256,7 +255,7 @@ export async function exportBundles(ports: AccountPorts, account: OpenAccount, t
 export async function currentOwners(ports: AccountPorts, account: OpenAccount, teamId: string): Promise<string[]> {
   const bundles = await openBundles(ports, account, teamId);
   const vault = await vaultAnchorOf(ports, account.accountId, teamId);
-  const { chain } = await loadChain(ports, account.accountId, teamId, bundles, vault ? [vault] : []);
+  const chain = await loadChain(ports, account.accountId, teamId, bundles, vault ? [vault] : []);
   return chain.records.at(-1)!.owners.map((o) => o.accountId);
 }
 
@@ -264,8 +263,7 @@ export async function currentOwners(ports: AccountPorts, account: OpenAccount, t
  * Vault upkeep after the chain was verified up to `tip` (§5.8 step 3), in one batch. The floor
  * follows the chain verified from every root: the newest bundle's wrap is replaced with `tip` as its floor (D-52, D-54).
  * Once the tip's roster holds the newest keys, older bundles open nothing the chain doesn't
- * (§6.8 step 4): their wraps are deleted; a team state under them is absent, and the next advance
- * replaces it (D-63). Best effort: on any failure nothing is written.
+ * (§6.8 step 4): their wraps are deleted. Best effort: on any failure nothing is written.
  */
 async function maintainBundles(
   ports: AccountPorts,
@@ -282,10 +280,10 @@ async function maintainBundles(
   try {
     const ops: WriteOp[] = [];
     let kept = newest;
-    if (!newest.floor || tip.version > newest.floor.version) {
+    if (tip.version > newest.floor.version) {
       const floor = { version: tip.version, hash: tipHash };
       const context = { accountId, teamId, memberKeysVersion: newest.memberKeysVersion, accountKeyVersion: account.version };
-      const raw = { signingSeed: newest.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: newest.pairs.encryption.secretKey, teamStateKey: newest.pairs.teamStateKey, floor };
+      const raw = { signingSeed: newest.pairs.signing.secretKey.subarray(0, 32), encryptionSecretKey: newest.pairs.encryption.secretKey, floor };
       ops.push({ op: "replace", key: { type: "member-keys-wrap", ...context }, record: memberKeysWrapToJson(createMemberKeysWrap(suite, context, account.key, raw)) });
       kept = { ...newest, floor };
     }
@@ -295,8 +293,6 @@ async function maintainBundles(
     );
     const cleanUp = older.length > 0 && held;
     if (cleanUp) {
-      // The newest keys hold a floor after this batch, so a team-state under the older ones is absent and the
-      // next anchor advance rewrites it (D-63).
       ops.push(
         ...older.map((b): WriteOp => ({
           op: "delete",
