@@ -892,7 +892,7 @@ Problem: with a floor, `team-state` counts only on the chain the roots verify, s
 
 Decision:
 - A member keys bundle is `signingSeed (32) ‖ encryptionSecretKey (32) ‖ enc(u32 version, bytes recordHash)`, 104 bytes: the floor is required. A transfer entry is `enc(u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, u32 floorVersion, bytes floorHash)`. Both change in place: v1 is unreleased, and the first release freezes them (§13).
-- A bundle of another length doesn't open (`DECRYPTION_FAILED`); in a list it is absent (D-58).
+- A bundle of another length doesn't open (`DECRYPTION_FAILED`, or `MALFORMED_RECORD` for a ciphertext above the 104-byte layout's bound, refused by its shape first); in a list it is absent either way (D-58).
 - There is no `team-state` record, `teamStateKey`, compare-and-set write or revision rule. A team's roots are the newest bundle's floor, this context's local anchor and, in the vault, the vault's anchor (D-54), with an invite or owner's anchor when one is given. Opening a team advances the local anchor only (§6.1 step 7); the vault still advances the floor when it opens or exports the team (§5.8).
 - The reasons `state_conflict` and `state_unreadable` are retired from `TRUST_FAILURE`.
 
