@@ -286,7 +286,7 @@ Status: Accepted.
 
 Problem: the first implementation stored and fetched item parts and submissions through `RecordStore`, beside the key records. That pulls the integration's content storage (upload sessions, view limits, quotas, cleanup) into the library's server contract, and mixes two backends an integration usually keeps apart.
 
-Decision: the server contract and `RecordStore` cover **key records** only: account key wraps, member keys and their wraps, team states, the team key chain, and each resource's key record (`item`, `inbox`). Item parts, submission envelopes and submission parts are **content**: the library produces and consumes them, and the integration stores and serves them as it wants (protocol §7, §11).
+Decision: the server contract and `RecordStore` cover **key records** only: account key wraps, member keys and their wraps, the team key chain, and each resource's key record (`item`, `inbox`). Item parts, submission envelopes and submission parts are **content**: the library produces and consumes them, and the integration stores and serves them as it wants (protocol §7, §11).
 
 Rejected: one store for everything. Simpler to describe, but it forces the integration's content pipeline into the library's shape.
 
@@ -504,7 +504,7 @@ Consequence: a device alone uses the account but can't change how it is opened; 
 
 ## D-42: The server never destroys an account's private records; a version can be restored
 
-Status: Accepted; its rejected repair of an unreadable team state revisited by D-62.
+Status: Accepted; its rejected repair of an unreadable team state revisited by D-62; team states retired by D-66, so what it archives is account key wraps and member keys wraps.
 
 Problem: D-39 archived removed account key wraps, so support could undo a session thief's changes within one account key version. Three cases weren't covered: a rotation by someone holding a credential (TH-11, TH-41) left the user's previous version with its member keys wraps "deleted"; a session thief could delete member keys wraps, or write a garbage team state that the server stored in place of the previous one (TH-46); and nothing let support make an older account key version current again.
 
@@ -580,7 +580,7 @@ Consequence: the owner's next routine `reconcile`, on the device where it secure
 
 ## D-48: Member keys carry an anchor floor
 
-Status: Accepted; which anchor the floor is, and when it counts, amended by D-50, D-52 and D-54. The current rules are stated in D-54.
+Status: Accepted; which anchor the floor is, and when it counts, amended by D-50, D-52 and D-54. The current rules are stated in D-54; a bundle without a floor no longer opens (D-66).
 
 Problem: a device with no local anchor took its anchor from the account's `team-state` (§4.4). If the server didn't serve it, or a session thief deleted it, the device was on first contact, trusting whatever chain the server presented (TH-04): a malicious server could show an existing member's new device a forged team whose key it held. Nothing told "joined, never opened" apart from "the record was withheld". An invite anchor protected only the joiner's first open, and had to be passed again in each context.
 
@@ -632,7 +632,7 @@ Consequence: every member has a floor from its join on; a floor is at most one r
 
 ## D-51: The floor comes only from the account's own records
 
-Status: Superseded by D-52 (review 006 C: a `team-state` anchor isn't the account's own record).
+Status: Superseded by D-52 (review 006 C: a `team-state` anchor isn't the account's own record). `team-state` retired by D-66.
 
 Problem: D-50 wrote the floor at a re-key or a rotation from the highest of the team's bundles' floors, the local anchor and the `team-state` anchor. The local anchor is written on the device (`LocalKeyStore`), where an injected script or someone with the device (A9, A7) can change it, and nothing checked it against a chain. A re-key or a rotation, `secureAccount` included, copied it into every bundle of the team, under the account key: every new device of the member and every receiving context then trusted it. Alone, the attacker made the team unopenable for the member's new devices; with the server, they opened a forged team (review 005 A).
 
@@ -645,7 +645,7 @@ Consequence: what reaches the floor was written by the vault (a floor) or by `ad
 
 ## D-52: The anchor floor is the root of trust
 
-Status: Accepted; the re-key's floor and its fallback amended by D-54, which adds the vault's anchor to the roots. The current rules are stated in D-54. With a floor, a `team-state` under keys being replaced is absent (D-63).
+Status: Accepted; the re-key's floor and its fallback amended by D-54, which adds the vault's anchor to the roots. The current rules are stated in D-54. Its `team-state` checks (`state_conflict`, `rollback` from a team state) are retired with the record by D-66. With a floor, a `team-state` under keys being replaced is absent (D-63).
 
 Problem: every anchor was a root of trust of its own. A record at an anchor's version was accepted by its hash alone, and the floor, the one anchor the vault builds from a chain it verified, was dropped as soon as a higher anchor existed (D-50). A local anchor, which a script in the origin or someone with the device can write, or a `team-state`, which any holder of a `teamStateKey` can write, therefore chose the chain once it was above the floor. With the server, a forged team opened `ready`; its anchor spread through `team-state` to new devices, and the re-key in `secureAccount` made it the floor (review 006 B and C). D-51 had removed only the local anchor from the floor's sources.
 
@@ -686,13 +686,13 @@ Consequence: whatever answers PIN evaluations without the key can only refuse th
 
 ## D-54: Floors are written only where every root agrees; the vault keeps its own anchor
 
-Status: Accepted; the repair also replaces this device's local anchor (review 035 A).
+Status: Accepted; the repair also replaces this device's local anchor (review 035 A); with `team-state` retired, its roots are the floor, the local anchor and the vault's anchor (D-66).
 
 Problem: D-52 wrote a re-key's floor from a chain verified from the local anchor or the floor, and kept the current floor when that failed. Someone who held the account key could plant a floor in a wrap: a vault with no anchor of its own (a split layout, a new device) verified from it; a server that made the verification fail had it kept; a retry and an export fell back to it; a forged local anchor could stand in for it (reviews 009 B, 010). And `secureAccount` was trusted to end the old account key's reach, while a retired version comes back on a stateless or stale device, or through a support restore (review 009 C).
 
 Decision. The current floor rules, in one place (they replace what D-48, D-50 and D-52 state, which keep their history):
 - **Write.** A bundle's floor is version 1 at creation (§6.3); at join, the tip of the chain verified from the invite anchor, or from version 1 without one (§6.4, D-50); at a re-key, the tip of a chain that contains every root the vault holds for the team, or of one from an owner's anchor (§5.9, §6.8); when the vault opens or exports the team, the verified tip if it is newer (§5.8). A rotation keeps it. Nothing else writes it.
-- **Read.** The roots are the newest bundle's floor, the local anchor, and in the vault's context the vault's own anchor; for keys with no floor, the `team-state` anchor too. The chain is fetched from the lowest root and must contain every root; the `team-state` anchor counts only on that chain (`state_conflict` when contradicted, `rollback` when above it) (§6.1, D-52).
+- **Read.** The roots are the newest bundle's floor, the local anchor, and in the vault's context the vault's own anchor (D-66 retired the `team-state` anchor). The chain is fetched from the lowest root and must contain every root (§6.1).
 
 What this decision changed:
 - The vault keeps its own anchor per team, in its half of local storage (`local-vault-anchor`, §3.7), apart from the sessions' anchors. It records the tip of every chain it verifies (creation, join, open in its context, export) and never moves down, except when a repair from an owner's anchor replaces it.
@@ -748,7 +748,7 @@ Amendment (review 032 A, review 033 1): a session alone can replace the recovery
 
 ## D-57: Change reports cover every record above the lowest root
 
-Status: Accepted; amends D-44.
+Status: Accepted; amends D-44. The `team-state` anchor is no longer among the roots (D-66).
 
 Problem: reports covered the records newer than the highest anchor, and the anchors included the floor and the `team-state` anchor, which belong to the account, not to a device. Only the first device or context of an account to open after a change reported it: another device reported nothing afterwards, and a split layout never did, since the export moves the floor to the tip before sealing it. A stolen owner key could admit and remove a member unseen, when detection is the mitigation (TH-17). Anyone holding a `teamStateKey` could also hide reports on every device by writing `team-state` at the tip (review 016 A, review 017).
 
@@ -761,6 +761,12 @@ Consequence: a device or context reports every change since it last verified the
 ## D-58: A record that fails its own checks is absent
 
 Status: Accepted; amended so a team whose bundles fail stops only that team (review 028 A), so a wrap read by its identity that doesn't parse costs only its method (review 035 B), and so a PIN wrap whose `kdf` the reader refuses, or this device's wrap that doesn't open, does too (review 037 B, C).
+
+Current rule (after the amendments below, reviews 028 A, 035 B, 037 B, C, and D-66):
+- **Lists.** A `member-keys-wrap` that doesn't parse or doesn't open under the account key (a bundle without a floor included, D-66) is absent wherever the vault lists wraps; an account's teams are those with at least one wrap that opens. A device wrap that doesn't parse is left out of the device list. A `member-keys` record that fails its checks, an unknown version or suite included, is left out of every list used to verify the chain, build an overview, reconcile or approve.
+- **Wraps read by identity** (the PIN wrap, the recovery wrap, this device's wrap) are absent, readable or unreadable. Unreadable: it doesn't parse, fails its shape or context checks at a known `v` and suite, or, for this device's wrap, doesn't open under its key. An unreadable wrap, and a PIN wrap whose `kdf` the reader refuses, cost only their method: status and warnings go on, the operation that writes the method replaces it, and this device registers again. An unknown `v` or suite stays `UNSUPPORTED_VERSION` (§10).
+- **Teams.** A wrap that opens but doesn't match its published keys is `TRUST_FAILURE` (`key_mismatch`) for its team only; wherever the vault goes through every team, a team whose bundles fail stops only that team.
+- **Server.** A `member-keys-wrap` is created only with its `member-keys` record or in a rotation's batch; an `account-key-wrap` only at the current version or in that batch.
 
 Problem: one record could stop everything around it. A session created a garbage `member-keys-wrap` under a new identity: every account-wide operation failed (`secureAccount`, `rotate`, the warnings), and no restore removed a record with no archived generation. An account-key holder could do the same with a wrap that opens but whose published keys don't match. A joiner published a `member-keys` record with a bad signature, and every member's team became `unverified`, with no way to delete it (review 016 B, C; review 017 A–C, F, G).
 
@@ -821,7 +827,7 @@ Consequence: onboarding asks for the PIN once more (one evaluation). An account 
 
 ## D-62: With a floor, a team state that doesn't open is absent
 
-Status: Accepted; revisits D-42's rejected repair; amended for malformed records and unknown versions (reviews 024 A, 026 B); which key opens it narrowed by D-63.
+Status: Superseded by D-66 (`team-state` retired). Kept as history: revisited D-42's rejected repair; amended for malformed records and unknown versions (reviews 024 A, 026 B); which key opens it narrowed by D-63.
 
 Problem: a `team-state` that doesn't open stopped every device at `state_unreadable`. After a session deleted a team's wrap, the repair D-59 and D-60 document (a proven `rekey` with an owner's anchor, approved) left the member there for good: the server's `team-state` was under the deleted bundle's key, and only support could replace it. A session writing garbage did the same (TH-46) (review 022 B).
 
@@ -837,7 +843,7 @@ Amendment (reviews 024 A, 025 A, 026 B): a record that failed its shape checks s
 
 ## D-63: With a floor, a team state counts only under the newest keys
 
-Status: Accepted; narrows D-62; revisits, for keys being replaced, D-52's rejected overwrite.
+Status: Superseded by D-66 (`team-state` retired). Kept as history: narrowed D-62; revisited, for keys being replaced, D-52's rejected overwrite.
 
 Problem: a holder of a copied bundle with the session (a script in the vault, or someone with a signed-in device) writes a readable `team-state` under that bundle's `teamStateKey`, naming a forged anchor. `secureAccount` re-keys the team, but the vault keeps the old bundle until the new keys are approved, and every held bundle opened `team-state`: every open was `state_conflict`, so a sole owner's own `reconcile` (D-47) never approved the new keys, and the copied owner key stayed the owner's until support restored the record (review 025 B).
 
@@ -877,3 +883,21 @@ Rejected:
 - `leaveTeam` stepping down by itself: a leave would write a team key version, with the owner's signing key, and change the owner list without a separate act.
 
 Consequence: an owner who leaves takes one more step; the integration's owner-leave flow calls `setOwners` first, and its own removal of an account refuses a listed owner the same way. `LAST_OWNER` now means "a listed owner". An owner whose team doesn't open can't step down itself; another owner removes it (`setOwners`). Not covered (review 033 2): an account that left and is named owner again by another owner; a server serving a chain from before the account became owner, to a device that hasn't opened the team since (availability only, as withholding); a session deleting an owner's wraps directly (TH-46). Another owner can name a leaving owner again after each step-down; the product's removal is then the way out.
+
+## D-66: Every bundle holds a floor; there is no team state on the server
+
+Status: Accepted. Supersedes D-62 and D-63; retires D-52's `team-state` checks, D-48's bundles without a floor and D-42's archive of team states; amends D-58.
+
+Problem: with a floor, `team-state` counts only on the chain the roots verify, so it can only detect a server that rolls back or forks the chain while serving the newest `team-state`, and the server switches that off by withholding it or serving an archived revision. What it does add is surface: whoever holds a `teamStateKey` (a device, a script in the vault, a receiving context) or the session forges, garbles or deletes it, and D-52's checks, D-62, D-63 and four residuals exist to limit what that costs. Without a floor it is worse: a root anyone holding a key or the session can write (reviews 011 A, 026 F, 028 C, 039 A).
+
+Decision:
+- A member keys bundle is `signingSeed (32) ‖ encryptionSecretKey (32) ‖ enc(u32 version, bytes recordHash)`, 104 bytes: the floor is required. A transfer entry is `enc(u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, u32 floorVersion, bytes floorHash)`. Both change in place: v1 is unreleased, and the first release freezes them (§13).
+- A bundle of another length doesn't open (`DECRYPTION_FAILED`); in a list it is absent (D-58).
+- There is no `team-state` record, `teamStateKey`, compare-and-set write or revision rule. A team's roots are the newest bundle's floor, this context's local anchor and, in the vault, the vault's anchor (D-54), with an invite or owner's anchor when one is given. Opening a team advances the local anchor only (§6.1 step 7); the vault still advances the floor when it opens or exports the team (§5.8).
+- The `TRUST_FAILURE` reasons `state_conflict` and `state_unreadable` are retired.
+
+Rejected:
+- Keeping `team-state` as a report, never failing an open (review 026 F): detection its only target can switch off, for one more record, key and server rule.
+- Keeping the layout without a floor readable: a root anyone with a key writes, for data v1 doesn't have to read.
+
+Consequence: rollback protection rests on the floor, the vault's anchor and the local anchors, as it already did in every case the server couldn't switch off; a new device starts from the floor, with the window TH-05 accepts. Integrators drop the `team-state` record, its compare-and-set and its revision rule from the store, and reset v1 data. Accepted: a fork the server shows to one device of an account and not to another is no longer detected through the account's own records; that needs key transparency (TH-38).

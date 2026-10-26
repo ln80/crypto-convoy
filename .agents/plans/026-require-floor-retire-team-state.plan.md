@@ -115,3 +115,7 @@ After the slices go, D-58 opens with a current-rule paragraph: in a list, a `mem
 5. **Notes.** Execution notes; the `change` review (040); the doconvoy integration note (drop the `team-state` record, its compare-and-set and revision rule from the Go store and the mock; reset v1 data).
 
 ## Execution notes
+
+- **Phase 1, as done:** D-66 added; D-62, D-63 superseded; status pointers in D-25 (text), D-42, D-48, D-51, D-52, D-54, D-57; D-54's Read bullet rewritten; D-58 opens with its current rule (039-B). Protocol §1, catalogue, §3.8, §4.3, §4.4, §5.9, §6.1 steps 1, 2, 7, §6.8 step 4, §8, §10 (a D-62 citation dropped), §11, §12, §13, §14; scope rules 1, 4, 7; TH-05, TH-20, TH-39, TH-46, TH-49 and index rows; SP-07, SP-12, SP-26; key hierarchy; integration guide; libsodium map. The key hierarchy's heading became "Team state key (removed)" so the retired name stays out of a section with no id.
+- **Kept for phase 2:** §9 still lists `state_conflict` and `state_unreadable`, since `check:spec` compares §9 with `src/errors.ts`; a `known` entry in `retired-terms.json` holds the match and fails once phase 2 removes both.
+- **Ledger:** TH-46's residual row shortened; the TH-46 forged-anchor row and the TH-28 replay row removed. 011-A, 026-F, 028-C, 039-A and 039-B close in phase 5.

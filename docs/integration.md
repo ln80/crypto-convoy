@@ -48,7 +48,6 @@ Each record is stored under its identity (§11). A natural key, in identity orde
 | `account-key-wrap` | account, account key version, method, `deviceId` (device wraps only) |
 | `member-keys` | team, account, member keys version |
 | `member-keys-wrap` | account, team, member keys version, account key version |
-| `team-state` | account, team |
 | `team-key-version` | team, version |
 | `item` | team, item |
 | `inbox` | team, inbox |
@@ -59,7 +58,7 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 
 - `get` returns the stored JSON or `null`.
 - `list` supports the queries of protocol §12, results in identity order (versions ascending).
-- Private records (`account-key-wrap`, `member-keys-wrap`, `team-state`) are served only to their account (rule 1). Everything else is readable by the team's members. A shared item's `item` record must also reach the people who open its link: through the key store, or through the integration's own content API, as it prefers (§7.3).
+- Private records (`account-key-wrap`, `member-keys-wrap`) are served only to their account (rule 1). Everything else is readable by the team's members. A shared item's `item` record must also reach the people who open its link: through the key store, or through the integration's own content API, as it prefers (§7.3).
 
 ### Writes
 
@@ -73,9 +72,8 @@ Store the record's JSON as the library sent it. Refuse a record whose identity f
 | `create` of `member-keys-wrap` | In the same batch as its `member-keys` record, or in a batch that switches the account key version, at the new version (D-58) |
 | `create` of `account-key-wrap` | At the account's current key version, or in a batch that switches it, at the new version (D-58) |
 | `create` of `item`, `inbox` | `teamKeyVersion` = the current version, counting a version created in the same batch (rule 6). Enforce it, and write-once, in the server itself: they are the only barrier against a former member who kept an old team key (TH-50) |
-| `compare-and-set` | The stored `revision` equals `expectedRevision` (`null`: no record), and the new one is that plus 1 (rule 4; the library relies on it, D-62); archive the previous revision (rule 7, D-42) |
 | `replace` (`account-key-wrap`, `member-keys-wrap`) | A live record exists under the key; archive it, then store the new one as live (D-39, D-52) |
-| `delete` | Only the caller's own private records (`account-key-wrap`, `member-keys-wrap`, `team-state`); refuse it for any other record (rule 3). Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
+| `delete` | Only the caller's own private records (`account-key-wrap`, `member-keys-wrap`); refuse it for any other record (rule 3). Archive the live record: stop serving it, keep it for the restore window (rule 7, TH-36) |
 | `set-account-key-version` | The current version equals `expected`; then stop serving every record of the old version, keeping it archived (rule 7, D-42) |
 
 Each operation in a batch names a different key: a batch never touches one key twice.
@@ -84,7 +82,7 @@ The client reports a refused condition by throwing the library's `StoreConflictE
 
 ### Archived records
 
-Rule 7 keeps every removed or replaced private record (account key wraps, member keys wraps, team states) for a restore window (TH-36, TH-46, D-39, D-42). Each identity has at most one live record and any number of archived ones.
+Rule 7 keeps every removed or replaced private record (account key wraps, member keys wraps) for a restore window (TH-36, TH-46, D-39, D-42). Each identity has at most one live record and any number of archived ones.
 
 - **Relational database:** an `archived_at` column, and a unique index on the identity over live rows only (a partial index in Postgres).
 - **DynamoDB:** the live item under its identity, with a generation counter `gen`. An archived record is a separate item (for example partition `archive#<accountId>`, sort key `<identity>#<gen>`) whose TTL is the archive time plus the restore window, so expiry needs no job.
@@ -112,7 +110,7 @@ For DynamoDB, a rotation must fit `TransactWriteItems` (100 items): cap the team
 
 ### Leaving, removal and account deletion
 
-- **Removal by the product:** a removed member can't read the chain any more, so it can't run `leaveTeam`. Your server removes (archives, rule 7) that account's `member-keys-wrap` and `team-state` records for the team; owners' next `reconcile` rotates the member out (§6.9).
+- **Removal by the product:** a removed member can't read the chain any more, so it can't run `leaveTeam`. Your server removes (archives, rule 7) that account's `member-keys-wrap` records for the team; owners' next `reconcile` rotates the member out (§6.9).
 - **Deleting an account** is your server's job, not one transaction: delete its records for each team as above, then archive its `account-key-wrap` records for the restore window (a session thief could otherwise delete the account, TH-36) and purge them after it. **Never delete records the team shares** (`member-keys`, `team-key-version`, `item`, `inbox`): other members verify old owners' signatures against published `member-keys` records.
 - **Owners leaving:** refuse to remove or delete an account that is a listed owner in the newest team key version, as `leaveTeam` does (`LAST_OWNER`, TH-18, D-65): an owner steps down first, by `setOwners` without them, then leaves; the only owner can't. Drop an account that left from the active list, so the next `reconcile` takes it out of the roster and it can't be named owner again while holding nothing. The product's owner role may change before the chain's owner list does (D-30): check the list in the record.
 

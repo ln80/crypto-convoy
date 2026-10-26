@@ -32,7 +32,7 @@ ACCOUNT  (one per person)
                                                     │ wraps
                                                     ▼
 TEAM MEMBERSHIP  (one bundle per account and team)
-  memberKeys = { signing key (Ed25519), encryption key (X25519), teamStateKey }
+  memberKeys = { signing key (Ed25519), encryption key (X25519), anchor floor }
      │ public halves published; an owner approves them by rotating the team key
      ▼
 TEAM  (one per team)
@@ -146,18 +146,9 @@ An account has one bundle of member keys per team. Bundles of different teams ar
 | Recovery | Through the `accountKey`. |
 | Destruction | With the signing key. |
 
-### `teamStateKey`
+### Team state key (removed)
 
-| Attribute | Value |
-| --- | --- |
-| Purpose | Encrypts this member's copy of the team state on the server: its anchor, the newest team key version record it verified (SP-07). A new device starts from the anchor floor the member keys bundle carries, and follows this anchor when the chain from the floor contains it (D-48, D-52). Only the newest bundle's key counts: a team state under an older bundle's key is absent, and the next advance rewrites it (D-63). |
-| Algorithm | 256-bit symmetric key, used with XChaCha20-Poly1305. |
-| Generation | Random, in the member keys bundle. |
-| Storage | In the member keys bundle. |
-| Access | That team's session. |
-| Rotation | With the member keys. |
-| Recovery | Through the `accountKey`. |
-| Destruction | With the member keys. |
+Removed before release (D-66): a team's roots are the anchor floor in the member keys bundle and the account's local anchors, so no team state is kept on the server.
 
 ## Team keys
 
@@ -412,14 +403,14 @@ One rotation does it all: the chain gives the new keys every earlier version, an
 
 ### Leaving a team
 
-1. The member's vault deletes its wrapped member keys and its team state for the team.
+1. The member's vault deletes its wrapped member keys for the team.
 2. The remaining owners' `reconcile` rotates the team key without the member, once the integration drops them from the active list.
 
 A listed owner can't leave: the library refuses (`LAST_OWNER`). The owner steps down first, through an owner change (`setOwners` without it), which always keeps one owner, so the only owner can never leave. Otherwise the team would freeze (TH-18, D-65).
 
 ### Deleting an account
 
-Every record private to the account is deleted: its unlock wraps, its wrapped member keys and its team states. Its member keys records stay, as part of each team's history, and its roster entries remain in the versions it held. The integration refuses to delete an account that is the only owner of a team, for the same reason as above.
+Every record private to the account is deleted: its unlock wraps and its wrapped member keys. Its member keys records stay, as part of each team's history, and its roster entries remain in the versions it held. The integration refuses to delete an account that is the only owner of a team, for the same reason as above.
 
 ### Creating and sharing an item
 

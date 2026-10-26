@@ -20,7 +20,7 @@ Implementers porting the protocol to another language, reviewers, auditors.
 | `randombytes_buf` | `randomBytes` | Every key, nonce, id, salt and `deviceId`; the OPRF blinding scalar; BIP-39 entropy (§3.6) | — | `cc1/index.ts` |
 | `memcmp` | `equal` | Constant-time comparison of hashes and keys (anchors, manifest hashes) | Equal lengths, else not equal | `cc1/index.ts` |
 | `memzero` | `wipe` | Best-effort erasure of keys and plaintext buffers once used | — | `cc1/index.ts` |
-| `crypto_aead_xchacha20poly1305_ietf_encrypt` | `aeadEncrypt` | `wrap` (§3.1): account key, member keys, team state, team key link, item key, item manifest, inbox key | Key 32, nonce 24 | `cc1/index.ts` |
+| `crypto_aead_xchacha20poly1305_ietf_encrypt` | `aeadEncrypt` | `wrap` (§3.1): account key, member keys, team key link, item key, item manifest, inbox key | Key 32, nonce 24 | `cc1/index.ts` |
 | `crypto_aead_xchacha20poly1305_ietf_decrypt` | `aeadDecrypt` | `unwrap` (§3.1); any failure is `DECRYPTION_FAILED` | Key 32, nonce 24, ciphertext ≥ 16 | `cc1/index.ts` |
 | `crypto_scalarmult_base` | `generateEncryptionKeyPair`, `encryptionPublicKey` | Member encryption and inbox key pairs (secret from `randombytes_buf`); recomputing a public key in the post-checks of §4.3 and §4.9 | Secret key 32 | `cc1/index.ts` |
 | `crypto_box_seal` | `seal` | `seal` (§3.2): `roster-seal`, `submission` envelope, team keys transfer | Public key 32, not in the X25519 low-order list (§2) | `cc1/index.ts` |

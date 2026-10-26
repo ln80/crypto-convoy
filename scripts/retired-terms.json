@@ -256,6 +256,116 @@
       "decision": "D-54",
       "use": "repairs the device that runs the repair; a server can still serve a new device the planted wrap (review 037 E)",
       "allow": {}
+    },
+    {
+      "pattern": "\\bteam-state\\b",
+      "decision": "D-66",
+      "use": "the floor and the local anchors; no team state on the server",
+      "allow": {
+        "decisions.md": [
+          "D-42",
+          "D-48",
+          "D-50",
+          "D-51",
+          "D-52",
+          "D-54",
+          "D-57",
+          "D-58",
+          "D-62",
+          "D-63",
+          "D-66"
+        ],
+        "protocol.md": [
+          "4.4"
+        ]
+      }
+    },
+    {
+      "pattern": "\\bteamStateKey\\b",
+      "decision": "D-66",
+      "use": "the bundle holds the signing key, the encryption key and the floor",
+      "allow": {
+        "decisions.md": [
+          "D-42",
+          "D-48",
+          "D-50",
+          "D-51",
+          "D-52",
+          "D-54",
+          "D-57",
+          "D-58",
+          "D-62",
+          "D-63",
+          "D-66"
+        ]
+      }
+    },
+    {
+      "pattern": "\\bstate_(conflict|unreadable)\\b",
+      "decision": "D-66",
+      "use": "retired reasons; a chain that doesn't contain a root is `rollback` or `chain_conflict`",
+      "allow": {
+        "decisions.md": [
+          "D-42",
+          "D-48",
+          "D-50",
+          "D-51",
+          "D-52",
+          "D-54",
+          "D-57",
+          "D-58",
+          "D-62",
+          "D-63",
+          "D-66"
+        ]
+      },
+      "known": [
+        {
+          "file": "protocol.md",
+          "text": "`state_unreadable`",
+          "gap": "plan 026 phase 2 removes the reasons from src/errors.ts and §9 together"
+        }
+      ]
+    },
+    {
+      "pattern": "\\bcompareAndSet\\b|compare-and-set on `revision`|\\bcompare-and-set\\b",
+      "decision": "D-66",
+      "use": "no record changes in place by revision",
+      "allow": {
+        "decisions.md": [
+          "D-42",
+          "D-48",
+          "D-50",
+          "D-51",
+          "D-52",
+          "D-54",
+          "D-57",
+          "D-58",
+          "D-62",
+          "D-63",
+          "D-66"
+        ]
+      }
+    },
+    {
+      "pattern": "[Ff]or keys with no floor|with no floor|97 or 137",
+      "decision": "D-66",
+      "use": "every bundle holds a floor",
+      "allow": {
+        "decisions.md": [
+          "D-42",
+          "D-48",
+          "D-50",
+          "D-51",
+          "D-52",
+          "D-54",
+          "D-57",
+          "D-58",
+          "D-62",
+          "D-63",
+          "D-66"
+        ]
+      }
     }
   ]
 }

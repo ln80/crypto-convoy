@@ -81,7 +81,6 @@ Every `wrap`, `seal`, `sign`, `stream` and key derivation below encodes `string 
 | `member-keys-recovery` | Optional signature by the recovery key over a member's new keys (§4.2) |
 | `member-keys-hash` | Hashing a member's public keys, as rosters pin them (§4.2) |
 | `member-keys-wrap` | Wrapping a member keys bundle |
-| `team-state` | Wrapping a member's team state |
 | `team-key-version` | Signing a team key version record (with its owner list) |
 | `team-key-link` | Wrapping version n−1 under version n |
 | `roster-seal` | Context inside a roster entry's sealed box (§4.5) |
@@ -264,7 +263,7 @@ A value that fails to decrypt is an error, never silently discarded: discarding 
 When the account vault and a team session run in separate contexts (D-29), one team's member keys move from the first to the second sealed to a receiver. A transfer is never stored.
 
 1. **Receiver.** The receiving context creates a receiver for an expected `accountId` and `teamId`: an X25519 key pair from `randombytes_buf`, kept in memory. The **transfer request** is `"1"` followed by its public key in base64url without padding, as a link value (§3.5).
-2. **Export.** The vault opens the account's member keys bundles for the team and verifies the chain from its roots (§5.8; `TRUST_FAILURE` otherwise, D-54) and returns the **transfer**: `"1"` followed by `seal(receiverPublicKey, "team-keys-transfer", accountId, teamId, body)` in base64url without padding, where `body` = `enc(list<u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, bytes teamStateKey, optional<u32 version, bytes recordHash> floor>)`, newest `memberKeysVersion` first, 1–64 entries; `floor` is the bundle's anchor floor (§4.3). The vault refuses a request that isn't a valid link value or carries a low-order key (§2), with `MALFORMED_RECORD`.
+2. **Export.** The vault opens the account's member keys bundles for the team and verifies the chain from its roots (§5.8; `TRUST_FAILURE` otherwise, D-54) and returns the **transfer**: `"1"` followed by `seal(receiverPublicKey, "team-keys-transfer", accountId, teamId, body)` in base64url without padding, where `body` = `enc(list<u32 memberKeysVersion, bytes signingSeed, bytes encryptionSecretKey, u32 floorVersion, bytes floorHash>)`, newest `memberKeysVersion` first, 1–64 entries; the floor is the bundle's anchor floor (§4.3), required in every entry (D-66). The vault refuses a request that isn't a valid link value or carries a low-order key (§2), with `MALFORMED_RECORD`.
 3. **Open.** The receiver checks the prefix (else `UNSUPPORTED_VERSION`), opens the box with the expected `accountId` and `teamId` (§3.2; any failure, including a second use, is `DECRYPTION_FAILED`), then wipes its secret key: a receiver opens one transfer. It refuses a list out of order, with a key of the wrong size or a floor hash that isn't 32 bytes (`MALFORMED_RECORD`), and checks each bundle against the published `member-keys` record of its version (§4.3), else `TRUST_FAILURE` (`key_mismatch`).
 4. **Anchor.** The session starts from the receiving context's own anchors, with the newest bundle's floor, as in the vault's context (§6.1 step 1, D-50).
 
@@ -292,7 +291,6 @@ Each record lists its fields, how it is protected, and what a reader checks. Key
 | `account-key-wrap` | The account | The account | `wrap` under a PIN, recovery or device key | Write-once; archived on revoke, replace, retire (D-39) |
 | `member-keys` | The member | Team members | Self-signature | Write-once; by its account; consecutive versions (D-43) |
 | `member-keys-wrap` | The account | The account | `wrap` under the account key | Write-once; archived when deleted or retired (D-42) |
-| `team-state` | The account | The account | `wrap` under the team state key | Compare-and-set; previous revisions archived (D-42) |
 | `team-key-version` | An owner | Team members | Owner signature, hash chain, `wrap` link, `seal` per roster entry | Write-once; current + 1 |
 | `item` | A member | Members, link holders | `wrap` under the team key and the item key | Write-once; current version only |
 | Item part (content) | A member | Members, link holders | `stream` under the item key | Stored by the integration (D-25) |
@@ -361,27 +359,17 @@ A member's private keys for one team, wrapped by their account key. Private to t
 | `memberKeysVersion`, `accountKeyVersion` | integer |
 | `wrappedKeys` | `wrap` output |
 
-Protection: `wrappedKeys = wrap(accountKey, "member-keys-wrap", accountId, teamId, u32 memberKeysVersion, u32 accountKeyVersion, bundle)`, where `bundle` = `signingSeed (32) ‖ encryptionSecretKey (32) ‖ teamStateKey (32) ‖ enc(optional<u32 version, bytes recordHash> floor)`: 97 or 137 bytes.
+Protection: `wrappedKeys = wrap(accountKey, "member-keys-wrap", accountId, teamId, u32 memberKeysVersion, u32 accountKeyVersion, bundle)`, where `bundle` = `signingSeed (32) ‖ encryptionSecretKey (32) ‖ enc(u32 version, bytes recordHash)`: 104 bytes, the last part being the anchor floor, which every bundle holds (D-66).
 
 The **anchor floor** (D-48, D-52) is the account's root of trust for the team: version 1 when the account creates the team (§6.3), the tip of the chain verified at join (§6.4), then the tip of a chain verified from it, when the vault opens or exports the team (§5.8) and at a re-key (§5.9). A rotation keeps it (§5.7). How a device uses it is in §6.1 step 1.
 
-Reader checks: the plaintext is 97 or 137 bytes, with a 32-byte `recordHash` and nothing after it, else `DECRYPTION_FAILED`; the public keys computed from the bundle equal those in the `member-keys` record with the same `memberKeysVersion`; otherwise `TRUST_FAILURE` (reason `key_mismatch`).
+Reader checks: the plaintext is 104 bytes, with a 32-byte `recordHash` and nothing after it, else `DECRYPTION_FAILED`; the public keys computed from the bundle equal those in the `member-keys` record with the same `memberKeysVersion`; otherwise `TRUST_FAILURE` (reason `key_mismatch`).
 
 In a list, a wrap that doesn't parse or doesn't open under the account key is absent: only the account key makes one, so it was never the account's (D-58). The vault skips it wherever it lists wraps, before filtering by team; an account's teams are those with at least one wrap that opens.
 
 ### 4.4 `team-state`
 
-What a member last accepted about a team, so their other devices start from it. Private to the account.
-
-| Field | Type |
-| --- | --- |
-| `accountId`, `teamId` | string |
-| `revision` | integer from 1 to 2^53 − 2: 1 on the first write, then +1 on each write; its name and meaning are the same in every `v` |
-| `wrappedState` | `wrap` output |
-
-Protection: `wrappedState = wrap(teamStateKey, "team-state", accountId, teamId, u64 revision, state)`, where `state` = `enc(u32 anchorVersion, bytes anchorHash)`: the newest team key version record this account has verified, and its record hash (§4.5).
-
-The server has no `team-state` for an account until its first write; no record means no anchor on the server, and a device with no local anchor then starts from its bundles' anchor floor (§4.3, D-48). Its anchor counts only on the chain verified from the floor: one below it isn't followed, one the chain contradicts is `state_conflict` (§6.1, D-52). The server can't forge a `team-state`, since it doesn't have `teamStateKey`. It can only serve an older revision. A `team-state` that doesn't open was corrupted, tampered with (for example by someone holding the account's session), or written under keys the account no longer holds. The reader checks `revision` first: one that fails is `MALFORMED_RECORD`. For keys with no floor, `team-state` is a root, opened with any bundle held, and every other failure is an error: `UNSUPPORTED_VERSION` for an unknown `v` or suite, `MALFORMED_RECORD` for its shape, `TRUST_FAILURE` for its context (`context_mismatch`) or its decryption (`state_unreadable`), since ignoring it would send the device back to first-contact trust. When the newest bundle holds a floor, `team-state` counts only if it opens under that bundle's `teamStateKey` (D-63); otherwise it is absent: one in a known version the anchor advance replaces (§6.1 step 7), one at an unknown `v` or suite is never replaced, since readers ship first (§10) (D-62). The server accepts each write only at the current revision + 1 (§11), and archives every previous revision (rule 7, D-42, TH-46). How the anchor is used is in §6.1.
+Removed before release (D-66): every bundle holds an anchor floor (§4.3), and a team's roots are the account's own (§6.1). The section number is kept so references stay stable.
 
 ### 4.5 `team-key-version`
 
@@ -587,8 +575,8 @@ Rotation retires the account key only. Member keys are unchanged, so anyone who 
 
 Anything that wraps or unwraps a member keys bundle needs the `accountKey`, so it runs in the vault:
 
-- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team, or 1 for none (D-43, D-58: every bundle is published with its wrap): keys someone else published under the account never block it. Generate the signing key, the encryption key and the `teamStateKey`; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap` with its anchor floor (§4.3, D-50): version 1 for a new team (§6.3), the verified chain's tip on a join (§6.4), and on a re-key the newest version of a chain that contains every root the vault holds for the team: the newest bundle's floor and the vault's own anchor (§5.8), or, when the caller gives an anchor from an owner, that anchor alone (§6.8). If the roots conflict or the chain doesn't verify, the re-key fails with `TRUST_FAILURE` and writes nothing (D-54). Then open the team (§5.8).
-- **Leave a team:** delete this account's `member-keys-wrap` records and its `team-state` for the team. Refused with `LAST_OWNER` if the account is an owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): it steps down first, by `setOwners` without itself (§6.7), which keeps at least one owner, so the only owner can't leave (D-65). The member's keys stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
+- **Create member keys** (when creating or joining a team, and when re-keying): requires recovery to be set up, else `RECOVERY_NOT_SET_UP`. The `memberKeysVersion` is one above the newest of the account's published `member-keys` records for the team, or 1 for none (D-43, D-58: every bundle is published with its wrap): keys someone else published under the account never block it. Generate the signing key and the encryption key; publish the `member-keys` record with the account's `recoveryPublicKey`, read from the recovery wrap (§4.1), and a `recoverySignature` when the user entered the phrase (§4.2); store the `member-keys-wrap` with its anchor floor (§4.3, D-50): version 1 for a new team (§6.3), the verified chain's tip on a join (§6.4), and on a re-key the newest version of a chain that contains every root the vault holds for the team: the newest bundle's floor and the vault's own anchor (§5.8), or, when the caller gives an anchor from an owner, that anchor alone (§6.8). If the roots conflict or the chain doesn't verify, the re-key fails with `TRUST_FAILURE` and writes nothing (D-54). Then open the team (§5.8).
+- **Leave a team:** delete this account's `member-keys-wrap` records for the team. Refused with `LAST_OWNER` if the account is an owner in the newest version of the team key chain, which the vault verifies first (§6.1 steps 1–2, no team key needed): it steps down first, by `setOwners` without itself (§6.7), which keeps at least one owner, so the only owner can't leave (D-65). The member's keys stay valid for the history they already had; the remaining owners rotate without them in the keep list (§6.6).
 - **Delete an account:** delete every record private to the account (§11). The integration must refuse while the account is a listed owner of a team, for the same reason as above (TH-18, D-65).
 
 ### 5.10 Setting up recovery (D-35)
@@ -621,13 +609,13 @@ What a team session does.
 
 Run when a team session starts, before any other team operation.
 
-1. **Collect anchors.** An anchor is a (version, record hash) pair this account already verified. The **roots** are the newest bundle's anchor floor (§4.3), which only the vault writes, from a chain it verified, and the local anchor (`LocalKeyStore`); in the vault's context, the vault's own anchor too (D-54); for keys with no floor, the server's `team-state` anchor (§4.4) too (D-52). When the newest bundle has no floor, a `team-state` that doesn't open stops here with its error (§4.4); with one, a `team-state` that doesn't open under the newest bundle's `teamStateKey` is absent (D-62, D-63). With no root at all, this is a first contact: the chain is accepted as the server presents it (TH-04).
-2. **Verify the chain.** Fetch the team key version records from the lowest root (or from version 1 at first contact) to the newest, and check them (§4.5). The chain must contain **every** root, so each is linked to the floor. Then check the `team-state` anchor against it: below its first record, it isn't followed; at a version the chain holds with another hash, `TRUST_FAILURE` (`state_conflict`); above its newest record, `rollback`; otherwise it is consistent with the chain. A local anchor and a `team-state` can be written outside the vault (a script or someone with the device, a holder of a `teamStateKey`): linked to the floor, they can't choose the chain. The client adopts nothing newer than its anchors before this check passes. This order matters: the anchor comes from what the client verified, never from the record it's about to check.
+1. **Collect anchors.** An anchor is a (version, record hash) pair this account already verified. The **roots** are the newest bundle's anchor floor (§4.3), which only the vault writes, from a chain it verified, and the local anchor (`LocalKeyStore`); in the vault's context, the vault's own anchor too (D-54). Nothing the server stores is a root (D-66). With no root at all, this is a first contact: the chain is accepted as the server presents it (TH-04).
+2. **Verify the chain.** Fetch the team key version records from the lowest root (or from version 1 at first contact) to the newest, and check them (§4.5). The chain must contain **every** root, so each is linked to the floor. A local anchor can be written outside the vault (a script or someone with the device): linked to the floor, it can't choose the chain. The client adopts nothing newer than its anchors before this check passes. This order matters: the anchor comes from what the client verified, never from the record it's about to check.
 3. **Report changes.** For every record of the verified chain above the lowest root (the version step 2 fetched from), compared with the previous version: if its owner list differs, report to the integration the signer and the owners added, removed or re-keyed; if its roster differs, the signer and the accounts added, removed or re-keyed (a different `keysHash`) (SP-15, D-44).
 4. The current version n is the newest record of the verified chain.
 5. Find this member's newest access: the newest version whose roster has an entry for one of its keys (§4.5). Check it and open it. For a version above 1, open its `wrappedPreviousKey` with the opened key. The keys and version it names are the keys the account **holds**.
 6. Work out the access state (§9).
-7. **Advance the anchor** to version n, locally and in the server's `team-state` (compare-and-set on `revision`). It is written under the newest bundle's `teamStateKey`. An absent one (with a floor, one that doesn't open under that key, §4.4) is replaced only if the newest bundle is in version n's roster, and never at an unknown `v` or suite (D-62, D-63). On conflict: reload the server's state, check that the chain contains one between its first record and its tip (one below the first record isn't followed, a newer one is left to the next open), then retry.
+7. **Advance the local anchor** to version n (`LocalKeyStore`), never moving it down. The vault advances the floor itself when it opens or exports the team (§5.8).
 
 Any `TRUST_FAILURE` puts the team in the `unverified` state for this session.
 
@@ -694,7 +682,7 @@ A removed owner isn't in the owner list of version n+1 or any later version, so 
 
    Whatever the class, the rotation is the approval: the new version is sealed to the new keys, and the old keys receive nothing (SP-12). The approval is pinned to the reviewed `memberKeysVersion`: keys published after the review, for example by someone holding the member's session (TH-37), are never approved by it, and for an owner never replace their signing key in the owner list.
 3. If the member is an owner, the same rotation replaces their signing key in the owner list (§6.7).
-4. **Clean-up (vault).** When the vault opens or exports the team (§5.8) and holds more than one bundle for it, it verifies the chain (§6.1 steps 1–2). If the newest version's roster has an entry for the newest bundle's keys, the older bundles open nothing the chain doesn't give: in one batch, the vault deletes their `member-keys-wrap` records; the newest bundle holds a floor once the open's batch applies (§5.8), so a `team-state` under an older bundle's key is absent, and the next anchor advance replaces it (D-63). Otherwise, or on any failure, it keeps every bundle. This runs once per approved re-key and keeps an account's wraps at one per team.
+4. **Clean-up (vault).** When the vault opens or exports the team (§5.8) and holds more than one bundle for it, it verifies the chain (§6.1 steps 1–2). If the newest version's roster has an entry for the newest bundle's keys, the older bundles open nothing the chain doesn't give: in one batch, the vault deletes their `member-keys-wrap` records. Otherwise, or on any failure, it keeps every bundle. This runs once per approved re-key and keeps an account's wraps at one per team.
 
 The new keys receive the current version, and the chain gives every earlier one.
 
@@ -790,7 +778,7 @@ If the integration's page fetches the inbox public key from its server instead o
 Every record is checked in this order. The first failure stops processing (fail closed).
 
 1. **Shape:** a JSON object whose `v` is an integer, `suite` a string and `type` the expected record type. Else `MALFORMED_RECORD`.
-2. **Version and suite:** `v` and `suite` are in the supported list. Else `UNSUPPORTED_VERSION` (SP-17). The rest of the shape depends on `v`, so it is checked next: the required fields and types for that version; byte fields decode as base64url without padding, to the right length; integers, lists and ids within the bounds of §2; nothing unknown. Else `MALFORMED_RECORD`. One field comes before this step: a `team-state`'s `revision`, the same in every `v` (§4.4, D-62).
+2. **Version and suite:** `v` and `suite` are in the supported list. Else `UNSUPPORTED_VERSION` (SP-17). The rest of the shape depends on `v`, so it is checked next: the required fields and types for that version; byte fields decode as base64url without padding, to the right length; integers, lists and ids within the bounds of §2; nothing unknown. Else `MALFORMED_RECORD`.
 3. **Context:** the ids in the record equal the ids the caller asked for (team, item, inbox, account). Else `TRUST_FAILURE` (reason `context_mismatch`).
 4. **Signature and trust:** signatures, the owner rule, chain continuity and anchors. Else `TRUST_FAILURE`.
 5. **Decryption:** `unwrap`, `open` and `stream` with the expected context. Else `DECRYPTION_FAILED`.
@@ -845,7 +833,7 @@ How the protocol changes without breaking stored data.
 - **Readers dispatch on what a record declares** (`v`, `suite`) and support a fixed list. **Writers always use the newest.**
 - A released label, layout or field meaning **never changes**. A new layout is a new `v` for that record type, with its own frozen vectors.
 - A new algorithm set is a new `suite` (for example one adding a post-quantum key exchange, TH-32). Seals use the recipient key's suite.
-- Changes ship in **two releases**: first readers that understand the new format, then writers that produce it. A reader never replaces a record it can't read because of its `v` or `suite` (D-62).
+- Changes ship in **two releases**: first readers that understand the new format, then writers that produce it. A reader never replaces a record it can't read because of its `v` or `suite`.
 - Stored records stay readable as long as the data they protect exists.
 
 ---
@@ -859,7 +847,6 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 | `account-key-wrap` | account, version, method, deviceId | Write-once, created only at the version current once its batch applies, counting a switch in that batch (D-58). Served only to the account. A recovery wrap may be created after the version's other wraps (§5.10). Replaced with `replace`, which needs a live record. Archived on replacement (at once), revocation (after a short delay at most) or retirement of the version: the server stops serving it and keeps it for a restore window (rule 7, D-39); the identity is unique among live records only. A device wrap may also stop being served after a period of inactivity. The switch of current version is atomic with the new wraps. |
 | `member-keys` | team, account, memberKeysVersion | Write-once. Written only by its account, at that account's newest `memberKeysVersion` for the team plus one, or 1 (D-43, defence in depth: readers verify every record regardless). Readable by the team's members. |
 | `member-keys-wrap` | account, team, memberKeysVersion, accountKeyVersion | Created once, only in the batch that creates its `member-keys` record, or in a rotation's batch at the version it switches to (D-58); changed only by `replace`, which moves its anchor floor (D-52). Served only to the account. Archived when replaced or deleted, and with its account key version when it is retired (rule 7, D-42). |
-| `team-state` | account, team | Compare-and-set on `revision`, accepted only at the current revision + 1, or 1 for the first: the library relies on it (D-62). Served only to the account. Each write archives the previous revision (rule 7, D-42). |
 | `team-key-version` | team, version | Write-once; version must be current + 1, which makes it current. The signer must be the caller and hold the capability the integration maps to the cryptographic owner role (defence in depth, D-30); the listed owners aren't checked (scope, rule 8). Writers keep the record's JSON within 384 KiB (§2), about 1,000 roster entries with 36-byte ids; the server accepts records of that size. |
 | `item` | team, item | Write-once; `teamKeyVersion` must be current. Readable by the team's members, and by whoever the integration lets open the item's links, by the route it chooses. |
 | `inbox` | team, inbox | Write-once; `teamKeyVersion` must be current. Readable by the team's members. |
@@ -867,7 +854,7 @@ The [server contract](scope.md#server-contract) applied to each key record. Cont
 | OPRF evaluation | account | One key pair per `oprfKeyId`; `info` built from the account charged, never from the request; a proof with each evaluation (D-53). One total budget per account across `unlock` and `enroll`; the purposes may only split it. |
 | Account key version restore | account | A support action, outside `RecordStore` (D-42, SP-26): the chosen archived version becomes current again, the records of later versions are archived, and its own records are served again. |
 
-**Deletes.** A client's `delete` applies only to its own account's private records (`account-key-wrap`, `member-keys-wrap`, `team-state`), which are archived. Public key records are never deleted through `RecordStore`, and an identity once written is never written again, even after the integration removes the record ([server contract](scope.md#server-contract), rule 3).
+**Deletes.** A client's `delete` applies only to its own account's private records (`account-key-wrap`, `member-keys-wrap`), which are archived. Public key records are never deleted through `RecordStore`, and an identity once written is never written again, even after the integration removes the record ([server contract](scope.md#server-contract), rule 3).
 
 **Content, stored by the integration.** Item parts (team, item, index), submission records and their parts (team, inbox, submission, index) are checked by readers against their key record or envelope, wherever they are stored. Recommended, not relied on: keep them write-once, and don't present an item until its `item` record is stored. Parts of a draft never sealed (§7.1) open with no key and can be deleted.
 
@@ -967,9 +954,9 @@ What the library expects from each interface. A conforming server enforces the r
 | `get(key)` | The record (a JSON value, parsed by the library) or `null`. |
 | `list(query)` | The records matching a query, in identity order: an account's wraps at one account key version, its member keys wraps at one version, a team's team key versions from a given version, a team's member keys records (optionally of one account). |
 | `getAccountKeyVersion(accountId)` | The current account key version, or `null` for an account that was never set up. |
-| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `compareAndSet` (a `team-state`, with the expected `revision`, `null` for none, archiving the previous revision), `replace` (a live `account-key-wrap` or `member-keys-wrap`, archiving it), `delete` (archiving the record; only the caller's own private records, [server contract](scope.md#server-contract) rule 3), and `setAccountKeyVersion` (with the expected current version, archiving the old version's wraps) (D-39). |
+| `commit(ops)` | Applies every operation or none (atomic). Operations: `create` (a write-once record), `replace` (a live `account-key-wrap` or `member-keys-wrap`, archiving it), `delete` (archiving the record; only the caller's own private records, [server contract](scope.md#server-contract) rule 3), and `setAccountKeyVersion` (with the expected current version, archiving the old version's wraps) (D-39). |
 
-A write that a server rule refuses (write-once, current version, compare-and-set, ordering) is reported by throwing the library's `StoreConflictError`: the library turns it into `STALE_VERSION`, or reloads and retries for a `team-state` (§6.1 step 7). Any other failure is `STORE_ERROR`. Private records (§11) are served only to their account: the integration authenticates the caller, the library never sees how.
+A write that a server rule refuses (write-once, current version, the expected account key version, ordering) is reported by throwing the library's `StoreConflictError`: the library turns it into `STALE_VERSION`. Any other failure is `STORE_ERROR`. Private records (§11) are served only to their account: the integration authenticates the caller, the library never sees how.
 
 **`OprfService`.** `evaluate(accountId, blindedElement, oprfKeyId, purpose)` returns the evaluated element and its proof (§5.1); a refusal by the rate limit is reported by throwing `RateLimitedError`, which the library turns into `PIN_RATE_LIMITED`. There is no key id query: the key id new wraps use is a setting (D-53).4).
 
@@ -988,7 +975,7 @@ Frozen JSON files under `test/vectors/`, each with inputs (including fixed rando
 | File | Covers |
 | --- | --- |
 | `canonical.v1.json` | Every type of the canonical encoding |
-| `wrap.v1.json` | `wrap` with each label, and tampering cases; member keys bundles with and without an anchor floor (D-48) |
+| `wrap.v1.json` | `wrap` with each label, and tampering cases; member keys bundles, each with its anchor floor (D-66) |
 | `seal.v1.json` | `seal` with context, wrong-context cases, low-order public keys |
 | `stream.v1.json` | Empty, one-chunk, exact-multiple and multi-chunk streams; truncation |
 | `pin-key.v1.json` | Argon2id, the RFC 9497 vectors, and the final combination |
@@ -997,7 +984,7 @@ Frozen JSON files under `test/vectors/`, each with inputs (including fixed rando
 | `item.v1.json` | `item` record, manifest, parts bound by index (D-26); parts swapped, moved to another item, dropped |
 | `link.v1.json` | Link values: item keys, inbox public keys and invite anchors, with their version prefix; refused prefixes, lengths and low-order keys |
 | `submission.v1.json` | Envelope and parts bound by index; envelope moved to another inbox or id |
-| `transfer.v1.json` | Team key transfer requests and transfers (§3.8), with and without anchor floors: open, wrong receiver, other account or team, refused prefixes and low-order requests |
+| `transfer.v1.json` | Team key transfer requests and transfers (§3.8), each entry with its anchor floor (D-66): open, wrong receiver, other account or team, refused prefixes and low-order requests |
 | `part-ref.v1.json` | Part reference key derivation and references (§3.9), for an item key and a submission content key |
 
 ---
@@ -1007,7 +994,7 @@ Frozen JSON files under `test/vectors/`, each with inputs (including fixed rando
 None: every decision this document relies on is accepted ([decisions.md](decisions.md)).
 
 Later, not in v1:
-- fingerprints for out-of-band verification (D-11, which would add verified keys to `team-state`);
+- fingerprints for out-of-band verification (D-11, which would add verified keys to the account's own records);
 - author signatures (D-09);
 - signed rotating inbox keys, so links survive a member removal without the exposure of TH-30 (D-20);
 - invite proofs, a join secret in the invite link that the joiner's keys prove (D-32).
