@@ -244,6 +244,18 @@
       "decision": "D-65",
       "use": "Step down first",
       "allow": {}
+    },
+    {
+      "pattern": "a vault that has opened or exported the team refuses it",
+      "decision": "D-54",
+      "use": "refuses a floor written directly, not one given through the open vault (review 037 D)",
+      "allow": {}
+    },
+    {
+      "pattern": "an anchor from an owner repairs it, also on a device with no anchor",
+      "decision": "D-54",
+      "use": "repairs the device that runs the repair; a server can still serve a new device the planted wrap (review 037 E)",
+      "allow": {}
     }
   ]
 }
