@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate (reached at 036 and 037; 038 `change`, 039 `complexity` and 040 `change`, plan 026, found nothing to fix). Open findings: none. Plan 026 (D-66) changed two formats and the roots of trust after the last `adversarial` review: recommended next, a short fresh-context `adversarial` review of D-66 (041); then the formal model and the external audit.
+**Now:** 2 of 2: freeze candidate, covering D-66. Last reviews: 040 (`change`, plan 026) and 041 (`adversarial`, fresh-context reviewer, D-66 first): nothing to fix; 041's four findings corrected in the text or accepted. Open findings: none. Next: the formal model (transfer, roster seals, recovery proof) and the external audit, before the vectors freeze (§13).
 
 ## Findings
 
@@ -192,6 +192,10 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 039-B | Simplification | — | Fixed | D-58's current rule (plan 026) |
 | 040-A | Stale text | Low | Fixed | §3.8 step 3: an entry that doesn't decode (edit after review 040) |
 | 040-B | Spec → code, wrong claim | Low | Fixed | §4.3, D-66: a ciphertext above the bound is `MALFORMED_RECORD` (edit after review 040) |
+| 041-A | Wrong claim | Medium | Accepted | TH-20, SP-07, D-54 text: a script in the vault deletes the vault's anchor (edit after review 041) |
+| 041-B | Wrong claim | Low | Fixed | D-54, integration guide: clear a receiving context's anchor after a repair (edit after review 041) |
+| 041-C | Wrong claim | Low | Fixed | D-54: a forged vault anchor also fails opens and `leaveTeam` (edit after review 041) |
+| 041-D | Missing threat | Low | Accepted | TH-46: a session replays an older wrap revision (edit after review 041) |
 
 ## Residuals
 
@@ -243,5 +247,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-17 | A6 | An owner key signs a version whose previous-key link wraps the wrong key: older items stop opening for every member, with no change reported, for good (review 037 A) | Write-once records; detection would only stop the team (TH-25); owner compromise group | Multi-owner approval |
 | TH-20 | A7 or A9 with the open vault, with A2 | `rekey({ anchor })` through the open vault replaces the vault's anchor, the local anchor and the floor with no credential; a later `secureAccount` there carries the forged root (review 037 D) | A credential check stops nothing: the holder of the open vault writes the store directly (TH-45); server-controlled history | Owner fingerprints (D-11) or key transparency |
 | TH-20 | A7 or A9 once, then A2 | A planted wrap survives `secureAccount` and the owner's-anchor repair (re-wrapped, then archived); a new device served it, with the repaired wrap withheld, opens the forged team `ready` (review 037 E) | Dropping a failed team's wraps at rotation is a new failure needing a human, for a combined attack; server-controlled history | Owner fingerprints (D-11) or key transparency |
+| TH-20 | A9 in the vault, with A2 | A script that plants a floor and deletes the vault's anchor makes the vault read as one that never verified the team: `secureAccount` carries the planted floor (review 041 A) | Same outcome as 037-D by another route; telling a deleted anchor from none needs state the same script could delete; server-controlled history | Owner fingerprints (D-11) or key transparency |
+| SP-07, TH-46 | A11, harmful with A2 | A replayed older wrap revision lowers the floor for new devices until the vault's next open (review 041 D) | The server could serve that older wrap itself (SP-07) | Key transparency |
 
 Out of scope or by design, not revisited: TH-16, TH-26, TH-27, TH-28, TH-31, TH-35.
