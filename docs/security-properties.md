@@ -82,6 +82,7 @@ Verification:
 - `test/security/team-isolation.test.ts`: open team A, then try to decrypt team B's records and to obtain the account key through the team session API.
 - `test/security/key-transfer.test.ts`: open a transfer with another receiver, twice with the same receiver, for another team or account, and after tampering; check that the transfer contains no account key.
 - `test/vectors/transfer.v1.json`.
+- `formal/transfer.spthy`: lemmas `keys_secret_on_authentic_channel`, `accepts_only_exports_on_authentic_channel`, `transfer_opens_only_for_its_account_and_team`, `receiver_opens_once`, `floor_arrives_intact`; and the accepted attacks `attack_TH39_substituted_request`, `attack_TH49_forged_transfer` (Tamarin, `npm run check:formal`, plan 027).
 
 Related threats: TH-19, TH-39, TH-49.
 

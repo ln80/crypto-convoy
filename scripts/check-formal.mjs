@@ -7,14 +7,23 @@ import { join } from "node:path";
 const root = join(import.meta.dirname, "..");
 const { models } = JSON.parse(readFileSync(join(root, "formal/expected.json"), "utf8"));
 
-if (spawnSync("tamarin-prover", ["--version"], { encoding: "utf8" }).status !== 0) {
-  console.log("check:formal skipped: tamarin-prover isn't installed (formal/README.md).");
+// A native tamarin-prover, else the image built from formal/Dockerfile (Intel macOS has no native build).
+const IMAGE = "crypto-convoy-tamarin:1.12.0";
+const native = spawnSync("tamarin-prover", ["--version"], { encoding: "utf8" }).status === 0;
+const docker = !native && spawnSync("docker", ["image", "inspect", IMAGE], { encoding: "utf8" }).status === 0;
+if (!native && !docker) {
+  console.log(`check:formal skipped: no tamarin-prover, and no ${IMAGE} image (formal/README.md).`);
   process.exit(0);
 }
+const tamarin = (args) =>
+  native
+    ? ["tamarin-prover", args.map((a) => (a.endsWith(".spthy") ? join(root, "formal", a) : a))]
+    : ["docker", ["run", "--rm", "--platform", "linux/amd64", "-v", `${join(root, "formal")}:/formal:ro`, IMAGE, ...args]];
 
 /** Every lemma's result in a batch run: `verified` or `falsified`, else `unfinished`. */
 function prove(file, flags = []) {
-  const output = execFileSync("tamarin-prover", ["--prove", ...flags.map((f) => `-D=${f}`), join(root, "formal", file)], {
+  const [command, args] = tamarin(["--prove", ...flags.map((f) => `-D=${f}`), file]);
+  const output = execFileSync(command, args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 64 * 1024 * 1024,

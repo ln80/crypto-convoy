@@ -21,7 +21,7 @@ begin
  *
  * Mutations, each removing one check (scripts/check-formal.mjs):
  * - MUT_NO_CONTEXT: the box doesn't carry the account and team, and the receiver checks none.
- * - MUT_REUSE: the receiver keeps its secret key after opening a transfer.
+ * - MUT_REUSE: the receiver keeps its secret key after opening a transfer (an extra rule).
  */
 
 builtins: asymmetric-encryption
@@ -42,36 +42,45 @@ rule Reveal_bundle:
 rule Receiver_new:
   [ Fr(~r) ]
   --[ ReceiverNew($C, $A, $T, pk(~r)) ]->
-  [ Receiver($C, $A, $T, ~r), ChanOut($C, $A, <'request', $T, pk(~r)>) ]
+  [ Receiver($C, $A, $T, ~r), !ReceiverKey($C, ~r), ChanOut($C, $A, <'request', $T, pk(~r)>) ]
 
-// A script in the receiving context reads its secret key (A9 there).
+// A script in the receiving context reads its secret key (A9 there). Read from its own record, so
+// a reveal neither consumes nor renews the receiver.
 rule Reveal_receiver:
-  [ Receiver(C, A, T, r) ]
+  [ !ReceiverKey(C, r) ]
   --[ RevealReceiver(C) ]->
-  [ Receiver(C, A, T, r), Out(r) ]
+  [ Out(r) ]
 
-// §3.8 step 2: the vault of A seals the team's bundle to the request's key.
+// §3.8 step 2: the vault of A seals the team's bundle to the request's key, with A and T inside.
+// §3.8 step 3: the receiver opens one transfer, for the account and team it expects, then wipes its key.
+#ifdef MUT_NO_CONTEXT
 rule Vault_export:
   [ ChanIn(C, A, <'request', T, pkR>), !Bundle(A, T, k, fl) ]
   --[ Export(A, T, k, fl, pkR) ]->
-#ifdef MUT_NO_CONTEXT
   [ ChanOut(A, C, <'transfer', aenc(<'team-keys-transfer', k, fl>, pkR)>) ]
+
+rule Receiver_open:
+  [ Receiver(C, A, T, r), ChanIn(S, C, <'transfer', aenc(<'team-keys-transfer', k, fl>, pk(r))>) ]
+  --[ Accept(C, A, T, k, fl, pk(r)) ]->
+  [ Opened(C, A, T, r) ]
 #else
+rule Vault_export:
+  [ ChanIn(C, A, <'request', T, pkR>), !Bundle(A, T, k, fl) ]
+  --[ Export(A, T, k, fl, pkR) ]->
   [ ChanOut(A, C, <'transfer', aenc(<'team-keys-transfer', A, T, k, fl>, pkR)>) ]
+
+rule Receiver_open:
+  [ Receiver(C, A, T, r), ChanIn(S, C, <'transfer', aenc(<'team-keys-transfer', A, T, k, fl>, pk(r))>) ]
+  --[ Accept(C, A, T, k, fl, pk(r)) ]->
+  [ Opened(C, A, T, r) ]
 #endif
 
-// §3.8 step 3: the receiver opens one transfer, for the account and team it expects, then wipes its key.
-rule Receiver_open:
-#ifdef MUT_NO_CONTEXT
-  [ Receiver(C, A, T, r), ChanIn(S, C, <'transfer', aenc(<'team-keys-transfer', k, fl>, pk(r))>) ]
-#else
-  [ Receiver(C, A, T, r), ChanIn(S, C, <'transfer', aenc(<'team-keys-transfer', A, T, k, fl>, pk(r))>) ]
-#endif
-  --[ Accept(C, A, T, k, fl, pk(r)) ]->
 #ifdef MUT_REUSE
+// The mutation: a receiver that keeps its key after opening, so it can open again.
+rule Reuse_receiver:
+  [ Opened(C, A, T, r) ]
+  -->
   [ Receiver(C, A, T, r) ]
-#else
-  [ ]
 #endif
 
 // The integration's channel: the attacker reads everything and may replay it.
@@ -94,58 +103,62 @@ rule Chan_inject:
 // An honest run completes over the integration's channel.
 lemma executable:
   exists-trace
-  "Ex C A T k fl p #i. Accept(C, A, T, k, fl, p) @ #i
-     & not (Ex S R m #j. Inject(S, R, m) @ #j)
-     & not (Ex A2 T2 #j. RevealBundle(A2, T2) @ #j)
-     & not (Ex C2 #j. RevealReceiver(C2) @ #j)"
+  "Ex c a t k fl p #i. Accept(c, a, t, k, fl, p) @ #i
+     & not (Ex s r m #j. Inject(s, r, m) @ #j)
+     & not (Ex a2 t2 #j. RevealBundle(a2, t2) @ #j)
+     & not (Ex c2 #j. RevealReceiver(c2) @ #j)"
 
 // SP-02: on a channel only the integration writes, a team's member keys stay secret, though the
 // attacker reads every request and transfer, unless the account key or a receiver's secret leaked.
 lemma keys_secret_on_authentic_channel:
-  "All A T k fl #i #j. Bundle(A, T, k, fl) @ #i & K(k) @ #j
-     ==> (Ex #r. RevealBundle(A, T) @ #r)
-       | (Ex C #r. RevealReceiver(C) @ #r)
-       | (Ex S R m #r. Inject(S, R, m) @ #r)"
+  "All a t k fl #i #j. Bundle(a, t, k, fl) @ #i & K(k) @ #j
+     ==> (Ex #r. RevealBundle(a, t) @ #r)
+       | (Ex c #r. RevealReceiver(c) @ #r)
+       | (Ex s r m #x. Inject(s, r, m) @ #x)"
 
 // SP-02: on that channel, a receiver accepts only keys the vault exported to it.
 lemma accepts_only_exports_on_authentic_channel:
-  "All C A T k fl p #i. Accept(C, A, T, k, fl, p) @ #i
-     ==> (Ex #j. Export(A, T, k, fl, p) @ #j & #j < #i)
-       | (Ex S R m #r. Inject(S, R, m) @ #r)"
+  "All c a t k fl p #i. Accept(c, a, t, k, fl, p) @ #i
+     ==> (Ex #j. Export(a, t, k, fl, p) @ #j & #j < #i)
+       | (Ex s r m #x. Inject(s, r, m) @ #x)"
 
-// SP-02, even on a channel the attacker writes: a receiver for account A and team T never accepts
-// another team's or account's real keys, unless those keys leaked.
+// SP-02, even on a channel the attacker writes: a receiver for account a and team t accepts another
+// team's or account's real keys only if the keys leaked: the account key, a receiver's secret, or
+// an export to a key no receiver made (a substituted request, TH-39).
 lemma transfer_opens_only_for_its_account_and_team:
-  "All C A T k fl p A2 T2 #i #j. Accept(C, A, T, k, fl, p) @ #i & Bundle(A2, T2, k, fl) @ #j
-     ==> (A = A2 & T = T2)
-       | (Ex #r. RevealBundle(A2, T2) @ #r)
-       | (Ex C2 #r. RevealReceiver(C2) @ #r)"
+  "All c a t k fl p a2 t2 #i #j. Accept(c, a, t, k, fl, p) @ #i & Bundle(a2, t2, k, fl) @ #j
+     ==> ((a = a2) & (t = t2))
+       | (Ex #r. RevealBundle(a2, t2) @ #r)
+       | (Ex c2 #r. RevealReceiver(c2) @ #r)
+       | (Ex q #e. Export(a2, t2, k, fl, q) @ #e & not (Ex c3 a3 t3 #n. ReceiverNew(c3, a3, t3, q) @ #n))"
 
 // §3.8 step 3, even on a channel the attacker writes: a receiver opens one transfer.
 lemma receiver_opens_once:
-  "All C A T k fl k2 fl2 p #i #j. Accept(C, A, T, k, fl, p) @ #i & Accept(C, A, T, k2, fl2, p) @ #j
+  "All c a t k fl k2 fl2 p #i #j. Accept(c, a, t, k, fl, p) @ #i & Accept(c, a, t, k2, fl2, p) @ #j
      ==> #i = #j"
 
-// D-66: the floor a receiver accepts with real keys is the one the vault holds with them.
+// D-66, even on a channel the attacker writes: real keys arrive with the floor the vault holds with
+// them, unless the keys leaked as above and the attacker sealed them with another floor.
 lemma floor_arrives_intact:
-  "All C A T k fl fl2 p A2 T2 #i #j. Accept(C, A, T, k, fl, p) @ #i & Bundle(A2, T2, k, fl2) @ #j
-     ==> fl = fl2
-       | (Ex #r. RevealBundle(A2, T2) @ #r)
-       | (Ex C2 #r. RevealReceiver(C2) @ #r)"
+  "All c a t k fl fl2 p a2 t2 #i #j. Accept(c, a, t, k, fl, p) @ #i & Bundle(a2, t2, k, fl2) @ #j
+     ==> (fl = fl2)
+       | (Ex #r. RevealBundle(a2, t2) @ #r)
+       | (Ex c2 #r. RevealReceiver(c2) @ #r)
+       | (Ex q #e. Export(a2, t2, k, fl2, q) @ #e & not (Ex c3 a3 t3 #n. ReceiverNew(c3, a3, t3, q) @ #n))"
 
 // TH-39, accepted: on a channel the attacker writes, a substituted request receives the keys.
 lemma attack_TH39_substituted_request:
   exists-trace
-  "Ex A T k fl #i #j. Bundle(A, T, k, fl) @ #i & K(k) @ #j
-     & not (Ex #r. RevealBundle(A, T) @ #r)
-     & not (Ex C #r. RevealReceiver(C) @ #r)"
+  "Ex a t k fl #i #j. Bundle(a, t, k, fl) @ #i & K(k) @ #j
+     & not (Ex #r. RevealBundle(a, t) @ #r)
+     & not (Ex c #r. RevealReceiver(c) @ #r)"
 
 // TH-49, accepted: on a channel the attacker writes, a receiver accepts keys no vault exported.
 lemma attack_TH49_forged_transfer:
   exists-trace
-  "Ex C A T k fl p #i. Accept(C, A, T, k, fl, p) @ #i
-     & not (Ex #j. Export(A, T, k, fl, p) @ #j)
-     & not (Ex A2 T2 #r. RevealBundle(A2, T2) @ #r)
-     & not (Ex C2 #r. RevealReceiver(C2) @ #r)"
+  "Ex c a t k fl p #i. Accept(c, a, t, k, fl, p) @ #i
+     & not (Ex #j. Export(a, t, k, fl, p) @ #j)
+     & not (Ex a2 t2 #r. RevealBundle(a2, t2) @ #r)
+     & not (Ex c2 #r. RevealReceiver(c2) @ #r)"
 
 end
