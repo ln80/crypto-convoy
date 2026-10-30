@@ -1,0 +1,21 @@
+{
+  "about": "Each model's lemmas and their expected result, and each mutation with the lemma it must break. `verified` for an exists-trace lemma means the tool found the trace (an accepted attack, or an honest run). Checked by scripts/check-formal.mjs.",
+  "models": {
+    "transfer.spthy": {
+      "lemmas": {
+        "executable": "verified",
+        "keys_secret_on_authentic_channel": "verified",
+        "accepts_only_exports_on_authentic_channel": "verified",
+        "transfer_opens_only_for_its_account_and_team": "verified",
+        "receiver_opens_once": "verified",
+        "floor_arrives_intact": "verified",
+        "attack_TH39_substituted_request": "verified",
+        "attack_TH49_forged_transfer": "verified"
+      },
+      "mutations": {
+        "MUT_NO_CONTEXT": "transfer_opens_only_for_its_account_and_team",
+        "MUT_REUSE": "receiver_opens_once"
+      }
+    }
+  }
+}
