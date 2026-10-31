@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate, covering D-66. Last reviews: 040 (`change`, plan 026) and 041 (`adversarial`, fresh-context reviewer, D-66 first): nothing to fix; 041's four findings corrected in the text or accepted. Open findings: none. Next: the formal model (transfer, roster seals, recovery proof) and the external audit, before the vectors freeze (§13).
+**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Open findings: none. Formal models done (plan 027): the transfer, the chain and roster seals (secrecy over three versions) and the recovery proof, every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Next: a `change` review of the models against the spec (what each abstracts away), then the external audit, before the vectors freeze (§13).
 
 ## Findings
 

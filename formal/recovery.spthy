@@ -1,0 +1,150 @@
+theory Recovery
+begin
+
+/*
+ * The recovery proof (protocol §4.2, §5.11, §6.8, D-33, D-38, D-47, D-56): which re-keys an owner's
+ * `reconcile` approves without a human.
+ *
+ * The user's phrase gives a recovery signing key. Member keys carry a recovery public key; the
+ * roster holds an account's keys once a human approves them. A re-key with the phrase signs the new
+ * keys with the recovery key, and the new keys carry the typed phrase's key (D-56); one without the
+ * phrase carries the key the vault's recovery wrap stores. `reconcile` approves new keys alone only
+ * if their recovery signature verifies against the recovery key the account's *held* keys carry.
+ *
+ * Abstractions (formal/README.md):
+ * - Member keys are `<'mk', team, account, signing public key, recovery public key>`; the version
+ *   number and the self-signature are left out (they prove nothing about who made the keys).
+ * - Signatures are ideal: recovery signatures live in a store (`!Proof`) that only the user, with the
+ *   phrase, and the attacker, with a key it knows, write.
+ * - Held keys are pinned by the roster (keys hash), so the attacker can't choose them; who approves
+ *   keys by hand is a human (AS-06): here, only keys the user made.
+ * - The attacker publishes any member keys under any account (a session thief, A11), rewrites the
+ *   vault's stored recovery key (whoever holds the account key, A7 or A9, D-56), and learns a phrase
+ *   (A8).
+ * - Owners' own re-keys (D-47) and the PIN-only phrase replacement are not modelled.
+ *
+ * Mutations (scripts/check-formal.mjs):
+ * - MUT_CHECK_CARRIED: `reconcile` checks the proof against the key the new record carries.
+ * - MUT_STORED_KEY: a re-key with the phrase carries the stored key, not the typed phrase's.
+ */
+
+builtins: signing
+
+restriction OneAccount:
+  "All a #i #j. Account(a) @ #i & Account(a) @ #j ==> #i = #j"
+
+// §5.2: an account; its phrase gives the recovery signing key; the vault's recovery wrap stores its public key.
+rule Account:
+  [ Fr(~rsk) ]
+  --[ Account($A), PhraseKey($A, ~rsk) ]->
+  [ !Phrase($A, ~rsk), !Stored($A, pk(~rsk)), Out(pk(~rsk)) ]
+
+// A8: the phrase leaks.
+rule Reveal_phrase:
+  [ !Phrase($A, rsk) ] --[ RevealPhrase($A) ]-> [ Out(rsk) ]
+
+// A7, A9: whoever holds the account key rewrites the stored recovery public key (§4.1, D-56). The
+// store keeps every key written: the vault may read any of them, as a server replaying an earlier
+// recovery wrap makes it (§4.1).
+rule Rewrite_stored_key:
+  [ !Phrase($A, rsk), In(rpk) ]
+  --[ RewriteStoredKey($A) ]->
+  [ !Stored($A, rpk) ]
+
+// §6.4, §6.3: the user's first keys in a team, made without the phrase: they carry the stored key.
+// $A human approves them (AS-06): the roster holds them.
+rule First_keys:
+  [ !Stored($A, rpk), Fr(~k) ]
+  --[ Made($A, $T, <'mk', $T, $A, pk(~k), rpk>), Held($A, $T, <'mk', $T, $A, pk(~k), rpk>) ]->
+  [ !Held($A, $T, <'mk', $T, $A, pk(~k), rpk>), Out(<'mk', $T, $A, pk(~k), rpk>) ]
+
+// §6.8 with the phrase: the new keys carry the typed phrase's key (D-56) and its signature.
+#ifdef MUT_STORED_KEY
+rule Rekey_with_phrase:
+  [ !Held($A, $T, old), !Phrase($A, rsk), !Stored($A, rpk), Fr(~k) ]
+  --[ UserProved($A, $T, <'mk', $T, $A, pk(~k), rpk>), CarriesKey($A, rpk, rsk) ]->
+  [ !Proof(<'mk', $T, $A, pk(~k), rpk>, pk(rsk)), Out(<'mk', $T, $A, pk(~k), rpk>) ]
+#else
+rule Rekey_with_phrase:
+  [ !Held($A, $T, old), !Phrase($A, rsk), Fr(~k) ]
+  --[ UserProved($A, $T, <'mk', $T, $A, pk(~k), pk(rsk)>), CarriesKey($A, pk(rsk), rsk) ]->
+  [ !Proof(<'mk', $T, $A, pk(~k), pk(rsk)>, pk(rsk)), Out(<'mk', $T, $A, pk(~k), pk(rsk)>) ]
+#endif
+
+// §6.8 without the phrase: the new keys carry the stored key and no proof; only a human approves them.
+rule Rekey_without_phrase:
+  [ !Held($A, $T, old), !Stored($A, rpk), Fr(~k) ]
+  --[ Made($A, $T, <'mk', $T, $A, pk(~k), rpk>) ]->
+  [ Out(<'mk', $T, $A, pk(~k), rpk>) ]
+
+// Signatures are ideal: a recovery signature over keys exists only if the holder of the signing
+// key made it. The user's are above; the attacker signs any keys with any key it knows (a leaked
+// phrase, or its own), and publishes any keys under any account (a session thief, A11).
+rule Attacker_signs:
+  [ In(<nxt, x>) ]
+  --[ AttackerSigned(nxt, pk(x)) ]->
+  [ !Proof(nxt, pk(x)) ]
+
+// §6.8, SP-23: `reconcile` approves new keys alone if their proof verifies against the recovery key
+// the held keys carry, never the one the new keys carry.
+#ifdef MUT_CHECK_CARRIED
+rule Reconcile_approves:
+  [ !Held($A, $T, <'mk', $T, $A, spkHeld, rpkHeld>), !Proof(<'mk', $T, $A, spk, rpkNew>, rpkNew) ]
+  --[ AutoApproved($A, $T, <'mk', $T, $A, spk, rpkNew>), Held($A, $T, <'mk', $T, $A, spk, rpkNew>) ]->
+  [ !Held($A, $T, <'mk', $T, $A, spk, rpkNew>) ]
+#else
+rule Reconcile_approves:
+  [ !Held($A, $T, <'mk', $T, $A, spkHeld, rpkHeld>), !Proof(<'mk', $T, $A, spk, rpkNew>, rpkHeld) ]
+  --[ AutoApproved($A, $T, <'mk', $T, $A, spk, rpkNew>), Held($A, $T, <'mk', $T, $A, spk, rpkNew>) ]->
+  [ !Held($A, $T, <'mk', $T, $A, spk, rpkNew>) ]
+#endif
+
+// Helper: the phrase's key is learned only from a leaked phrase.
+lemma phrase_key_secret [reuse]:
+  "All a rsk #i #j. PhraseKey(a, rsk) @ #i & K(rsk) @ #j ==> Ex #r. RevealPhrase(a) @ #r"
+
+// Helper: the keys an account holds carry its phrase's key, unless the phrase leaked or an
+// account-key holder rewrote the stored key. By induction over approvals.
+lemma held_keys_carry_the_phrase_key [use_induction, reuse]:
+  "All a t spk rpk #i. Held(a, t, <'mk', t, a, spk, rpk>) @ #i
+     ==> (Ex rsk #j. PhraseKey(a, rsk) @ #j & rpk = pk(rsk))
+       | (Ex #w. RewriteStoredKey(a) @ #w)
+       | (Ex #r. RevealPhrase(a) @ #r)"
+
+// An honest re-key with the phrase is approved alone.
+lemma executable:
+  exists-trace
+  "Ex a t k #i #j. UserProved(a, t, k) @ #i & AutoApproved(a, t, k) @ #j
+     & not (Ex b #r. RevealPhrase(b) @ #r)
+     & not (Ex b #r. RewriteStoredKey(b) @ #r)"
+
+// SP-22, SP-23: keys `reconcile` approves alone were made and signed by the user with the phrase, unless
+// the phrase leaked (TH-41) or an account-key holder rewrote the stored recovery key (TH-12, D-56).
+// A session thief alone, who publishes any keys, gets none approved.
+lemma proof_needs_the_phrase:
+  "All a t k #i. AutoApproved(a, t, k) @ #i
+     ==> (Ex #j. UserProved(a, t, k) @ #j)
+       | (Ex #r. RevealPhrase(a) @ #r)
+       | (Ex #r. RewriteStoredKey(a) @ #r)"
+
+// D-56: keys proven with the phrase carry the typed phrase's own key, whatever the vault stores, so
+// a rewritten stored key never reaches them.
+lemma proven_keys_carry_the_phrase_key:
+  "All a rpk rsk #i. CarriesKey(a, rpk, rsk) @ #i ==> rpk = pk(rsk)"
+
+// TH-41, accepted: a leaked phrase proves a re-key the user never made.
+lemma attack_TH41_leaked_phrase:
+  exists-trace
+  "Ex a t k #i #r. AutoApproved(a, t, k) @ #i & RevealPhrase(a) @ #r
+     & not (Ex #j. UserProved(a, t, k) @ #j)
+     & not (Ex #w. RewriteStoredKey(a) @ #w)"
+
+// TH-12, SP-23 Limit, accepted: keys made without the phrase after an account-key holder rewrote the
+// stored recovery key carry the attacker's key, so the attacker's re-keys are proven there.
+lemma attack_TH12_rewritten_stored_key:
+  exists-trace
+  "Ex a t k #i #w. AutoApproved(a, t, k) @ #i & RewriteStoredKey(a) @ #w
+     & not (Ex #j. UserProved(a, t, k) @ #j)
+     & not (Ex #r. RevealPhrase(a) @ #r)"
+
+end

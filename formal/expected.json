@@ -45,6 +45,21 @@
       "mutations": {
         "MUT_SEAL_TO_REMOVED": "team_key_reaches_only_rostered_accounts"
       }
+    },
+    "recovery.spthy": {
+      "lemmas": {
+        "phrase_key_secret": "verified",
+        "held_keys_carry_the_phrase_key": "verified",
+        "executable": "verified",
+        "proof_needs_the_phrase": "verified",
+        "proven_keys_carry_the_phrase_key": "verified",
+        "attack_TH41_leaked_phrase": "verified",
+        "attack_TH12_rewritten_stored_key": "verified"
+      },
+      "mutations": {
+        "MUT_CHECK_CARRIED": "held_keys_carry_the_phrase_key",
+        "MUT_STORED_KEY": "proven_keys_carry_the_phrase_key"
+      }
     }
   }
 }

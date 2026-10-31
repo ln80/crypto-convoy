@@ -114,3 +114,34 @@ What it shows:
 - Without the invite anchor, first contact is trust on first use (TH-04); with it, the joiner holds the real version.
 - No attack outside TH-04, TH-38 and 037-A was found.
 
+### `recovery.spthy`: the recovery proof (§4.2, §5.11, §6.8)
+
+Roles: the user, whose phrase gives a recovery signing key; the vault, whose recovery wrap stores the recovery public key that keys made without the phrase carry; the owner's `reconcile`, which approves new member keys alone only if their recovery signature verifies against the recovery key the account's held keys carry.
+
+| Lemma | Property | Expected |
+| --- | --- | --- |
+| `phrase_key_secret` | helper: the phrase's key is learned only from a leaked phrase | verified |
+| `held_keys_carry_the_phrase_key` | helper, by induction over approvals: held keys carry the phrase's key, unless the phrase leaked or an account-key holder rewrote the stored key | verified |
+| `executable` | the user's re-key with the phrase is approved alone | trace found |
+| `proof_needs_the_phrase` | SP-22, SP-23: keys approved alone were made by the user with the phrase, unless the phrase leaked or the stored key was rewritten; a session thief, publishing any keys, gets none approved | verified |
+| `proven_keys_carry_the_phrase_key` | D-56: keys proven with the phrase carry the typed phrase's own key, whatever the vault stores | verified |
+| `attack_TH41_leaked_phrase` | TH-41, accepted: a leaked phrase proves a re-key the user never made | trace found |
+| `attack_TH12_rewritten_stored_key` | TH-12, SP-23 Limit, accepted: keys made without the phrase after an account-key holder rewrote the stored key carry the attacker's key, so its re-keys are proven there | trace found |
+
+Mutations: `MUT_CHECK_CARRIED` (`reconcile` checks the proof against the key the new keys carry) breaks `held_keys_carry_the_phrase_key`; `MUT_STORED_KEY` (a re-key with the phrase carries the stored key) breaks `proven_keys_carry_the_phrase_key`. A helper marked `[reuse]` is assumed by the lemmas after it even when it fails, so a mutation names the lemma that actually fails, and the baseline requires every helper verified.
+
+Abstractions:
+
+- Member keys are `<'mk', team, account, signing public key, recovery public key>`; the version number and the self-signature are left out: they prove nothing about who made the keys.
+- Signatures are ideal: recovery signatures live in a store that only the user, with the phrase, and the attacker, with a key it knows, write. Team and account names are public.
+- Held keys are pinned by the roster (keys hash), so the attacker can't choose them; a human approves only keys the user made (AS-06).
+- The vault's stored recovery key is a store of every key written: the real one, and any an account-key holder writes; the vault may read any of them, as a server replaying an earlier recovery wrap makes it (§4.1).
+- Owners' own re-keys (D-47), approved by holding the keys, and a phrase replaced with the PIN alone, are not modelled.
+
+Results (Tamarin 1.12.0, 2026-10-31): every lemma as expected, each mutation breaks its lemma; about 6 seconds.
+
+What it shows:
+
+- A session thief who publishes any keys under the account gets none approved: the proof is checked against the key the *held* keys carry, never the one the new keys carry (`MUT_CHECK_CARRIED` is exactly the attack it stops).
+- The only routes to an automatic approval the user didn't make are the two the threat model accepts: a leaked phrase (TH-41) and keys made without the phrase after the stored key was rewritten (TH-12). Re-keying with the phrase ends the second, since proven keys carry the typed phrase's key (D-56).
+

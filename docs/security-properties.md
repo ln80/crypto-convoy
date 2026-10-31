@@ -368,6 +368,7 @@ Assumptions: AS-01. An owner runs `reconcile` with the integration's active list
 Verification:
 - `test/security/reconcile.test.ts`: a removed member listed as active again doesn't get the version back; an inactive holder is rotated out; unproven re-keys, other owners' re-keys, inactive owners and joins are returned as needing a human; the caller's own re-key is approved when its session holds the keys, never when they were published by someone else (D-47); a dry run writes nothing. A member publishing newer proven keys during `reconcile` keeps the version with the keys it holds, and the inactive holder is still removed (D-64).
 - `test/properties/reconcile.properties.test.ts`: for any snapshot, the plan gives the new version to no account outside the rule above.
+- `formal/recovery.spthy`: lemma `proof_needs_the_phrase` (Tamarin, `npm run check:formal`, plan 027).
 
 Related threats: TH-14, TH-37.
 
@@ -386,6 +387,7 @@ Assumptions: AS-01, AS-03 for the device where the phrase is typed.
 Verification:
 - `test/security/recovery-proof.test.ts`: a session thief's re-key (no phrase) stays a hint; a recovery-signed re-key is approved; one signed with another phrase is not; an owner's proven re-key needs a human; a leaked phrase's re-key is reported; a phrase replaced with and without the old one; a failed team retried with the new phrase and the old one is proven, and an old phrase no bundle carries is refused (D-49, D-56); a recovery wrap whose public key an account-key holder replaced: `secureAccount` accepts the real phrase and repairs it, `rekey` and `confirmRecoveryPhrase` sign keys carrying the typed phrase's key, `recover` opens, and the vault reports `recovery-key-mismatch` (D-56); the same for one a session garbled so it doesn't open (review 032 A); a record served for the held version with another keys hash, naming another recovery key, is refused by `reconcile` and `overview`.
 - `test/vectors/recovery-key.v1.json`.
+- `formal/recovery.spthy`: lemmas `proof_needs_the_phrase`, `proven_keys_carry_the_phrase_key`; and the accepted attacks `attack_TH41_leaked_phrase`, `attack_TH12_rewritten_stored_key` (Tamarin, `npm run check:formal`, plan 027).
 
 Related threats: TH-10, TH-12, TH-13, TH-37, TH-41.
 

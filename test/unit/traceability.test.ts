@@ -17,7 +17,7 @@ const entries = read("docs/security-properties.md")
     id: chunk.match(/^### (SP-\d+):/)![1]!,
     deferred: /^Status: deferred/im.test(chunk),
     files: [...chunk.matchAll(/`(test\/[^`]+\.test\.ts)`/g)].map((m) => m[1]!),
-    models: [...chunk.matchAll(/^- `(formal\/[^`]+\.spthy)`: lemmas (.*)$/gm)].map((m) => ({
+    models: [...chunk.matchAll(/^- `(formal\/[^`]+\.spthy)`: lemmas? (.*)$/gm)].map((m) => ({
       file: m[1]!,
       lemmas: [...m[2]!.matchAll(/`([A-Za-z0-9_]+)`/g)].map((l) => l[1]!),
     })),
