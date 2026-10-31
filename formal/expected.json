@@ -1,5 +1,5 @@
 {
-  "about": "Each model's lemmas and their expected result, and each mutation with the lemma it must break. `verified` for an exists-trace lemma means the tool found the trace (an accepted attack, or an honest run). Checked by scripts/check-formal.mjs.",
+  "about": "Each model run (a file, with optional preprocessor flags) and its lemmas' expected results, and each mutation with the lemma it must break. `verified` for an exists-trace lemma means the tool found the trace (an accepted attack, or an honest run). Checked by scripts/check-formal.mjs.",
   "models": {
     "transfer.spthy": {
       "lemmas": {
@@ -15,6 +15,35 @@
       "mutations": {
         "MUT_NO_CONTEXT": "transfer_opens_only_for_its_account_and_team",
         "MUT_REUSE": "receiver_opens_once"
+      }
+    },
+    "chain.spthy": {
+      "lemmas": {
+        "executable": "verified",
+        "owner_rule": "verified",
+        "anchored_join_holds_the_real_version": "verified",
+        "one_honest_successor": "verified",
+        "no_fork_without_owner_key": "verified",
+        "link_wraps_the_held_key": "verified",
+        "attack_TH04_first_contact": "verified",
+        "attack_TH38_split_view": "verified",
+        "attack_037A_wrong_previous_key": "verified"
+      },
+      "mutations": {
+        "MUT_NO_OWNER_RULE": "owner_rule"
+      }
+    },
+    "chain.spthy DEPTH3": {
+      "file": "chain.spthy",
+      "flags": [
+        "DEPTH3"
+      ],
+      "lemmas": {
+        "executable_depth3": "verified",
+        "team_key_reaches_only_rostered_accounts": "verified"
+      },
+      "mutations": {
+        "MUT_SEAL_TO_REMOVED": "team_key_reaches_only_rostered_accounts"
       }
     }
   }

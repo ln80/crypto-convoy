@@ -13,7 +13,7 @@ docker build --platform linux/amd64 -t crypto-convoy-tamarin:1.12.0 formal
 npm run check:formal
 ```
 
-`check:formal` runs each model in batch, compares every lemma's result with `expected.json`, and runs each mutation, which must break the lemma it names (the transfer model: about 16 seconds). With neither Tamarin nor the image it skips with a note. To step through a proof or an attack trace: `tamarin-prover interactive formal/` (or `docker run --rm -p 3001:3001 -v "$PWD/formal:/formal" --entrypoint tamarin-prover crypto-convoy-tamarin:1.12.0 interactive --interface='*4' .`), then open http://127.0.0.1:3001.
+`check:formal` runs each model in batch, compares every lemma's result with `expected.json`, and runs each mutation, which must break the lemma it names. A model may run several times with preprocessor flags (`chain.spthy` with `DEPTH3`). About 13 minutes in the container: the transfer about 5 seconds, the chain about 9 minutes (most of it the attack searches), the mutations the rest. Existence lemmas are searched breadth-first (`--stop-on-trace=BFS`): depth-first, the search can follow the chain forever. With neither Tamarin nor the image it skips with a note. To step through a proof or an attack trace: `tamarin-prover interactive formal/` (or `docker run --rm -p 3001:3001 -v "$PWD/formal:/formal" --entrypoint tamarin-prover crypto-convoy-tamarin:1.12.0 interactive --interface='*4' .`), then open http://127.0.0.1:3001.
 
 ## How a model is trusted
 
@@ -70,3 +70,47 @@ What it shows:
 - The integration's channel needs to be **authentic, not secret**: the attacker reads every request and transfer in `keys_secret_on_authentic_channel` and still learns no key. D-29's "a channel the server can't write" is exactly the assumption needed.
 - On a channel the attacker writes, the two accepted attacks are the only gains: the account and team inside the box, single use and the floor still hold for every transfer the vault sealed to a real receiver. Everything else follows from TH-39's leak.
 - No attack outside TH-39 and TH-49 was found.
+
+### `chain.spthy`: the team key chain, roster seals and the owner rule (§4.5, §6.1, §6.4, §6.6)
+
+Roles: owners, who create a team and rotate it, each version rostering its owner and one member, sealing a fresh team key to both and wrapping the previous key under it; members, who join at version 1, with or without the invite anchor, and follow the chain; the server, which serves any stored record in any order, withholds, and stores forged records signed with stolen keys.
+
+| Lemma | Property | Expected |
+| --- | --- | --- |
+| `executable` | a member joins with the anchor and accepts the next version | trace found |
+| `owner_rule` | SP-05: a member accepts a version only if the owner of the version it holds signed it, unless that owner's key was stolen; a removed owner's signature is refused | verified |
+| `anchored_join_holds_the_real_version` | SP-07: with the invite anchor, a joiner holds the real version 1 | verified |
+| `one_honest_successor` | helper: an honest version has at most one honest successor | verified |
+| `no_fork_without_owner_key` | SP-05: members holding a version from one owner never accept two different next versions, unless that owner's key was stolen | verified |
+| `link_wraps_the_held_key` | §4.5: with no signing key stolen, the previous-key link a member accepts wraps the key it holds | verified |
+| `attack_TH04_first_contact` | TH-04, accepted: without the anchor, a joiner holds a version 1 nobody created for that team | trace found |
+| `attack_TH38_split_view` | TH-38, accepted: with a stolen owner key, a member accepts a next version other than the one its owner wrote | trace found |
+| `attack_037A_wrong_previous_key` | review 037 A, accepted: with a stolen owner key, a member accepts a version whose link wraps another key | trace found |
+
+With `DEPTH3` (three versions):
+
+| Lemma | Property | Expected |
+| --- | --- | --- |
+| `executable_depth3` | an honest run completes | trace found |
+| `team_key_reaches_only_rostered_accounts` | SP-04, SP-06: a version's key is learned only from an account rostered at that version or a later one of the same chain: a removed member learns no later key, and a stolen owner signing key alone learns none | verified |
+
+Mutations: `MUT_NO_OWNER_RULE` (a member accepts a next version signed by anyone) breaks `owner_rule`; `MUT_SEAL_TO_REMOVED` (a rotation also seals to the member it removes) breaks `team_key_reaches_only_rostered_accounts`.
+
+Abstractions:
+
+- Signatures are ideal: the server's store is a fact only two rules write, an owner's rotation and a forgery under a key the attacker stole (restriction `ForgeOnlyWithStolenKey`). A member reads any stored record, in any order. A second forging rule builds the seals from a key the attacker supplies; it adds no power, only spares the search.
+- A version's identity is `<parent, name>`, standing for the version number; "a later version" is the subterm relation. The invite anchor names the whole record, as a record hash does.
+- One owner per version and two roster entries; an owner may hand over to an account it rosters. Several owners, which TH-38 needs without a stolen key, are not modelled.
+- Accounts publish one encryption and one signing key each, in an authentic registry: approving keys is a human's (AS-06).
+- One anchor per member, the version it holds; floors and the vault's anchor are not modelled (local state over the same chain check), so review 041 A's planted floor is out of this model.
+- Secrecy is proven for chains of three versions (`DEPTH3`): with unbounded rotations, the proof follows the previous-key links without end. Teams, accounts and sessions stay unbounded. The structural lemmas hold on the unbounded chain.
+
+Results (Tamarin 1.12.0, 2026-10-31): every lemma as expected, each mutation breaks only its lemma.
+
+What it shows:
+
+- A removed member learns no later team key, with no help from the server: the roster seals and the forward-only previous-key links are enough (SP-06), at least over three versions.
+- A stolen owner signing key alone reveals no team key: it can sign versions, not open them. Its gains are the ones the threat model accepts: split views (TH-38) and a wrong previous-key link (037-A).
+- Without the invite anchor, first contact is trust on first use (TH-04); with it, the joiner holds the real version.
+- No attack outside TH-04, TH-38 and 037-A was found.
+

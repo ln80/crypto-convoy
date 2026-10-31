@@ -98,6 +98,7 @@ Assumptions: AS-01. The rotation leaves the removed member out: rotations take a
 
 Verification:
 - `test/security/member-removal.test.ts`: remove a member, rotate with the remaining members as the keep list, encrypt an item, then try every key the removed member held (refused). Re-admit them in a later rotation and check that the gap opens, as specified.
+- `formal/chain.spthy`: lemma `team_key_reaches_only_rostered_accounts`, for chains of three versions (flag DEPTH3; Tamarin, `npm run check:formal`, plan 027).
 
 Related threats: TH-14.
 
@@ -138,6 +139,7 @@ Assumptions: AS-01. The client trusts the right owner list (SP-05, SP-07; at fir
 
 Verification:
 - `test/security/key-substitution.test.ts`: a malicious store swaps member keys, injects a fake member or a forged version, replaces a sealed team key, and moves a roster entry to another member or team.
+- `formal/chain.spthy`: lemmas `team_key_reaches_only_rostered_accounts` (flag DEPTH3), `owner_rule` (Tamarin, `npm run check:formal`, plan 027).
 
 Related threats: TH-02.
 
@@ -150,6 +152,7 @@ Assumptions: AS-01. The client starts from a trusted point (an anchor it verifie
 Verification:
 - `test/security/owner-chain.test.ts`: forged records; records signed by a non-owner or by a removed owner; gaps; forks (two records for one version); and a version whose owner doesn't hold it (missing from its roster).
 - `test/vectors/team-key.v1.json`.
+- `formal/chain.spthy`: lemmas `owner_rule`, `no_fork_without_owner_key`, `link_wraps_the_held_key`; and the accepted attacks `attack_TH38_split_view`, `attack_037A_wrong_previous_key` (Tamarin, `npm run check:formal`, plan 027).
 
 Related threats: TH-03, TH-17.
 
@@ -164,6 +167,7 @@ Assumptions: the device's local storage keeps its state (`LocalKeyStore`). A mem
 Verification:
 - `test/security/rollback.test.ts`: serve an older chain, a diverging chain, a chain that doesn't contain the invite anchor (refused at join, also when the account already has keys), a forged chain to a new device (refused from the floor, in the vault's context and through a receiver, for a joiner without an invite anchor too), a local anchor above the floor naming a forged version (refused), and an older team key version after a newer one was seen; Limit: a forged chain served at a join without an invite anchor is trusted. A bundle in the layout without a floor, planted with the account key, doesn't open and is absent, and a transfer entry without a floor is refused (D-66).
 - `test/security/account-rotation.test.ts`: the floor moves along a chain containing every root when the vault opens or exports the team and at a re-key, and is kept by an account rotation; a re-key whose roots conflict or whose chain fails writes nothing; a local anchor doesn't reach it; a floor planted with the account key fails `secureAccount` in either layout, export refuses it, and an owner's anchor repairs it. An existing member's join without an anchor refuses a forged chain when the server withholds its wraps, and an owner's anchor re-keys a team with no bundle (D-59). A join that finds keys checks the floor they carry (review 021 D). The repair with an owner's anchor makes a device whose local anchor came from a forged first contact open the real chain (review 035 A).
+- `formal/chain.spthy`: lemmas `anchored_join_holds_the_real_version`; and the accepted attack `attack_TH04_first_contact` (Tamarin, `npm run check:formal`, plan 027).
 
 Related threats: TH-04, TH-05.
 

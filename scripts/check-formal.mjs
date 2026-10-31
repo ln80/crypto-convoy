@@ -1,7 +1,8 @@
 // Runs the formal models in formal/ with Tamarin and compares each lemma's result with
 // formal/expected.json, then checks that each mutation breaks the lemma it names (plan 027).
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const root = join(import.meta.dirname, "..");
@@ -20,14 +21,25 @@ const tamarin = (args) =>
     ? ["tamarin-prover", args.map((a) => (a.endsWith(".spthy") ? join(root, "formal", a) : a))]
     : ["docker", ["run", "--rm", "--platform", "linux/amd64", "-v", `${join(root, "formal")}:/formal:ro`, IMAGE, ...args]];
 
-/** Every lemma's result in a batch run: `verified` or `falsified`, else `unfinished`. */
-function prove(file, flags = []) {
-  const [command, args] = tamarin(["--prove", ...flags.map((f) => `-D=${f}`), file]);
-  const output = execFileSync(command, args, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    maxBuffer: 64 * 1024 * 1024,
-  });
+/**
+ * Every lemma's result in a batch run (`only`: one lemma): `verified` or `falsified`, else
+ * `unfinished`. Tamarin's output, proofs included, can run to many megabytes: it goes to a file.
+ */
+function prove(file, flags = [], only) {
+  const [command, args] = tamarin([`--prove${only ? `=${only}` : ""}`, ...flags.map((f) => `-D=${f}`), file]);
+  // An exists-trace lemma is searched breadth-first: a deep search can follow the chain forever.
+  args.splice(args.length - 1, 0, "--stop-on-trace=BFS", "--derivcheck-timeout=0");
+  const dir = mkdtempSync(join(tmpdir(), "check-formal-"));
+  const out = openSync(join(dir, "out.txt"), "w");
+  const started = Date.now();
+  try {
+    execFileSync(command, args, { stdio: ["ignore", out, out] });
+  } finally {
+    closeSync(out);
+  }
+  const output = readFileSync(join(dir, "out.txt"), "utf8");
+  rmSync(dir, { recursive: true });
+  console.log(`  ${file}${flags.length > 0 ? ` -D=${flags.join(" -D=")}` : ""}${only ? ` (${only})` : ""}: ${Math.round((Date.now() - started) / 1000)}s`);
   const summary = output.slice(output.lastIndexOf("summary of summaries"));
   const results = {};
   for (const [, lemma, result] of summary.matchAll(/^\s*([A-Za-z0-9_]+) \((?:all-traces|exists-trace)\): (verified|falsified|analysis incomplete)/gm)) {
@@ -37,15 +49,16 @@ function prove(file, flags = []) {
 }
 
 const failures = [];
-for (const [file, { lemmas, mutations }] of Object.entries(models)) {
-  const results = prove(file);
+// A model is a file run with optional preprocessor flags (`file`, `flags`; the key names the run).
+for (const [name, { file = name, flags = [], lemmas, mutations }] of Object.entries(models)) {
+  const results = prove(file, flags);
   for (const [lemma, expected] of Object.entries(lemmas)) {
-    if (results[lemma] !== expected) failures.push(`${file}: ${lemma} is ${results[lemma] ?? "missing"}, expected ${expected}`);
+    if (results[lemma] !== expected) failures.push(`${name}: ${lemma} is ${results[lemma] ?? "missing"}, expected ${expected}`);
   }
-  for (const lemma of Object.keys(results)) if (!(lemma in lemmas)) failures.push(`${file}: ${lemma} isn't in formal/expected.json`);
+  for (const lemma of Object.keys(results)) if (!(lemma in lemmas)) failures.push(`${name}: ${lemma} isn't in formal/expected.json`);
   for (const [flag, lemma] of Object.entries(mutations ?? {})) {
-    const mutated = prove(file, [flag]);
-    if (mutated[lemma] !== "falsified") failures.push(`${file} with ${flag}: ${lemma} is ${mutated[lemma] ?? "missing"}, expected falsified`);
+    const mutated = prove(file, [...flags, flag], lemma);
+    if (mutated[lemma] !== "falsified") failures.push(`${name} with ${flag}: ${lemma} is ${mutated[lemma] ?? "missing"}, expected falsified`);
   }
 }
 
