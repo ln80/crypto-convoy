@@ -59,7 +59,7 @@ From `formal/README.md` and review 042: several owners per version (TH-38 withou
 
 ### 11. Accepted residuals
 
-The [ledger's residuals table](ledger.md#residuals): whether each acceptance holds, and whether two chain. The most consequential: TH-17 (one stolen owner key takes a team over, detection only), TH-20 (an injected script in the vault), TH-04 (first contact), TH-38 (split views, no key transparency).
+The [ledger's residuals table](ledger.md#residuals): whether each acceptance holds, and whether two chain. Review 043 (`residuals`) checked every reason and revisit condition and the chains within each actor; an audit can start from its findings rather than redo them. It did not check doconvoy's OPRF key-id rotation or its restore authentication. The most consequential: TH-17 (one stolen owner key takes a team over, detection only), TH-20 (an injected script in the vault), TH-04 (first contact), TH-38 (split views, no key transparency).
 
 ## Out of scope for the audit
 

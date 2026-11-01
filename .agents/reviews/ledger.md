@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Formal models done (plan 027), every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Review 042 (`change`, the models) found no protocol fix; its model and text edits (042-A to E) are done. Open findings: none. Next: the external audit, before the vectors freeze (§13); not yet funded. Its brief, kept up to date by every review, is [audit-brief.md](audit-brief.md).
+**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Formal models done (plan 027), every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Review 042 (`change`, the models) found no protocol fix; its model and text edits (042-A to E) are done. Review 043 (`residuals`, the first) found TH-04's revisit condition met in doconvoy (043-A, a decision) and text edits B to F; the count stays 2 of 2 unless 043-A becomes a protocol change. Next: 043-A's decision and the edits, then the external audit, before the vectors freeze (§13); not yet funded. Its brief, kept up to date by every review, is [audit-brief.md](audit-brief.md).
 
 ## Findings
 
@@ -201,6 +201,12 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 042-C | Overclaim | Low | Fixed | SP-07's formal line, README: rollback and roots not modelled (edit after review 042) |
 | 042-D | Wrong claim | Low | Fixed | `recovery.spthy`, README: the version orders re-keys; freshness not modelled (edit after review 042) |
 | 042-E | Stale text | Low | Fixed | README, model headers: readers in one slot, owner key replacement, the request's team (edit after review 042) |
+| 043-A | Residual, revisit met | Medium | Open | TH-04: doconvoy sends invites through its server; decision: an out-of-band anchor code (recommended) or D-11 in v1 |
+| 043-B | Residual group | Medium | Open | Direction guide: server-controlled history holds 13 rows; candidate v2 project (text) |
+| 043-C | Missing disclosure | Low | Open | `scope.md`: what a malicious server can still do (text) |
+| 043-D | Missing disclosure | Low | Open | Guides: replace inboxes after a removal, TH-30 (text) |
+| 043-E | Combined attack (availability) | Low | Open | TH-46: with the PIN budget spent, device or support only (text) |
+| 043-F | Simplification | — | Open | Direction guide: support-restore and session-theft groups (optional text) |
 
 ## Residuals
 
