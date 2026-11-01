@@ -7,7 +7,7 @@ description: "Review crypto-convoy's protocol in one of five modes: change (afte
 
 **Use when** a plan changed `docs/` (change), before implementing a protocol change (design), periodically and before a freeze (adversarial, complexity, residuals), or when asked to harden or simplify the protocol. It finds what `check:spec` can't: claims nothing delivers, inputs someone can forge, attacks that need two actors, rules that can go, and accepted risks that no longer hold.
 
-Read only: a review writes a findings file and updates the [ledger](../../reviews/ledger.md); it changes no spec or code. Fixes go through [protocol-change](../protocol-change/SKILL.md).
+Read only: a review writes a findings file and updates the [ledger](../../reviews/ledger.md) and the [audit brief](../../reviews/audit-brief.md); it changes no spec or code. Fixes go through [protocol-change](../protocol-change/SKILL.md).
 
 Every review applies the [hardening direction](../../guides/direction.md): its action rule decides which findings change the protocol, and its complexity budget bounds the fixes a review may propose. Finding something is not a reason to add a rule.
 
@@ -33,6 +33,7 @@ Pick one per review; the findings file names it. The mode comes from the request
 6. **Rate** with the [severity rubric](#severity-rubric), then give each finding its **disposition** by the [action rule](../../guides/direction.md#the-action-rule): fix, accept and document, or correct the text. A finding that belongs to a [deferred mechanism](../../guides/direction.md#deferred-mechanisms) names its group.
 7. **Write** `.agents/reviews/NNN-name.md` (next free number): mode, scope and commit, what was checked and what wasn't, then each finding: id (letters A, B, … within the review), kind, severity, actors (one alone, or which together), disposition, where (files and lines), evidence (reproduced or read), and, for a fix, its [budget class and product cost](../../guides/direction.md#complexity-budget) and whether it needs a decision or only an edit; for an acceptance, the text that documents it. List edit-only findings apart, so they can be done right away.
 8. **Ledger.** Add each finding with status `open` (a fix or a text correction to do) or `accepted` (with the residual row and the text that documents it); add each risk the review accepts to the residuals table. Update the [stop rule](#stop-rule) line.
+9. **Audit brief.** What the review left unchecked, and any case a formal model leaves out, goes to the [audit brief](../../reviews/audit-brief.md) under its area (a new area if none fits); an area this review covered in depth is marked so, with the review's number.
 
 Finding kinds: overclaim, missing threat, wrong claim, stale text, spec → code, forgeable input, combined attack, hardening, simplification.
 
@@ -119,4 +120,4 @@ The protocol is a **freeze candidate** when two reviews in a row, in different m
 
 - The mode's steps were run, and the findings file says what was checked and what wasn't.
 - Every finding was reproduced or shown from the code, or is marked unconfirmed.
-- The ledger and the stop-rule line are updated.
+- The ledger and the stop-rule line are updated, and the audit brief if the review left something unchecked or covered an area of it.
