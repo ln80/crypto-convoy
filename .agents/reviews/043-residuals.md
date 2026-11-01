@@ -1,6 +1,6 @@
 # Review 043: residuals
 
-Mode: `residuals`, the first of its kind. Scope: the ledger's residuals table (42 rows), the threat model's accepted and partly mitigated dispositions, the deferred mechanisms of the [hardening direction](../guides/direction.md#deferred-mechanisms), and what `scope.md`, `integration.md` and `using.md` tell an integrator, at `836270e`. Read only.
+Mode: `residuals`, the first of its kind. Scope: the ledger's residuals table (42 rows), the threat model's accepted and partly mitigated dispositions, the deferred mechanisms of the [hardening direction](../guides/direction.md#deferred-mechanisms), and what `scope.md`, `integration.md` and `using.md` tell an integrator, at `836270e`. Read only, except the edits listed below, applied after it.
 
 ## Checked
 
@@ -58,7 +58,7 @@ Mode: `residuals`, the first of its kind. Scope: the ledger's residuals table (4
 
 ## Edits ready now (no decision)
 
-B (direction guide row), C (`scope.md`), D (both guides), E (TH-46 and its row), F (optional). A waits for a decision.
+All done after this review: A with option 1 (the anchor code in the integration guide, TH-04 and the using guide's invite row; doconvoy's screen is its own work), B, C, D, E and F.
 
 ## Stop rule
 

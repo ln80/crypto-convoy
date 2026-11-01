@@ -44,9 +44,11 @@ Residuals that need the same missing mechanism are grouped and point to it, inst
 
 | Group | Residuals | Mechanism (a v2 project) |
 | --- | --- | --- |
-| **Server-controlled history** | Rollback, split views, forged first contact, planted or repaired anchors (TH-04, TH-05, TH-20, TH-38) | Key transparency, or owner fingerprints compared out of band (D-11); expected to retire most anchor and floor rules |
+| **Server-controlled history** | Rollback, split views, forged first contact, planted or repaired anchors, a retired account version, a rewritten recovery key (TH-04, TH-05, TH-12, TH-20, TH-38, SP-19): 13 residuals, growing with almost every `adversarial` review (review 043 B); a product sends invites through its server (043 A) | Key transparency, or owner fingerprints compared out of band (D-11); expected to retire most anchor and floor rules (D-48, D-52, D-54, D-59). The first v2 project |
 | **Author authenticity** | Any member can claim any author (TH-15, TH-50) | Author signatures (D-09) |
 | **Owner compromise** | One stolen owner key is enough (TH-17) | Multi-owner approval |
+| **Support restores** | Records withheld, deleted or garbled until support acts; archived wraps that still open; a restore that brings back an attacker's state (TH-28, TH-36, TH-45, TH-46, TH-48) | Restores the integration authenticates, with a bounded window (review 043 F) |
+| **Session theft** | What a session thief does as the user before its sessions end: credentials replaced, keys published, bait keys (TH-11, TH-37, TH-45, TH-47) | Ending sessions first (D-43), or server-side credential checks (review 043 F) |
 | **Cross-context channel** | Forged or substituted transfers (TH-39, TH-49) | A secret shared between contexts |
 
 ## Exit

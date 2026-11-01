@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Formal models done (plan 027), every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Review 042 (`change`, the models) found no protocol fix; its model and text edits (042-A to E) are done. Review 043 (`residuals`, the first) found TH-04's revisit condition met in doconvoy (043-A, a decision) and text edits B to F; the count stays 2 of 2 unless 043-A becomes a protocol change. Next: 043-A's decision and the edits, then the external audit, before the vectors freeze (§13); not yet funded. Its brief, kept up to date by every review, is [audit-brief.md](audit-brief.md).
+**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Formal models done (plan 027), every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Review 042 (`change`, the models) found no protocol fix; its model and text edits (042-A to E) are done. Review 043 (`residuals`, the first) found TH-04's revisit condition met in doconvoy: closed with an anchor code the owner and joiner compare (integration guide), no protocol change; edits B to F done. Open findings: none. Next: doconvoy's anchor-code screen, then the external audit, before the vectors freeze (§13); not yet funded. Its brief, kept up to date by every review, is [audit-brief.md](audit-brief.md).
 
 ## Findings
 
@@ -201,12 +201,12 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 042-C | Overclaim | Low | Fixed | SP-07's formal line, README: rollback and roots not modelled (edit after review 042) |
 | 042-D | Wrong claim | Low | Fixed | `recovery.spthy`, README: the version orders re-keys; freshness not modelled (edit after review 042) |
 | 042-E | Stale text | Low | Fixed | README, model headers: readers in one slot, owner key replacement, the request's team (edit after review 042) |
-| 043-A | Residual, revisit met | Medium | Open | TH-04: doconvoy sends invites through its server; decision: an out-of-band anchor code (recommended) or D-11 in v1 |
-| 043-B | Residual group | Medium | Open | Direction guide: server-controlled history holds 13 rows; candidate v2 project (text) |
-| 043-C | Missing disclosure | Low | Open | `scope.md`: what a malicious server can still do (text) |
-| 043-D | Missing disclosure | Low | Open | Guides: replace inboxes after a removal, TH-30 (text) |
-| 043-E | Combined attack (availability) | Low | Open | TH-46: with the PIN budget spent, device or support only (text) |
-| 043-F | Simplification | — | Open | Direction guide: support-restore and session-theft groups (optional text) |
+| 043-A | Residual, revisit met | Medium | Fixed | TH-04, integration and using guides: the anchor code compared before approving; doconvoy's screen to build (edit after review 043) |
+| 043-B | Residual group | Medium | Accepted | Direction guide: server-controlled history, 13 rows, the first v2 project (edit after review 043) |
+| 043-C | Missing disclosure | Low | Fixed | `scope.md`: what a malicious server can still do (edit after review 043) |
+| 043-D | Missing disclosure | Low | Fixed | Guides: replace inboxes after a removal, TH-30 (edit after review 043) |
+| 043-E | Combined attack (availability) | Low | Accepted | TH-46: with the PIN budget spent, device or support only (edit after review 043) |
+| 043-F | Simplification | — | Fixed | Direction guide: support-restore and session-theft groups (edit after review 043) |
 
 ## Residuals
 
@@ -214,7 +214,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 
 | Threat | Actor | Residual | Why accepted | Revisit |
 | --- | --- | --- | --- | --- |
-| TH-04 | A2 | The join without an invite anchor, or with a link the server delivered, trusts the chain served | Fingerprints deferred (D-11) | D-11 or D-32 returns; a product delivers invites only through its server |
+| TH-04 | A2 | The join without an invite anchor, or with a link the server delivered, trusts the chain served | Fingerprints deferred (D-11) | D-11 or D-32 returns. A product delivers invites through its server: met in one integration (review 043 A); there the anchor code (integration guide) closes the join |
 | TH-05 | A2 | A device can't see newer state the server withholds, between its floor and that state | A server controlling delivery can always delay news | Key transparency (TH-38) |
 | TH-09 | A2 | The OPRF key holder can brute-force a PIN | The server holds its OPRF key by design (AS-05) | A threshold OPRF |
 | TH-11 | A8 | A PIN or phrase thief with a session can take over until support restores | Credentials are the account's proof | Restore authentication changes (TH-48) |
@@ -253,7 +253,7 @@ Accepted or partly mitigated risks, from the threat model's dispositions and the
 | TH-37 | A11 | Keys published, or a team created, under the account in a team where the vault holds no keys go unreported; members joining such a team see the account as its owner (review 030 C) | A session acts as the user in the product; listing an account's keys across teams needs a new store query; `secureAccount` with `teamIds` reports a listed team with no keys (D-60) | A store query for an account's published keys across teams |
 
 | TH-28 | A2 | A wrap withheld while the account rotates stays with the retired version: the team reads `not-joined` after `rotate()` until support restores it (review 032 F) | Withholding is the server's; the archive restores it (SP-26) | — |
-| TH-46 | A11 | A recovery wrap that doesn't parse, or whose `wrappedAccountKey` is garbled, disables the phrase until a setup with the PIN or a support restore; with no PIN, support only (review 033 1) | A garbled `wrappedAccountKey` can't be told from a wrong phrase; the mismatch is reported where it can be (D-56) | — |
+| TH-46 | A11 | A recovery wrap that doesn't parse, or whose `wrappedAccountKey` is garbled, disables the phrase until a setup with the PIN or a support restore; with no PIN, or with the PIN budget a session spent too (TH-44), a registered device or support only (review 033 1, review 043 E) | A garbled `wrappedAccountKey` can't be told from a wrong phrase; the mismatch is reported where it can be (D-56) | — |
 | SP-16 | Another owner, A2, A11 | A team can end with listed owners and no keys: a departed account named owner again, a chain served from before an account became owner, wraps a session deletes (review 033 2) | Nothing in the chain says who deleted their wraps (D-65) | Owners' key custody in the chain |
 | TH-17 | A6 | An owner key signs a version whose previous-key link wraps the wrong key: older items stop opening for every member, with no change reported, for good (review 037 A) | Write-once records; detection would only stop the team (TH-25); owner compromise group | Multi-owner approval |
 | TH-20 | A7 or A9 with the open vault, with A2 | `rekey({ anchor })` through the open vault replaces the vault's anchor, the local anchor and the floor with no credential; a later `secureAccount` there carries the forged root (review 037 D) | A credential check stops nothing: the holder of the open vault writes the store directly (TH-45); server-controlled history | Owner fingerprints (D-11) or key transparency |

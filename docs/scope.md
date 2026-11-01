@@ -136,6 +136,19 @@ The contract covers key records only. Content (item parts, submissions) is the i
 
 A server that breaks these rules can deny service or weaken PIN protection. It still can't read items or plant keys without clients detecting it, except where [threat-model.md](threat-model.md) records an accepted risk.
 
+## What a malicious server can still do
+
+The accepted risks a malicious server (A2) can use, with what the integration can do about each. The threat model has the details.
+
+- **Forge a team at first contact** (TH-04): to a joiner whose invite link it delivered, or a device with nothing stored. Deliver invite and repair anchors outside your server, or compare the anchor code ([integration guide](integration.md#invites-and-team-administration)).
+- **Show members different histories** (TH-38), with an owner's signing key, or when two owners each write the next version: no key transparency in v1. Detection only: members compare what they see.
+- **Hold back newer state** (TH-05, SP-07): keep a device between its floor and newer state, or serve an older wrap with an older floor. A device catches up once it sees the newer state.
+- **Serve a retired account key version** to a device with no stored state (SP-19): the old credentials open it. Recommend a new PIN and phrase when securing an account.
+- **Forge or receive a transfer** (TH-39, TH-49), if it can write the channel between contexts: keep that channel off your server.
+- **Rewrite items or inboxes with a former member** (TH-50), if it breaks the write-once rule: keep rule 3.
+- **Guess PINs** (TH-09) with its OPRF key: keep that key outside the database of wraps.
+- **Deny service** (TH-28, TH-46): withhold, delete or garble records. The archive restores them (rule 7).
+
 ## Non-goals
 
 - Protecting metadata: who is in a team, how many items exist, their sizes and timing.
