@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Open findings: none. Formal models done (plan 027): the transfer, the chain and roster seals (secrecy over three versions) and the recovery proof, every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Next: a `change` review of the models against the spec (what each abstracts away), then the external audit, before the vectors freeze (§13).
+**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Formal models done (plan 027), every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Review 042 (`change`, the models) found no protocol fix: open findings 042-A to E, model and text edits only. Next: those edits, then the external audit, its brief naming what no model covers (rollback and roots, the freshness of proven re-keys), before the vectors freeze (§13).
 
 ## Findings
 
@@ -196,6 +196,11 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 041-B | Wrong claim | Low | Fixed | D-54, integration guide: clear a receiving context's anchor after a repair (edit after review 041) |
 | 041-C | Wrong claim | Low | Fixed | D-54: a forged vault anchor also fails opens and `leaveTeam` (edit after review 041) |
 | 041-D | Missing threat | Low | Accepted | TH-46: a session replays an older wrap revision (edit after review 041) |
+| 042-A | Model abstraction | Low | Open | `chain.spthy`: seal with the team alone, looser than §4.5 (model edit) |
+| 042-B | Model lemma | Low | Open | `chain.spthy`: the anchored join and no-fork lemmas compare the key held (model edit) |
+| 042-C | Overclaim | Low | Open | SP-07's formal line, README: rollback and roots not modelled (text) |
+| 042-D | Wrong claim | Low | Open | `recovery.spthy`, README: the version orders re-keys; freshness not modelled (text) |
+| 042-E | Stale text | Low | Open | README: readers in one slot, owner key replacement, the request's team (text) |
 
 ## Residuals
 
