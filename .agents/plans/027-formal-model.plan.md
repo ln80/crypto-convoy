@@ -59,3 +59,4 @@ The TypeScript code (tests and vectors check it), libsodium and parameters, side
   - **A `[reuse]` pitfall:** a helper marked `[reuse]` is assumed by later lemmas even when it fails, so under `MUT_CHECK_CARRIED` the main lemma still read verified while the helper failed. The mutation names the helper; the baseline requires every helper verified, which keeps the assumption sound.
   - **Not modelled:** owners' own re-keys (D-47), a phrase replaced with the PIN alone.
 - **Traceability fix:** the test matched only "lemmas", so SP-06's and SP-22's one-lemma lines went unchecked; it now matches both (41 tests).
+- **After review 042:** the chain's roster seal binds the team alone (looser than §4.5), and the anchored join and no-fork lemmas compare the key held; every result holds, and `check:formal` now takes about 5 minutes (the chain 150 seconds instead of 518). The README lists what no model covers: rollback and roots, the freshness of proven re-keys.

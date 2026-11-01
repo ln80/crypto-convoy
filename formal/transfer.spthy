@@ -13,6 +13,9 @@ begin
  * - `seal` is ideal public-key encryption with an anonymous sender (`aenc`), as libsodium's
  *   sealed box (§3.2); the context sits inside the box, as the protocol puts it.
  * - A bundle's private keys are one fresh secret `k`; its floor `fl` is public (an anchor).
+ * - The request carries the team; in §3.8 it is the receiver's public key alone, and which team
+ *   to export is the integration's (D-29). The same on an authentic channel; on one the attacker
+ *   writes, it chooses the team either way.
  * - The check against the published `member-keys` record (§3.8 step 3) is left out: it binds
  *   the keys to what the server serves, which the server controls (TH-49).
  * - The channel is the integration's (D-29). The attacker always reads it; `Chan_inject` is a

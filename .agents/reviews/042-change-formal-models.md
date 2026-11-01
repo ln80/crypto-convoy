@@ -1,6 +1,6 @@
 # Review 042: change, the formal models (plan 027)
 
-Mode: `change`, on the models only. Scope: `formal/transfer.spthy`, `formal/chain.spthy`, `formal/recovery.spthy`, `formal/README.md` and the SP Verification lines that cite them, against §3.8, §4.1, §4.2, §4.5, §5.6, §5.11, §6.1, §6.4–§6.9, at `29cd0d6`. The question: does any model abstract away a case of the protocol so that a lemma holds in the model and not in the protocol, and does any text claim more than the lemmas prove? Read only; two throwaway model variants were run in the scratchpad and deleted.
+Mode: `change`, on the models only. Scope: `formal/transfer.spthy`, `formal/chain.spthy`, `formal/recovery.spthy`, `formal/README.md` and the SP Verification lines that cite them, against §3.8, §4.1, §4.2, §4.5, §5.6, §5.11, §6.1, §6.4–§6.9, at `29cd0d6`. The question: does any model abstract away a case of the protocol so that a lemma holds in the model and not in the protocol, and does any text claim more than the lemmas prove? Read only, except the edits listed below, applied after it; two throwaway model variants were run in the scratchpad and deleted.
 
 ## Checked
 
@@ -51,7 +51,7 @@ Mode: `change`, on the models only. Scope: `formal/transfer.spthy`, `formal/chai
 
 ## Edits ready now (no decision)
 
-A and B (model and README, then `check:formal`), C, D, E (text).
+A and B (model and README, then `check:formal`), C, D, E (text): done after this review. The lemmas keep their names; `check:formal` passes with the looser seal and the stronger lemmas.
 
 ## Stop rule
 

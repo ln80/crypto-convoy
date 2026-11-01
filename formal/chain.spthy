@@ -26,6 +26,12 @@ begin
  *   approves which keys is a human's (AS-06), outside this model.
  * - The client keeps one anchor, the version it holds; floors and the vault's anchor are not
  *   modelled (they are local state over the same chain check).
+ * - A roster seal binds the team alone, looser than §4.5 (version number and keys hash), and the
+ *   previous-key link binds nothing (§4.5: team and version): the attacker may move either between
+ *   records, more than the protocol allows.
+ * - Readers are the member of a record's second roster slot: an owner never follows the chain as a
+ *   reader. Each account has one signing key, never replaced, so the owner key replacement of §6.7
+ *   and §6.8 step 3 is not modelled.
  *
  * Mutations (scripts/check-formal.mjs):
  * - MUT_NO_OWNER_RULE: a member accepts a next version signed by anyone.
@@ -66,7 +72,7 @@ rule Reveal_sig:
 rule Create:
   let vid = <'v1', $V>
       rec = <'tkv', $T, vid, $O, pkEO, $B, pkEB,
-             aenc(<'roster-seal', $T, vid, ~tk>, pkEO), aenc(<'roster-seal', $T, vid, ~tk>, pkEB), 'none'>
+             aenc(<'roster-seal', $T, ~tk>, pkEO), aenc(<'roster-seal', $T, ~tk>, pkEB), 'none'>
   in
   [ Fr(~tk), !Sig($O), !Pk($O, pkEO), !Pk($B, pkEB) ]
   --[ NewVersion(vid), TeamCreated($T), Version($T, vid, ~tk, $O, $B), Signed($O, vid) ]->
@@ -80,7 +86,7 @@ rule Rotate_to_2:
   let vid = <'v1', v1>
       nvid = <vid, $V>
       rec = <'tkv', T, nvid, $N, pkEN, $C, pkEC,
-             aenc(<'roster-seal', T, nvid, ~tk>, pkEN), aenc(<'roster-seal', T, nvid, ~tk>, pkEC), senc(ptk, ~tk)>
+             aenc(<'roster-seal', T, ~tk>, pkEN), aenc(<'roster-seal', T, ~tk>, pkEC), senc(ptk, ~tk)>
   in
   [ Owner(ptk, O, T, vid), Fr(~tk), !Pk($N, pkEN), !Pk($C, pkEC) ]
   --[ NewVersion(nvid), Version(T, nvid, ~tk, $N, $C), Signed(O, nvid) ]->
@@ -90,7 +96,7 @@ rule Rotate_to_3:
   let vid = <<'v1', v1>, v2>
       nvid = <vid, $V>
       rec = <'tkv', T, nvid, $N, pkEN, $C, pkEC,
-             aenc(<'roster-seal', T, nvid, ~tk>, pkEN), aenc(<'roster-seal', T, nvid, ~tk>, pkEC), senc(ptk, ~tk)>
+             aenc(<'roster-seal', T, ~tk>, pkEN), aenc(<'roster-seal', T, ~tk>, pkEC), senc(ptk, ~tk)>
   in
   [ Owner(ptk, O, T, vid), Fr(~tk), !Pk($N, pkEN), !Pk($C, pkEC) ]
   --[ NewVersion(nvid), Version(T, nvid, ~tk, $N, $C), Signed(O, nvid) ]->
@@ -99,7 +105,7 @@ rule Rotate_to_3:
 rule Rotate:
   let nvid = <vid, $V>
       rec = <'tkv', T, nvid, $N, pkEN, $C, pkEC,
-             aenc(<'roster-seal', T, nvid, ~tk>, pkEN), aenc(<'roster-seal', T, nvid, ~tk>, pkEC), senc(ptk, ~tk)>
+             aenc(<'roster-seal', T, ~tk>, pkEN), aenc(<'roster-seal', T, ~tk>, pkEC), senc(ptk, ~tk)>
   in
   [ Owner(ptk, O, T, vid), Fr(~tk), !Pk($N, pkEN), !Pk($C, pkEC) ]
   --[ NewVersion(nvid), Version(T, nvid, ~tk, $N, $C), Signed(O, nvid) ]->
@@ -111,7 +117,7 @@ rule Rotate:
 rule Seal_to_removed:
   [ Rotated(T, <vid, n>, tk), !Rec(T, vid, s, <'tkv', T, vid, o, pkO, b, pkB, x, y, w>) ]
   -->
-  [ Out(aenc(<'roster-seal', T, <vid, n>, tk>, pkB)) ]
+  [ Out(aenc(<'roster-seal', T, tk>, pkB)) ]
 #endif
 
 // A record signed with a stolen key: any content the attacker chooses, as version 1 or as the next
@@ -127,7 +133,7 @@ rule Forge:
 // itself; this rule only spares the search from assembling them.
 rule Forge_with_key:
   let rec = <'tkv', T, vid, NO, pkEN, C, pkEC,
-             aenc(<'roster-seal', T, vid, tk>, pkEN), aenc(<'roster-seal', T, vid, tk>, pkEC), senc(x, tk)>
+             aenc(<'roster-seal', T, tk>, pkEN), aenc(<'roster-seal', T, tk>, pkEC), senc(x, tk)>
   in
   [ !Sig(S), In(<T, vid, NO, pkEN, C, pkEC, tk, x>) ]
   --[ Forged(S), ForgedVersion(S, vid) ]->
@@ -137,7 +143,7 @@ rule Forge_with_key:
 // signed it and it rosters this member (TH-04).
 rule Join_first_contact:
   let vid = <'v1', n>
-      rec = <'tkv', T, vid, O, pkEO, $M, pk(eM), s1, aenc(<'roster-seal', T, vid, tk>, pk(eM)), 'none'>
+      rec = <'tkv', T, vid, O, pkEO, $M, pk(eM), s1, aenc(<'roster-seal', T, tk>, pk(eM)), 'none'>
   in
   [ !Rec(T, vid, O, rec), !Enc($M, eM) ]
   --[ Joined($M, T, vid), Holds($M, T, vid, O, tk) ]->
@@ -146,18 +152,18 @@ rule Join_first_contact:
 // §6.4 with the invite anchor, given out of band: version 1 must be the record it names.
 rule Join_with_anchor:
   let vid = <'v1', n>
-      rec = <'tkv', T, vid, O, pkEO, $M, pk(eM), s1, aenc(<'roster-seal', T, vid, tk>, pk(eM)), 'none'>
+      rec = <'tkv', T, vid, O, pkEO, $M, pk(eM), s1, aenc(<'roster-seal', T, tk>, pk(eM)), 'none'>
   in
   [ !Invite(T, $M, rec), !Rec(T, vid, O, rec), !Enc($M, eM) ]
   --[ JoinedAnchored($M, T, vid), Holds($M, T, vid, O, tk) ]->
   [ Member($M, T, vid, O, tk) ]
 
 // §4.5 reader check 3 and the roster entry: the next version links to the held one, is signed by
-// the held version's owner, and seals its key to this member under the expected context.
+// the held version's owner, and seals its key to this member.
 #ifdef MUT_NO_OWNER_RULE
 rule Advance:
   let nvid = <vid, nn>
-      nxt = <'tkv', T, nvid, NO, pkEN, $M, pk(eM), s1, aenc(<'roster-seal', T, nvid, tk2>, pk(eM)), senc(x, tk2)>
+      nxt = <'tkv', T, nvid, NO, pkEN, $M, pk(eM), s1, aenc(<'roster-seal', T, tk2>, pk(eM)), senc(x, tk2)>
   in
   [ Member($M, T, vid, O, tk), !Rec(T, nvid, S, nxt), !Enc($M, eM) ]
   --[ Accept($M, T, vid, nvid, tk2, O), Holds($M, T, nvid, NO, tk2), Link($M, tk, x) ]->
@@ -165,7 +171,7 @@ rule Advance:
 #else
 rule Advance:
   let nvid = <vid, nn>
-      nxt = <'tkv', T, nvid, NO, pkEN, $M, pk(eM), s1, aenc(<'roster-seal', T, nvid, tk2>, pk(eM)), senc(x, tk2)>
+      nxt = <'tkv', T, nvid, NO, pkEN, $M, pk(eM), s1, aenc(<'roster-seal', T, tk2>, pk(eM)), senc(x, tk2)>
   in
   [ Member($M, T, vid, O, tk), !Rec(T, nvid, O, nxt), !Enc($M, eM) ]
   --[ Accept($M, T, vid, nvid, tk2, O), Holds($M, T, nvid, NO, tk2), Link($M, tk, x) ]->
@@ -202,9 +208,10 @@ lemma owner_rule:
   "All m t v v2 tk2 o #i. Accept(m, t, v, v2, tk2, o) @ #i
      ==> (Ex #s. Signed(o, v2) @ #s) | (Ex #r. RevealSig(o) @ #r)"
 
-// SP-07: with the invite anchor, a joiner holds the real version 1.
+// SP-07: with the invite anchor, a joiner holds the real version 1: its key and its owner.
 lemma anchored_join_holds_the_real_version:
-  "All m t v #i. JoinedAnchored(m, t, v) @ #i ==> Ex tk o b #j. Version(t, v, tk, o, b) @ #j"
+  "All m t v o tk #i. JoinedAnchored(m, t, v) @ #i & Holds(m, t, v, o, tk) @ #i
+     ==> Ex b #j. Version(t, v, tk, o, b) @ #j"
 
 // Helper: an honest version is followed by at most one honest version, since its owner's state is
 // used once.
@@ -213,10 +220,11 @@ lemma one_honest_successor [reuse]:
      ==> #i = #j"
 
 // SP-05: members holding one version from one owner never accept two different next versions,
-// unless that owner's signing key was stolen (one owner per version here; TH-38 for several).
+// nor one version with two keys, unless that owner's signing key was stolen (one owner per version
+// here; TH-38 for several).
 lemma no_fork_without_owner_key:
   "All m1 m2 t v v2 v3 tk2 tk3 o #i #j. Accept(m1, t, v, v2, tk2, o) @ #i & Accept(m2, t, v, v3, tk3, o) @ #j
-     ==> (v2 = v3) | (Ex #r. RevealSig(o) @ #r)"
+     ==> (v2 = v3 & tk2 = tk3) | (Ex #r. RevealSig(o) @ #r)"
 
 // §4.5: with no signing key stolen, the previous-key link a member accepts wraps the key it holds
 // (review 037 A: a stolen one breaks it).

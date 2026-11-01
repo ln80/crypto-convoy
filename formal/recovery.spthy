@@ -12,8 +12,11 @@ begin
  * if their recovery signature verifies against the recovery key the account's *held* keys carry.
  *
  * Abstractions (formal/README.md):
- * - Member keys are `<'mk', team, account, signing public key, recovery public key>`; the version
- *   number and the self-signature are left out (they prove nothing about who made the keys).
+ * - Member keys are `<'mk', team, account, signing public key, recovery public key>`. The
+ *   self-signature is left out: it proves nothing about who made the keys. The version number is
+ *   left out too, though it orders re-keys: `reconcile` approves only keys newer than those held
+ *   (§6.9). Here it approves any proven record, an earlier one included, so no lemma states that
+ *   freshness.
  * - Signatures are ideal: recovery signatures live in a store (`!Proof`) that only the user, with the
  *   phrase, and the attacker, with a key it knows, write.
  * - Held keys are pinned by the roster (keys hash), so the attacker can't choose them; who approves

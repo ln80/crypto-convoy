@@ -13,7 +13,7 @@ docker build --platform linux/amd64 -t crypto-convoy-tamarin:1.12.0 formal
 npm run check:formal
 ```
 
-`check:formal` runs each model in batch, compares every lemma's result with `expected.json`, and runs each mutation, which must break the lemma it names. A model may run several times with preprocessor flags (`chain.spthy` with `DEPTH3`). About 13 minutes in the container: the transfer about 5 seconds, the chain about 9 minutes (most of it the attack searches), the mutations the rest. Existence lemmas are searched breadth-first (`--stop-on-trace=BFS`): depth-first, the search can follow the chain forever. With neither Tamarin nor the image it skips with a note. To step through a proof or an attack trace: `tamarin-prover interactive formal/` (or `docker run --rm -p 3001:3001 -v "$PWD/formal:/formal" --entrypoint tamarin-prover crypto-convoy-tamarin:1.12.0 interactive --interface='*4' .`), then open http://127.0.0.1:3001.
+`check:formal` runs each model in batch, compares every lemma's result with `expected.json`, and runs each mutation, which must break the lemma it names. A model may run several times with preprocessor flags (`chain.spthy` with `DEPTH3`). About 5 minutes in the container: the transfer a few seconds, the chain about 2.5 minutes (most of it the attack searches), the mutations the rest. Existence lemmas are searched breadth-first (`--stop-on-trace=BFS`): depth-first, the search can follow the chain forever. With neither Tamarin nor the image it skips with a note. To step through a proof or an attack trace: `tamarin-prover interactive formal/` (or `docker run --rm -p 3001:3001 -v "$PWD/formal:/formal" --entrypoint tamarin-prover crypto-convoy-tamarin:1.12.0 interactive --interface='*4' .`), then open http://127.0.0.1:3001.
 
 ## How a model is trusted
 
@@ -45,6 +45,7 @@ Abstractions:
 
 - `seal` is ideal public-key encryption with an anonymous sender (`aenc`), as libsodium's sealed box (§3.2), with the context inside the box.
 - A bundle's private keys are one fresh secret; its floor is public, as an anchor is.
+- The request carries the team; in §3.8 it is the receiver's public key alone, and which team to export is the integration's (D-29). The same on an authentic channel; on one the attacker writes, it chooses the team either way.
 - The check against the published `member-keys` record (§3.8 step 3) is left out: it binds keys to what the server serves, which the server controls (TH-49).
 - The channel is the integration's duty (D-29): the attacker always reads it and replays it; `Chan_inject` stands for a channel the server or a script can write. Lemmas about the duty exclude injection; the accepted attacks need it.
 - One reveal per actor: the account key (A7, A9 in the vault: every bundle) and a receiver's secret (A9 in the receiving context), read from a record of its own so a reveal doesn't renew the receiver.
@@ -79,9 +80,9 @@ Roles: owners, who create a team and rotate it, each version rostering its owner
 | --- | --- | --- |
 | `executable` | a member joins with the anchor and accepts the next version | trace found |
 | `owner_rule` | SP-05: a member accepts a version only if the owner of the version it holds signed it, unless that owner's key was stolen; a removed owner's signature is refused | verified |
-| `anchored_join_holds_the_real_version` | SP-07: with the invite anchor, a joiner holds the real version 1 | verified |
+| `anchored_join_holds_the_real_version` | SP-07: with the invite anchor, a joiner holds the real version 1, its key and its owner | verified |
 | `one_honest_successor` | helper: an honest version has at most one honest successor | verified |
-| `no_fork_without_owner_key` | SP-05: members holding a version from one owner never accept two different next versions, unless that owner's key was stolen | verified |
+| `no_fork_without_owner_key` | SP-05: members holding a version from one owner never accept two different next versions, nor one with two keys, unless that owner's key was stolen | verified |
 | `link_wraps_the_held_key` | §4.5: with no signing key stolen, the previous-key link a member accepts wraps the key it holds | verified |
 | `attack_TH04_first_contact` | TH-04, accepted: without the anchor, a joiner holds a version 1 nobody created for that team | trace found |
 | `attack_TH38_split_view` | TH-38, accepted: with a stolen owner key, a member accepts a next version other than the one its owner wrote | trace found |
@@ -100,10 +101,15 @@ Abstractions:
 
 - Signatures are ideal: the server's store is a fact only two rules write, an owner's rotation and a forgery under a key the attacker stole (restriction `ForgeOnlyWithStolenKey`). A member reads any stored record, in any order. A second forging rule builds the seals from a key the attacker supplies; it adds no power, only spares the search.
 - A version's identity is `<parent, name>`, standing for the version number; "a later version" is the subterm relation. The invite anchor names the whole record, as a record hash does.
+- A roster seal binds the team alone, looser than §4.5 (version number and keys hash), and the previous-key link binds nothing (§4.5: team and version), so the attacker may move either between records, more than the protocol allows. Review 042 A checked that every result holds with this looser seal.
 - One owner per version and two roster entries; an owner may hand over to an account it rosters. Several owners, which TH-38 needs without a stolen key, are not modelled.
+- Readers are the member of a record's second roster slot: an owner never follows the chain as a reader. The reader checks don't depend on the role, but the lemmas are proven for that slot.
+- Each account has one signing key, never replaced: reader check 3's "same key" and the owner key replacement of §6.7 and §6.8 step 3 (an old owner key refused after a re-key) are not modelled.
 - Accounts publish one encryption and one signing key each, in an authentic registry: approving keys is a human's (AS-06).
 - One anchor per member, the version it holds; floors and the vault's anchor are not modelled (local state over the same chain check), so review 041 A's planted floor is out of this model.
 - Secrecy is proven for chains of three versions (`DEPTH3`): with unbounded rotations, the proof follows the previous-key links without end. Teams, accounts and sessions stay unbounded. The structural lemmas hold on the unbounded chain.
+
+Not covered: rollback and roots. The model checks the join from an invite anchor, not SP-07's refusal of a chain without the anchor, nor the floor and the vault's anchor as roots (D-50, D-54, D-66), nor 041-A's planted floor. They are local checks over the same chain; the external audit's brief names them.
 
 Results (Tamarin 1.12.0, 2026-10-31): every lemma as expected, each mutation breaks only its lemma.
 
@@ -132,11 +138,13 @@ Mutations: `MUT_CHECK_CARRIED` (`reconcile` checks the proof against the key the
 
 Abstractions:
 
-- Member keys are `<'mk', team, account, signing public key, recovery public key>`; the version number and the self-signature are left out: they prove nothing about who made the keys.
+- Member keys are `<'mk', team, account, signing public key, recovery public key>`. The self-signature is left out: it proves nothing about who made the keys.
 - Signatures are ideal: recovery signatures live in a store that only the user, with the phrase, and the attacker, with a key it knows, write. Team and account names are public.
 - Held keys are pinned by the roster (keys hash), so the attacker can't choose them; a human approves only keys the user made (AS-06).
 - The vault's stored recovery key is a store of every key written: the real one, and any an account-key holder writes; the vault may read any of them, as a server replaying an earlier recovery wrap makes it (§4.1).
 - Owners' own re-keys (D-47), approved by holding the keys, and a phrase replaced with the PIN alone, are not modelled.
+
+Not covered: freshness. The version number orders re-keys, and `reconcile` approves only keys newer than those held (§6.9, `proofOf`). The model leaves the version out and approves any proven record, an earlier one included, which is safe for its lemmas, but none of them states that an earlier proven record, whose private keys a device thief may have copied, is never approved again.
 
 Results (Tamarin 1.12.0, 2026-10-31): every lemma as expected, each mutation breaks its lemma; about 6 seconds.
 
