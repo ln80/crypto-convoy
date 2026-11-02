@@ -31,7 +31,7 @@ Ranked by what a flaw would cost and how little it was checked. Each names the r
 
 ### 4. Roots and rollback (D-50, D-52, D-54, D-66)
 
-`src/team/anchors.ts`, `load.ts`, `chain.ts` and the vault's floor writes (`src/account/`). The most amended area of the protocol: D-54 and D-58 are the decisions the ledger cites most, and reviews 035, 037 and 041 each found something here (037-D, 037-E and 041-A are accepted). The formal chain model does not cover it (review 042 C): it keeps one anchor per member, with no floor, local anchor or vault anchor. Questions: can any actor alone write a root, move a floor down or sideways, or make a new device or a receiving context start from a chain the account never verified?
+`src/team/anchors.ts`, `load.ts`, `chain.ts` and the vault's floor writes (`src/account/`). The most amended area of the protocol: D-54 and D-58 are the decisions the ledger cites most, and reviews 035, 037 and 041 each found something here (037-D, 037-E and 041-A are accepted). The formal chain model does not cover it (review 042 C): it keeps one anchor per member, with no floor, local anchor or vault anchor. Review 044 checked the floor rule's text (one current statement, D-54) and the roots after D-66 (five), not the code paths. Questions: can any actor alone write a root, move a floor down or sideways, or make a new device or a receiving context start from a chain the account never verified?
 
 ### 5. Recovery, `secureAccount` and re-keys (§5.6–§5.11, §6.8, D-49, D-56, D-58–D-60)
 

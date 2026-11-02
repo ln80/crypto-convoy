@@ -6,7 +6,7 @@ Every review finding and every accepted residual, kept by the [protocol-review](
 
 Freeze candidate when two reviews in a row, in different modes, at least one `adversarial` with a fresh-context reviewer, find nothing the [action rule](../guides/direction.md#the-action-rule) says to fix beyond availability, and no such finding is open. Availability-only fixes are still done, before the first release, but don't count. (Until review 013 the rule was "nothing medium or above"; from 013, findings accepted and documented, or text corrected, no longer counted; from review 037, availability-only fixes no longer count either.)
 
-**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Formal models done (plan 027), every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Review 042 (`change`, the models) found no protocol fix; its model and text edits (042-A to E) are done. Review 043 (`residuals`, the first) found TH-04's revisit condition met in doconvoy: closed with an anchor code the owner and joiner compare (integration guide), no protocol change; edits B to F done. Open findings: none. Next: doconvoy's anchor-code screen, then the external audit, before the vectors freeze (§13); not yet funded. Its brief, kept up to date by every review, is [audit-brief.md](audit-brief.md).
+**Now:** 2 of 2: freeze candidate, covering D-66 (reviews 040 `change`, 041 `adversarial`). Formal models done (plan 027), every lemma as expected and every mutation caught, no attack beyond the accepted ones (`npm run check:formal`, `formal/README.md`). Review 042 (`change`, the models) found no protocol fix; its model and text edits (042-A to E) are done. Review 043 (`residuals`, the first) found TH-04's revisit condition met in doconvoy: closed with an anchor code the owner and joiner compare (integration guide), no protocol change; edits B to F done. Review 044 (`complexity`): every count level or down since review 039; text edits 044-A to C open, no protocol fix. Open findings: 044-A to C (text). Next: doconvoy's anchor-code screen, then the external audit, before the vectors freeze (§13); not yet funded. Its brief, kept up to date by every review, is [audit-brief.md](audit-brief.md).
 
 ## Findings
 
@@ -207,6 +207,9 @@ Freeze candidate when two reviews in a row, in different modes, at least one `ad
 | 043-D | Missing disclosure | Low | Fixed | Guides: replace inboxes after a removal, TH-30 (edit after review 043) |
 | 043-E | Combined attack (availability) | Low | Accepted | TH-46: with the PIN budget spent, device or support only (edit after review 043) |
 | 043-F | Simplification | — | Fixed | Direction guide: support-restore and session-theft groups (edit after review 043) |
+| 044-A | Stale text | Low | Open | §5.11 step 2: a planted bundle with no floor no longer opens (D-66); cite §5.9 |
+| 044-B | Stale text | Low | Open | Integration Duties: the anchor code as the alternative for invites the server sends (043 A) |
+| 044-C | Simplification | — | Open | D-52 status and `using.md`: cite the current floor rule (D-54, §5.8) |
 
 ## Residuals
 
