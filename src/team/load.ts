@@ -8,7 +8,7 @@ import type { Suite } from "../suites/suite.js";
 import { extendChain, verifyChain, type VerifiedChain } from "./chain.js";
 import type { MemberBundle } from "./context.js";
 
-export interface ChainPorts {
+interface ChainPorts {
   readonly suite: Suite;
   readonly store: RecordStore;
   readonly anchors?: AnchorStore;

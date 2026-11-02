@@ -26,7 +26,6 @@ describe("SP-12: compromised member keys can be replaced", () => {
 
   it("keys only their own holder vouches for are never approved by a rotation that doesn't name them", async () => {
     const { members, aliceTeam } = await team("bob");
-    const stolen = await bundleOf(members.bob!.vault);
     const attacker = strangerKeys();
     await members.bob!.store.commit([
       { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, attacker) },

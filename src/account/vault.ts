@@ -121,7 +121,7 @@ export async function createVault(options: VaultOptions, accountId: string): Pro
 }
 
 /** Library-only access to the vault's ports and open account key. Never exported from the package entry (D-15). */
-export interface VaultInternals {
+interface VaultInternals {
   readonly ports: AccountPorts;
   account(): OpenAccount;
 }

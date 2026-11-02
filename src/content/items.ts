@@ -25,7 +25,6 @@ export function newItemDraft(
 export function openedItem(ports: ContentPorts, record: Item, itemKey: Uint8Array): OpenedItem {
   const manifest = openManifest(record, itemKey);
   return new OpenedItem(
-    ports.suite,
     manifest,
     ports.settings.maxBufferedSize,
     (entry, ciphertext) => openPart(record, itemKey, entry, ciphertext),

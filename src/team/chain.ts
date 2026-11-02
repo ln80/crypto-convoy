@@ -35,7 +35,7 @@ export interface VerifiedChain {
   readonly memberChanges: readonly MemberChange[];
 }
 
-export const sameSigner = (a: SignerRef, b: SignerRef, equal: (x: Uint8Array, y: Uint8Array) => boolean) =>
+const sameSigner = (a: SignerRef, b: SignerRef, equal: (x: Uint8Array, y: Uint8Array) => boolean) =>
   a.accountId === b.accountId && equal(a.signingPublicKey, b.signingPublicKey);
 
 export function isOwner(record: TeamKeyVersion, signer: SignerRef): boolean {

@@ -7,9 +7,9 @@ import { isConvoyError } from "../errors.js";
 import type { Suite } from "../suites/suite.js";
 import { expectContext, readEncryptionKey, readRecord, readSigningKey, writeHeader, type RecordHeader } from "./common.js";
 
-export const MEMBER_KEYS = "member-keys";
+const MEMBER_KEYS = "member-keys";
 
-export interface MemberKeysContext {
+interface MemberKeysContext {
   readonly teamId: string;
   readonly accountId: string;
   readonly memberKeysVersion: number;

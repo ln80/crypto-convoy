@@ -20,10 +20,10 @@ import {
   type SignerRef,
 } from "./common.js";
 
-export const TEAM_KEY_VERSION = "team-key-version";
+const TEAM_KEY_VERSION = "team-key-version";
 
 /** One account receiving the version: its keys, pinned by hash, and the key sealed to them (§4.5, D-34). */
-export interface RosterEntry {
+interface RosterEntry {
   readonly accountId: string;
   readonly memberKeysVersion: number;
   readonly keysHash: Uint8Array;
@@ -74,14 +74,14 @@ export function recordHash(record: TeamKeyVersion): Uint8Array {
 }
 
 /** Byte order of the UTF-8 encoding, as the owner list requires. */
-export function compareIds(a: string, b: string): number {
+function compareIds(a: string, b: string): number {
   const x = utf8(a);
   const y = utf8(b);
   for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i]! - y[i]!;
   return x.length - y.length;
 }
 
-export function sortOwners(owners: readonly SignerRef[]): SignerRef[] {
+function sortOwners(owners: readonly SignerRef[]): SignerRef[] {
   return [...owners].sort((a, b) => compareIds(a.accountId, b.accountId));
 }
 
@@ -93,14 +93,14 @@ function checkSorted(items: readonly { accountId: string }[], max: number) {
 }
 
 /** A recipient of a new version: the keys the owner seals it to. */
-export interface RosterRecipient {
+interface RosterRecipient {
   readonly accountId: string;
   readonly memberKeysVersion: number;
   readonly keysHash: Uint8Array;
   readonly encryptionPublicKey: Uint8Array;
 }
 
-export interface NewTeamKeyVersion {
+interface NewTeamKeyVersion {
   readonly teamId: string;
   readonly version: number;
   readonly prevHash: Uint8Array;

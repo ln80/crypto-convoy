@@ -5,8 +5,8 @@ import { suiteFor } from "../suites/registry.js";
 import type { Suite } from "../suites/suite.js";
 
 /** Record format versions this library reads; writers use the last (§10). */
-export const VERSIONS = [1] as const;
-export const WRITE_VERSION = 1;
+const VERSIONS = [1] as const;
+const WRITE_VERSION = 1;
 
 export interface RecordHeader {
   readonly v: number;

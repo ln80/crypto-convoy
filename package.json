@@ -2,7 +2,7 @@
   "name": "crypto-convoy",
   "version": "0.0.0",
   "private": true,
-  "description": "End-to-end encryption primitives for Convoy (extractable, to be open-sourced).",
+  "description": "End-to-end encrypted team storage: account keys, team keys shared through an untrusted server, encrypted items, link shares and inboxes.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

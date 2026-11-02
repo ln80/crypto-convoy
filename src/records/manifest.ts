@@ -29,7 +29,7 @@ export function readManifest(reader: Reader): ManifestEntry[] {
 }
 
 /** §4.7: indexes 0, 1, … in order, 1–128 parts, `meta` up to 4096 bytes. */
-export function checkManifest(entries: readonly ManifestEntry[]): void {
+function checkManifest(entries: readonly ManifestEntry[]): void {
   if (entries.length < 1 || entries.length > LIMITS.parts) throw malformed();
   entries.forEach((e, i) => {
     if (e.index !== i || e.ciphertextHash.length !== HASH || e.meta.length > LIMITS.meta) throw malformed();

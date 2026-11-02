@@ -7,7 +7,7 @@ import { ARGON2_BOUNDS } from "../suites/cc1/index.js";
 import type { Suite } from "../suites/suite.js";
 import { expectContext, readRecord, readWrapped, writeHeader, writeWrapped, type RecordHeader } from "./common.js";
 
-export const ACCOUNT_KEY_WRAP = "account-key-wrap";
+const ACCOUNT_KEY_WRAP = "account-key-wrap";
 
 export type UnlockMethod = "pin" | "recovery" | "device";
 
@@ -19,7 +19,7 @@ export interface Kdf {
   readonly oprfKeyId: number;
 }
 
-export interface AccountKeyWrapContext {
+interface AccountKeyWrapContext {
   readonly accountId: string;
   readonly accountKeyVersion: number;
   readonly method: UnlockMethod;

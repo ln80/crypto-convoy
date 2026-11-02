@@ -12,7 +12,6 @@ import { FAST, world } from "../support/fixtures.js";
 import { bundleOf } from "../support/forge.js";
 import { accessOf } from "../support/forge.js";
 import { team } from "../support/teams.js";
-import { openBundles } from "../../src/account/member-custody.js";
 import { createVault, vaultInternals, type Vault } from "../../src/account/vault.js";
 import { createMemberKeysWrap, memberKeysWrapToJson } from "../../src/records/member-keys-wrap.js";
 import { createTeamKeyReceiver } from "../../src/team/receiver.js";
@@ -25,7 +24,6 @@ import { MemoryLocalKeyStore } from "../../src/testing/index.js";
 import { versionRecord, forgeFirstVersion, forgeVersion } from "../support/forge.js";
 import type { TamperingStore } from "../support/fake-store.js";
 
-const bundlesOf = (vault: Vault) => openBundles(vaultInternals(vault).ports, vaultInternals(vault).account(), "team-1");
 const anchorAt = async (store: RecordStore, version: number) => ({ version, hash: recordHash(await versionRecord(store, "team-1", version)) });
 
 const code = (c: string) => expect.objectContaining({ code: c });

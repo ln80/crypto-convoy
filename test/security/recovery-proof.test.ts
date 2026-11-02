@@ -40,7 +40,6 @@ describe("SP-23: recovery-proven re-keys", () => {
 
   it("a session thief without the phrase gets a hint at most", async () => {
     const { members, aliceTeam } = await team("bob");
-    const stolen = await bundleOf(members.bob!.vault);
     await members.bob!.store.commit([create("bob", 2, forgeMemberKeys("bob", 2, strangerKeys()))]);
     const report = await aliceTeam.owner().reconcile(["alice", "bob"]);
     expect(report).toMatchObject({ approvedRekeys: [], needsHuman: [{ accountId: "bob", reason: "rekey-unproven", proof: "none" }] });

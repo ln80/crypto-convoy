@@ -49,7 +49,6 @@ describe("SP-22: reconcile only narrows access by itself", () => {
 
   it("keys a session thief publishes are never approved by reconcile", async () => {
     const { members, aliceTeam } = await team("bob");
-    const stolen = await bundleOf(members.bob!.vault);
     await members.bob!.store.commit([
       { op: "create", key: { type: "member-keys", teamId: "team-1", accountId: "bob", memberKeysVersion: 2 }, record: forgeMemberKeys("bob", 2, strangerKeys()) },
     ]);

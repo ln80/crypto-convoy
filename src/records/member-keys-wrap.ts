@@ -9,9 +9,9 @@ import type { KeyPair, Suite } from "../suites/suite.js";
 import { expectContext, readRecord, readWrapped, writeHeader, writeWrapped, type RecordHeader } from "./common.js";
 import type { MemberKeys } from "./member-keys.js";
 
-export const MEMBER_KEYS_WRAP = "member-keys-wrap";
+const MEMBER_KEYS_WRAP = "member-keys-wrap";
 
-export interface MemberKeysWrapContext {
+interface MemberKeysWrapContext {
   readonly accountId: string;
   readonly teamId: string;
   readonly memberKeysVersion: number;

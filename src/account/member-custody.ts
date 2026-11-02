@@ -58,7 +58,7 @@ export async function openBundles(ports: AccountPorts, account: OpenAccount, tea
   return bundles;
 }
 
-export interface NewMemberKeysOptions {
+interface NewMemberKeysOptions {
   /** The account's recovery public key, read authenticated from its recovery wrap (§4.1). */
   readonly recoveryPublicKey: Uint8Array;
   /** On a re-key with the phrase: the recovery signing key proves the new keys (D-33). */

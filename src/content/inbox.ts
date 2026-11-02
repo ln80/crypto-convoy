@@ -72,7 +72,6 @@ export function openSubmissionRecord(
     const envelope = openEnvelope(record, inboxKey);
     return new OpenedSubmission(
       envelope.createdAt,
-      ports.suite,
       envelope.manifest,
       ports.settings.maxBufferedSize,
       (entry, ciphertext) => openSubmissionPart(record, envelope, entry, ciphertext),

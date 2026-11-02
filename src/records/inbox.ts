@@ -8,7 +8,7 @@ import { expectContext, readEncryptionKey, readRecord, readWrapped, writeHeader,
 
 export const INBOX = "inbox";
 
-export interface InboxContext {
+interface InboxContext {
   readonly teamId: string;
   readonly inboxId: string;
 }
@@ -32,7 +32,7 @@ const adFields = (r: Omit<Inbox, "v" | "suite" | "wrappedSecretKey">): Field[] =
   u64(r.createdAt),
 ];
 
-export interface NewInbox extends InboxContext {
+interface NewInbox extends InboxContext {
   readonly teamKeyVersion: number;
   readonly createdBy: string;
   readonly createdAt: number;

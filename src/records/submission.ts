@@ -11,18 +11,18 @@ import { encodeManifest, readManifest, type ManifestEntry } from "./manifest.js"
 
 export const SUBMISSION = "submission";
 
-export interface SubmissionContext {
+interface SubmissionContext {
   readonly teamId: string;
   readonly inboxId: string;
   readonly submissionId: string;
 }
 
-export interface Submission extends RecordHeader, SubmissionContext {
+interface Submission extends RecordHeader, SubmissionContext {
   readonly sealedEnvelope: Uint8Array;
 }
 
 /** The opened envelope (§4.10). */
-export interface Envelope {
+interface Envelope {
   readonly contentKey: Uint8Array;
   readonly createdAt: number;
   readonly manifest: ManifestEntry[];

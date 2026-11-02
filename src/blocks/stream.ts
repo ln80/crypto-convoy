@@ -13,7 +13,7 @@ export interface EncryptedStream {
 }
 
 /** What the manifest says a stream must be (§4.7, §4.10). */
-export interface ExpectedStream {
+interface ExpectedStream {
   readonly size: number;
   readonly hash: Uint8Array;
 }

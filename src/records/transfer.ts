@@ -11,12 +11,12 @@ const PREFIX = "1";
 const KEY = 32;
 const MAX_BUNDLES = 64;
 
-export interface TransferContext {
+interface TransferContext {
   readonly accountId: string;
   readonly teamId: string;
 }
 
-export interface TransferBundle extends MemberKeyBundle {
+interface TransferBundle extends MemberKeyBundle {
   readonly memberKeysVersion: number;
 }
 

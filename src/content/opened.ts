@@ -2,17 +2,15 @@
 import { decryptionFailed, malformed } from "../errors.js";
 import { concat } from "../internal/bytes.js";
 import type { ManifestEntry } from "../records/manifest.js";
-import type { Suite } from "../suites/suite.js";
 import type { PartInfo, PartSource } from "./context.js";
 
 type OpenPart = (entry: ManifestEntry, ciphertext: Uint8Array) => Uint8Array;
 type OpenPartStream = (entry: ManifestEntry, source: AsyncIterable<Uint8Array>) => AsyncGenerator<Uint8Array, void, undefined>;
 
 /** Holds the content key; `close()` forgets it. */
-export class Opened {
+class Opened {
   /** Each part's index, `meta` and ciphertext size. */
   readonly parts: readonly PartInfo[];
-  readonly #suite: Suite;
   readonly #manifest: readonly ManifestEntry[];
   readonly #maxBufferedSize: number;
   readonly #open: OpenPart;
@@ -22,14 +20,12 @@ export class Opened {
 
   /** @internal */
   constructor(
-    suite: Suite,
     manifest: readonly ManifestEntry[],
     maxBufferedSize: number,
     open: OpenPart,
     openStream: OpenPartStream,
     wipe: () => void,
   ) {
-    this.#suite = suite;
     this.#manifest = manifest;
     this.#maxBufferedSize = maxBufferedSize;
     this.#open = open;
@@ -97,4 +93,3 @@ export class OpenedSubmission extends Opened {
 }
 
 export { Opened as OpenedItem };
-export const wipeWith = (suite: Suite, key: Uint8Array) => () => suite.wipe(key);

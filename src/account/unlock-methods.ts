@@ -36,7 +36,7 @@ export async function acceptVersion(ports: AccountPorts, account: OpenAccount): 
 }
 
 /** A wrap read by its identity: absent, readable, or present but unreadable (D-58). */
-export type ReadWrap = { readonly state: "absent" } | { readonly state: "readable"; readonly wrap: AccountKeyWrap } | { readonly state: "unreadable" };
+type ReadWrap = { readonly state: "absent" } | { readonly state: "readable"; readonly wrap: AccountKeyWrap } | { readonly state: "unreadable" };
 
 /**
  * The wrap the caller asked for. One that doesn't parse, or fails its shape or context checks at a
@@ -73,7 +73,7 @@ export async function openDeviceWrap(ports: AccountPorts, accountId: string, ver
 }
 
 /** The wrap the caller asked for, or `null` if the server doesn't serve it. */
-export async function fetchWrap(
+async function fetchWrap(
   ports: AccountPorts,
   expected: { accountId: string; accountKeyVersion: number; method: UnlockMethod; deviceId?: string },
 ): Promise<AccountKeyWrap | null> {

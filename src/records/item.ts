@@ -3,14 +3,14 @@ import { streamDecrypt, streamDecryptChunks, streamEncrypt, streamEncryptChunks,
 import { unwrap, wrap, wrappedHash, type Wrapped } from "../blocks/wrap.js";
 import { Reader, bytes, string, u32, u64, type Field } from "../encoding/canonical.js";
 import { LIMITS, type JsonRecord } from "../encoding/json.js";
-import { decryptionFailed, malformed } from "../errors.js";
+import { decryptionFailed } from "../errors.js";
 import type { Suite } from "../suites/suite.js";
 import { expectContext, readRecord, readWrapped, writeHeader, writeWrapped, type RecordHeader } from "./common.js";
 import { encodeManifest, readManifest, type ManifestEntry } from "./manifest.js";
 
 export const ITEM = "item";
 
-export interface ItemContext {
+interface ItemContext {
   readonly teamId: string;
   readonly itemId: string;
 }
@@ -44,7 +44,7 @@ const itemKeyContext = (suite: Suite, r: Omit<Item, "v" | "suite" | "wrappedItem
   bytes(wrappedHash(suite, r.wrappedManifest)),
 ];
 
-export interface NewItem extends ItemContext {
+interface NewItem extends ItemContext {
   readonly teamKeyVersion: number;
   readonly createdBy: string;
   readonly createdAt: number;
@@ -175,7 +175,3 @@ export function itemToJson(record: Item): JsonRecord {
     wrappedItemKey: writeWrapped(record.wrappedItemKey),
   };
 }
-
-export const checkPartCount = (count: number) => {
-  if (count < 1 || count > LIMITS.parts) throw malformed();
-};

@@ -17,7 +17,7 @@ export type AccountKeyWrapKey = {
   method: "pin" | "recovery" | "device";
   deviceId?: string;
 };
-export type MemberKeysWrapKey = { type: "member-keys-wrap"; accountId: string; teamId: string; memberKeysVersion: number; accountKeyVersion: number };
+type MemberKeysWrapKey = { type: "member-keys-wrap"; accountId: string; teamId: string; memberKeysVersion: number; accountKeyVersion: number };
 
 /** What `RecordStore.list` can be asked; results come in identity order (versions ascending). */
 export type RecordQuery =

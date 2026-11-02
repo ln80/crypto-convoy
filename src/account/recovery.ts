@@ -5,7 +5,6 @@ import { checkId } from "../encoding/json.js";
 import { verifiedChain } from "../team/load.js";
 import { callPort } from "../ports.js";
 import { openAccountKeyWrap, openRecoveryPublicKey } from "../records/account-key-wrap.js";
-import { parseMemberKeysWrap } from "../records/member-keys-wrap.js";
 import type { KeyPair } from "../suites/suite.js";
 import type { MemberBundle } from "../team/context.js";
 import type { AccountPorts, OpenAccount } from "./context.js";
