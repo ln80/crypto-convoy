@@ -66,7 +66,7 @@ The fold proposed for the floor is already in place: D-54 states "the current fl
 
 ## Edits ready now (no decision)
 
-A, B, C.
+A, B, C: done after this review.
 
 ## Stop rule
 

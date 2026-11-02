@@ -83,7 +83,7 @@ If both run in one context, `vault.openTeam(teamId)`. If the vault runs elsewher
 const receiver = await createTeamKeyReceiver(accountId, teamId);
 // …send receiver.request to the vault over your channel; the vault calls exportTeamKeys(teamId, request)…
 const team = await receiver.openTeam({ store, anchors }, transfer);
-// the invite link's anchor went to joinTeam(teamId, { anchor }): the transfer carries the floor set there, moved forward by the vault (D-52)
+// the invite link's anchor went to joinTeam(teamId, { anchor }): the transfer carries the floor set there, moved forward by the vault (§5.8, D-54)
 ```
 
 The transfer opens only for that receiver, once. Your bridge carries the two strings and decides which page may ask for which team; the library never sees your domain layout (D-29).

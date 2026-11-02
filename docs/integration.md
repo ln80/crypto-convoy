@@ -22,7 +22,7 @@ What an integration must do for the library's guarantees to hold, in one list; t
 | Ship the OPRF public keys in client code, never from an API response; replace a key in two releases; start POPRF key ids above old ones | AS-02, D-53, TH-51 |
 | Keep the vault and the credential prompts in the most isolated context you have | TH-20 |
 | In a split layout, carry transfer requests and transfers on a channel your server can't write, and decide which context may receive which team | D-29, TH-39, TH-49 |
-| Deliver invite anchors, and owners' repair anchors, outside your server; re-join an existing member only with an owner's anchor | TH-04, D-54, D-59 |
+| Deliver invite anchors, and owners' repair anchors, outside your server, or have the owner and the joiner compare the invite's anchor code before approving; re-join an existing member only with an owner's anchor | TH-04, D-54, D-59 |
 | Let members send share and inbox links themselves: a link your server sends gives it the key the link carries | SP-01 Limit, TH-21, TH-23 |
 | Run `reconcile` at every owner session with the accounts your product considers members | D-31, TH-14 |
 | Show `ownerChanges` and `memberChanges` in every context that opens a team, background ones included; keep a persistent anchor store per context to get reports from its second open on | D-44, D-57, TH-17 |

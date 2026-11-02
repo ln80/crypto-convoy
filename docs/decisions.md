@@ -645,7 +645,7 @@ Consequence: what reaches the floor was written by the vault (a floor) or by `ad
 
 ## D-52: The anchor floor is the root of trust
 
-Status: Accepted; the re-key's floor and its fallback amended by D-54, which adds the vault's anchor to the roots. The current rules are stated in D-54. Its `team-state` checks (`state_conflict`, `rollback` from a team state) are retired with the record by D-66. With a floor, a `team-state` under keys being replaced is absent (D-63).
+Status: Accepted; the re-key's floor and its fallback amended by D-54, which adds the vault's anchor to the roots. The current rules are stated in D-54. Its `team-state` checks (`state_conflict`, `rollback` from a team state) are retired with the record by D-66.
 
 Problem: every anchor was a root of trust of its own. A record at an anchor's version was accepted by its hash alone, and the floor, the one anchor the vault builds from a chain it verified, was dropped as soon as a higher anchor existed (D-50). A local anchor, which a script in the origin or someone with the device can write, or a `team-state`, which any holder of a `teamStateKey` can write, therefore chose the chain once it was above the floor. With the server, a forged team opened `ready`; its anchor spread through `team-state` to new devices, and the re-key in `secureAccount` made it the floor (review 006 B and C). D-51 had removed only the local anchor from the floor's sources.
 

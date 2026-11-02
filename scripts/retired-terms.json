@@ -359,6 +359,12 @@
           "D-66"
         ]
       }
+    },
+    {
+      "pattern": "planted newest bundle with none",
+      "decision": "D-66",
+      "use": "a bundle without a floor doesn't open and is absent (§4.3, D-58)",
+      "allow": {}
     }
   ]
 }
